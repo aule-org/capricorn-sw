@@ -1,20 +1,26 @@
 version: 2
 updates:
   - package-ecosystem: cargo
+    commit-message:
+      prefix: "chore(platform-deps)"
     directory: /apps/platform
     schedule:
       interval: weekly
     groups:
-      compatible:
+      platform-compatible:
         update-types: [minor, patch]
   - package-ecosystem: uv
+    commit-message:
+      prefix: "chore(agent-deps)"
     directory: /apps/agent
     schedule:
       interval: weekly
     groups:
-      compatible:
+      agent-compatible:
         update-types: [minor, patch]
   - package-ecosystem: npm
+    commit-message:
+      prefix: "chore(web-deps)"
     directory: /
     schedule:
       interval: weekly
@@ -24,24 +30,36 @@ updates:
       - dependency-name: '@types/node'
         update-types: [version-update:semver-major]
     groups:
-      compatible:
+      web-compatible:
         update-types: [minor, patch]
   - package-ecosystem: github-actions
+    commit-message:
+      prefix: "ci(actions)"
     directory: /
     schedule:
       interval: weekly
     groups:
-      actions:
+      github-actions:
         patterns: ['*']
   - package-ecosystem: docker
+    commit-message:
+      prefix: "build(images)"
     directories:
       - /apps/agent
       - /apps/platform
       - /apps/playground
       - /infra/runner
+    ignore:
+      # Keep runtime updates within the versions exercised by this repository.
+      - dependency-name: python
+        versions: [">=3.15"]
+      - dependency-name: node
+        update-types: [version-update:semver-major]
     schedule:
       interval: weekly
   - package-ecosystem: docker-compose
+    commit-message:
+      prefix: "build(compose)"
     directory: /
     schedule:
       interval: weekly
