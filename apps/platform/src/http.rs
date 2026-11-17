@@ -1,0 +1,201 @@
+//! The HTTP API: routes, and the handlers small enough to live next to them.
+
+use axum::extract::{Path, Query, State};
+use axum::http::StatusCode;
+use axum::routing::{delete, get, post, put};
+use axum::{Json, Router};
+use chrono::Utc;
+use serde::Deserialize;
+use serde_json::{Value, json};
+use uuid::Uuid;
+
+use crate::auth::{Input, Operator};
+use crate::error::{ApiError, ApiResult};
+use crate::families::{self, find_child};
+use crate::learning::{self, NewAttempt, Skill, is_slug};
+use crate::state::AppState;
+use crate::{memory, sessions};
+
+pub fn router(state: AppState) -> Router {
+    Router::new()
+        .route("/healthz", get(health))
+        // Operator API
+        .route("/v1/families", post(families::create_family))
+        .route("/v1/families/{family_id}/children", post(families::create_child))
+        .route(
+            "/v1/children/{child_id}",
+            get(families::get_child).put(families::update_child).delete(families::delete_child),
+        )
+        .route("/v1/children/{child_id}/consents", post(families::record_consent))
+        .route("/v1/children/{child_id}/skills", get(child_skills))
+        .route("/v1/children/{child_id}/attempts", post(record_attempts))
+        .route("/v1/children/{child_id}/corrections", post(record_correction))
+        .route("/v1/children/{child_id}/memories", get(child_memories))
+        .route("/v1/children/{child_id}/memories/{memory_id}", delete(forget_memory))
+        .route("/v1/children/{child_id}/reviews", get(child_reviews))
+        .route("/v1/skills", put(put_skills).get(get_skills))
+        .route("/v1/sessions", post(sessions::create_session))
+        .route("/v1/sessions/{session_id}/supervisor", get(sessions::supervisor_view))
+        // Agent API, one session per token
+        .route("/v1/agent/session", get(sessions::agent_start))
+        .route("/v1/agent/session/turns", post(sessions::agent_turns))
+        .route("/v1/agent/session/end", post(sessions::agent_end))
+        .with_state(state)
+}
+
+async fn health(State(state): State<AppState>) -> ApiResult<Json<Value>> {
+    sqlx::query("select 1").execute(&state.pool).await?;
+    Ok(Json(json!({
+        "ok": true,
+        "supervisor": state.llm.is_some(),
+        "embeddings": state.embedder.is_some(),
+        "livekit": state.config.livekit.is_some(),
+    })))
+}
+
+/// What the child knows now and what the learner model would work on next.
+async fn child_skills(
+    _: Operator,
+    State(state): State<AppState>,
+    Path(child_id): Path<Uuid>,
+) -> ApiResult<Json<Value>> {
+    let child = find_child(&state.pool, child_id).await?;
+    let now = Utc::now();
+    let trace = learning::trace_child(&state.pool, child_id, now).await?;
+    let catalog = learning::catalog(&state.pool).await?;
+    let next = learning::candidates(&trace.skills, &catalog, child.grade.as_deref(), now);
+    Ok(Json(json!({ "ability": trace.ability, "skills": trace.skills, "next": next })))
+}
+
+#[derive(Deserialize)]
+struct AttemptsInput {
+    attempts: Vec<NewAttempt>,
+    /// "guardian" for answers a guardian reports, "import" for past records.
+    source: String,
+}
+
+async fn record_attempts(
+    _: Operator,
+    State(state): State<AppState>,
+    Path(child_id): Path<Uuid>,
+    Input(body): Input<AttemptsInput>,
+) -> ApiResult<(StatusCode, Json<Value>)> {
+    if !["guardian", "import"].contains(&body.source.as_str()) {
+        return Err(ApiError::bad_request("source must be guardian or import"));
+    }
+    if body.attempts.is_empty() || body.attempts.len() > 500 {
+        return Err(ApiError::bad_request("send 1 to 500 attempts"));
+    }
+    find_child(&state.pool, child_id).await?;
+    let recorded =
+        learning::record(&state.pool, child_id, None, &body.source, &body.attempts, Utc::now()).await?;
+    Ok((StatusCode::CREATED, Json(json!({ "recorded": recorded }))))
+}
+
+#[derive(Deserialize)]
+struct CorrectionInput {
+    skill_id: String,
+    /// Chance, from 0 to 1, that the child gets an average question right.
+    level: f64,
+}
+
+/// A guardian or teacher overrides the model: "they already know this".
+async fn record_correction(
+    _: Operator,
+    State(state): State<AppState>,
+    Path(child_id): Path<Uuid>,
+    Input(body): Input<CorrectionInput>,
+) -> ApiResult<StatusCode> {
+    if !is_slug(&body.skill_id) || !(0.0..=1.0).contains(&body.level) {
+        return Err(ApiError::bad_request("skill_id must be a valid id and level a number from 0 to 1"));
+    }
+    find_child(&state.pool, child_id).await?;
+    sqlx::query("insert into corrections (id, child_id, skill_id, level, at) values ($1, $2, $3, $4, now())")
+        .bind(Uuid::now_v7())
+        .bind(child_id)
+        .bind(&body.skill_id)
+        .bind(body.level)
+        .execute(&state.pool)
+        .await?;
+    Ok(StatusCode::CREATED)
+}
+
+#[derive(Deserialize)]
+struct MemoryQuery {
+    #[serde(default)]
+    query: String,
+    #[serde(default)]
+    limit: Option<i64>,
+}
+
+/// What is remembered about the child: the closest to `query`, or the latest.
+async fn child_memories(
+    _: Operator,
+    State(state): State<AppState>,
+    Path(child_id): Path<Uuid>,
+    Query(params): Query<MemoryQuery>,
+) -> ApiResult<Json<Value>> {
+    find_child(&state.pool, child_id).await?;
+    let limit = params.limit.unwrap_or(20).clamp(1, 100);
+    let memories =
+        memory::recall(&state.pool, state.embedder.as_deref(), child_id, &params.query, limit).await?;
+    Ok(Json(json!({ "memories": memories })))
+}
+
+async fn forget_memory(
+    _: Operator,
+    State(state): State<AppState>,
+    Path((child_id, memory_id)): Path<(Uuid, Uuid)>,
+) -> ApiResult<StatusCode> {
+    if memory::forget(&state.pool, child_id, memory_id).await? {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(ApiError::NotFound("memory"))
+    }
+}
+
+#[derive(serde::Serialize, sqlx::FromRow)]
+struct ReviewRow {
+    session_id: Uuid,
+    #[sqlx(rename = "guardian_summary")]
+    summary: String,
+    next_step: Option<String>,
+    flags: Vec<String>,
+    created_at: chrono::DateTime<Utc>,
+}
+
+async fn child_reviews(
+    _: Operator,
+    State(state): State<AppState>,
+    Path(child_id): Path<Uuid>,
+) -> ApiResult<Json<Value>> {
+    find_child(&state.pool, child_id).await?;
+    let reviews: Vec<ReviewRow> = sqlx::query_as(
+        "select session_id, guardian_summary, next_step, flags, created_at from session_reviews
+         where child_id = $1 order by created_at desc limit 20",
+    )
+    .bind(child_id)
+    .fetch_all(&state.pool)
+    .await?;
+    Ok(Json(json!({ "reviews": reviews })))
+}
+
+#[derive(Deserialize)]
+struct SkillsInput {
+    skills: Vec<Skill>,
+}
+
+async fn put_skills(
+    _: Operator,
+    State(state): State<AppState>,
+    Input(body): Input<SkillsInput>,
+) -> ApiResult<Json<Value>> {
+    if body.skills.len() > 2000 {
+        return Err(ApiError::bad_request("at most 2000 skills per request"));
+    }
+    Ok(Json(json!({ "stored": learning::upsert_skills(&state.pool, &body.skills).await? })))
+}
+
+async fn get_skills(_: Operator, State(state): State<AppState>) -> ApiResult<Json<Value>> {
+    Ok(Json(json!({ "skills": learning::catalog(&state.pool).await? })))
+}

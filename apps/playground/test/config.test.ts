@@ -19,7 +19,7 @@ test("the browser URL can differ from the one the agent uses", () => {
   const settings = readSettings({
     ...COMPLETE,
     LIVEKIT_URL: "ws://127.0.0.1:7880",
-    PLAYGROUND_LIVEKIT_URL: "wss://public.example.org",
+    CAPRICORN_LIVEKIT_PUBLIC_URL: "wss://public.example.org",
   });
 
   assert.equal(settings.livekitUrl, "wss://public.example.org");
@@ -31,7 +31,7 @@ test("reports every problem at once", () => {
     (error: unknown) => {
       assert.ok(error instanceof ConfigError);
       for (const expected of [
-        "PLAYGROUND_LIVEKIT_URL",
+        "CAPRICORN_LIVEKIT_PUBLIC_URL",
         "LIVEKIT_API_KEY is not set",
         "LIVEKIT_API_SECRET is not set",
         "PLAYGROUND_ACCESS_CODE must have at least 16",

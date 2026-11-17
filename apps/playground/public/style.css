@@ -268,3 +268,35 @@ button.danger {
   border: 1px solid var(--danger);
   color: var(--danger);
 }
+
+.supervisor {
+  margin-top: 20px;
+  padding: 12px 16px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  font-size: 0.875rem;
+}
+
+.supervisor h2 {
+  margin: 0 0 6px;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.supervisor .plan {
+  margin: 0;
+  font-weight: 600;
+}
+
+.supervisor ul,
+.supervisor ol {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+}
+
+.supervisor ol li {
+  color: var(--accent);
+}

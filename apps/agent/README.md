@@ -11,6 +11,7 @@ Capricorn's voice tutor: a [LiveKit Agents](https://github.com/livekit/agents) w
 | `safety` | The two safety gates of [ARCHITECTURE.md](../../ARCHITECTURE.md) and who a session is for |
 | `camera` | The latest camera frame, held in memory and never stored |
 | `providers` | Builds the speech and language models from the settings |
+| `platform` | Gets the student's profile and the supervisor's plan, reports turns in the background, applies guidance |
 | `config` | Reads and checks the environment |
 | `events` | Wraps what the agent reports in the shared [contracts](../../contracts/README.md) |
 
@@ -36,6 +37,7 @@ Environment variables; `.env.example` at the repository root lists them all.
 | `CAPRICORN_LANGUAGE` | `es` (default) or `en`; a session can ask for the other |
 | `CAPRICORN_SESSION_MAX_MINUTES` | Default 15 |
 | `CAPRICORN_AGENT_NAME` | Default `capricorn-tutor` |
+| `CAPRICORN_PLATFORM_URL` | Optional. Where the [platform](../platform/README.md) is; without it the tutor has no memory of the student |
 
 The worker refuses to start if a setting is missing and says which. Before using a provider with children, check that its terms allow minors' data with zero retention.
 
