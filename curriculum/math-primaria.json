@@ -1,0 +1,1995 @@
+{
+  "skills": [
+    {
+      "id": "numeros.contar-hasta-10",
+      "subject": "math",
+      "name": "Contar hasta 10",
+      "grade": "P1",
+      "description": "Cuenta en voz alta del 1 al 10 y dice cuántos objetos hay en una colección pequeña. Ejemplo: «Tengo una manzana, otra manzana y otra manzana más. ¿Cuántas manzanas tengo?» (3). También: «Cuenta conmigo desde el 4 hasta el 10».",
+      "prerequisites": []
+    },
+    {
+      "id": "numeros.contar-hasta-20",
+      "subject": "math",
+      "name": "Contar hasta 20",
+      "grade": "P1",
+      "description": "Cuenta hacia adelante y hacia atrás hasta 20, empezando desde cualquier número. Ejemplo: «Cuenta desde el 8 hasta el 15» o «Cuenta hacia atrás desde el 12 hasta el 7».",
+      "prerequisites": [
+        "numeros.contar-hasta-10"
+      ]
+    },
+    {
+      "id": "numeros.anterior-y-posterior-hasta-20",
+      "subject": "math",
+      "name": "Decir el número anterior y el posterior hasta 20",
+      "grade": "P1",
+      "description": "Dice qué número va justo antes, justo después o entre otros dos, hasta 20. Ejemplo: «¿Qué número va justo antes del 14?» (13). «¿Qué número está entre el 17 y el 19?» (18).",
+      "prerequisites": [
+        "numeros.contar-hasta-20"
+      ]
+    },
+    {
+      "id": "numeros.comparar-hasta-20",
+      "subject": "math",
+      "name": "Comparar números hasta 20",
+      "grade": "P1",
+      "description": "Dice cuál de dos números o cantidades es mayor, menor o si son iguales, y ordena tres números hasta 20. Ejemplo: «Ana tiene 12 chapitas y Luis tiene 9. ¿Quién tiene más?» (Ana). «Ordena de menor a mayor: 15, 8, 11» (8, 11, 15).",
+      "prerequisites": [
+        "numeros.contar-hasta-20"
+      ]
+    },
+    {
+      "id": "numeros.ordinales-hasta-decimo",
+      "subject": "math",
+      "name": "Usar los ordinales del primero al décimo",
+      "grade": "P1",
+      "description": "Usa primero, segundo, tercero… hasta décimo para decir el lugar que ocupa alguien o algo en una fila. Ejemplo: «En la fila están Rosa, Pedro, Carla y Miguel, en ese orden. ¿Quién está en el tercer lugar?» (Carla).",
+      "prerequisites": [
+        "numeros.contar-hasta-10"
+      ]
+    },
+    {
+      "id": "numeros.decena-y-unidades-hasta-20",
+      "subject": "math",
+      "name": "Reconocer la decena como grupo de diez",
+      "grade": "P1",
+      "description": "Entiende que diez unidades forman una decena y descompone los números del 11 al 20 en una decena y unidades sueltas. Ejemplo: «Tengo un paquete de 10 galletas y 4 galletas sueltas. ¿Cuántas galletas tengo?» (14). «¿Cuántas decenas y cuántas unidades tiene el 17?» (1 decena y 7 unidades).",
+      "prerequisites": [
+        "numeros.contar-hasta-20"
+      ]
+    },
+    {
+      "id": "numeros.contar-hasta-100",
+      "subject": "math",
+      "name": "Contar hasta 100",
+      "grade": "P1",
+      "description": "Cuenta de uno en uno y de diez en diez hasta 100, y dice el número que sigue a cualquier número de dos cifras. Ejemplo: «Cuenta de diez en diez desde el 10 hasta el 100». «¿Qué número viene después del 39?» (40).",
+      "prerequisites": [
+        "numeros.decena-y-unidades-hasta-20"
+      ]
+    },
+    {
+      "id": "suma-resta.sumar-hasta-10",
+      "subject": "math",
+      "name": "Sumar con resultados hasta 10",
+      "grade": "P1",
+      "description": "Junta dos cantidades pequeñas y dice el total, con resultados hasta 10. Ejemplo: «Tienes 4 canicas y te regalan 3. ¿Cuántas canicas tienes ahora?» (7). «¿Cuánto es 5 más 2?» (7).",
+      "prerequisites": [
+        "numeros.contar-hasta-10"
+      ]
+    },
+    {
+      "id": "suma-resta.restar-hasta-10",
+      "subject": "math",
+      "name": "Restar con números hasta 10",
+      "grade": "P1",
+      "description": "Quita una cantidad de otra y dice cuánto queda, con números hasta 10. Ejemplo: «Había 8 pajaritos en un árbol y se fueron volando 3. ¿Cuántos quedan?» (5). «¿Cuánto es 9 menos 4?» (5).",
+      "prerequisites": [
+        "numeros.contar-hasta-10"
+      ]
+    },
+    {
+      "id": "suma-resta.parejas-que-suman-10",
+      "subject": "math",
+      "name": "Encontrar las parejas de números que suman 10",
+      "grade": "P1",
+      "description": "Sabe de memoria qué número le falta a otro para llegar a 10. Ejemplo: «Tengo 6 dedos levantados. ¿Cuántos me faltan levantar para llegar a 10?» (4). «¿Qué número junto con el 7 forma 10?» (3).",
+      "prerequisites": [
+        "suma-resta.sumar-hasta-10"
+      ]
+    },
+    {
+      "id": "suma-resta.sumar-hasta-20",
+      "subject": "math",
+      "name": "Sumar con resultados hasta 20",
+      "grade": "P1",
+      "description": "Suma dos números con resultado hasta 20, pasando por la decena cuando hace falta. Ejemplo: «¿Cuánto es 8 más 5?» (13; puede pensar 8 más 2 son 10, y 3 más son 13). «¿Cuánto es 12 más 6?» (18).",
+      "prerequisites": [
+        "suma-resta.sumar-hasta-10",
+        "numeros.decena-y-unidades-hasta-20"
+      ]
+    },
+    {
+      "id": "suma-resta.restar-hasta-20",
+      "subject": "math",
+      "name": "Restar con números hasta 20",
+      "grade": "P1",
+      "description": "Resta dos números hasta 20 y explica cómo lo pensó. Ejemplo: «¿Cuánto es 15 menos 7?» (8). «¿Cuánto es 18 menos 5?» (13).",
+      "prerequisites": [
+        "suma-resta.restar-hasta-10",
+        "numeros.decena-y-unidades-hasta-20"
+      ]
+    },
+    {
+      "id": "suma-resta.problemas-juntar-y-quitar-hasta-20",
+      "subject": "math",
+      "name": "Resolver problemas de juntar, agregar y quitar hasta 20",
+      "grade": "P1",
+      "description": "Escucha una situación cotidiana, decide si debe sumar o restar y la resuelve con números hasta 20. Ejemplo: «En la lonchera hay 6 galletas de vainilla y 7 de chocolate. ¿Cuántas galletas hay en total?» (13). «Tenías 14 figuritas y regalaste 5. ¿Cuántas te quedan?» (9).",
+      "prerequisites": [
+        "suma-resta.sumar-hasta-20",
+        "suma-resta.restar-hasta-20"
+      ]
+    },
+    {
+      "id": "dinero.monedas-hasta-10-soles",
+      "subject": "math",
+      "name": "Contar monedas de 1, 2 y 5 soles hasta 10 soles",
+      "grade": "P1",
+      "description": "Reconoce las monedas de 1, 2 y 5 soles y dice cuánto dinero hay al juntarlas, hasta 10 soles. Ejemplo: «Tengo una moneda de 5 soles y dos monedas de 2 soles. ¿Cuánto dinero tengo?» (9 soles).",
+      "prerequisites": [
+        "suma-resta.sumar-hasta-10"
+      ]
+    },
+    {
+      "id": "tiempo.dias-de-la-semana",
+      "subject": "math",
+      "name": "Decir los días de la semana y usar ayer, hoy y mañana",
+      "grade": "P1",
+      "description": "Dice los días de la semana en orden y usa ayer, hoy y mañana para ubicarse en el tiempo. Ejemplo: «Si hoy es martes, ¿qué día fue ayer?» (lunes). «¿Qué día viene después del viernes?» (sábado).",
+      "prerequisites": []
+    },
+    {
+      "id": "masa.comparar-pesos",
+      "subject": "math",
+      "name": "Comparar qué pesa más y qué pesa menos",
+      "grade": "P1",
+      "description": "Compara el peso de objetos conocidos usando «pesa más», «pesa menos» o «pesan igual», y explica cómo podría comprobarlo. Ejemplo: «¿Qué pesa más, tu mochila llena de cuadernos o un lápiz?» (la mochila).",
+      "prerequisites": []
+    },
+    {
+      "id": "patrones.repeticion-simple",
+      "subject": "math",
+      "name": "Continuar patrones de repetición sencillos",
+      "grade": "P1",
+      "description": "Descubre qué se repite en una secuencia de colores, sonidos o movimientos y dice lo que sigue. Ejemplo: «Rojo, azul, rojo, azul, rojo… ¿qué color sigue?» (azul). «Palmada, palmada, salto, palmada, palmada… ¿qué sigue?» (salto).",
+      "prerequisites": []
+    },
+    {
+      "id": "patrones.aditivos-de-1-y-2",
+      "subject": "math",
+      "name": "Continuar secuencias que aumentan de 1 en 1 o de 2 en 2",
+      "grade": "P1",
+      "description": "Continúa una secuencia de números hasta 20 que aumenta de 1 en 1 o de 2 en 2, y dice de cuánto en cuánto va. Ejemplo: «2, 4, 6, 8… ¿qué número sigue?» (10). «¿De cuánto en cuánto aumenta?» (de 2 en 2).",
+      "prerequisites": [
+        "numeros.contar-hasta-20"
+      ]
+    },
+    {
+      "id": "igualdades.equilibrio-hasta-10",
+      "subject": "math",
+      "name": "Encontrar lo que falta para que dos cantidades sean iguales (hasta 10)",
+      "grade": "P1",
+      "description": "Dice cuánto hay que agregar o quitar para que dos cantidades queden iguales, con números hasta 10. Ejemplo: «En un plato hay 3 fresas y en el otro 5. ¿Cuántas fresas pongo en el primer plato para que tengan igual?» (2).",
+      "prerequisites": [
+        "suma-resta.sumar-hasta-10"
+      ]
+    },
+    {
+      "id": "geometria.formas-en-objetos",
+      "subject": "math",
+      "name": "Reconocer formas en objetos del entorno",
+      "grade": "P1",
+      "description": "Nombra la forma de objetos cotidianos: círculo, cuadrado, triángulo y rectángulo; y distingue los que tienen forma de caja o de pelota. Ejemplo: «¿Qué forma tiene la tapa de una olla?» (círculo). «Dime un objeto de tu casa que tenga forma de rectángulo» (la puerta, un cuaderno).",
+      "prerequisites": []
+    },
+    {
+      "id": "geometria.lados-y-esquinas",
+      "subject": "math",
+      "name": "Contar lados y esquinas de figuras sencillas",
+      "grade": "P1",
+      "description": "Dice cuántos lados y cuántas esquinas tienen el triángulo, el cuadrado y el rectángulo, y reconoce que el círculo no tiene esquinas. Ejemplo: «¿Cuántos lados tiene un triángulo?» (3). «¿Qué figura tiene cuatro lados iguales?» (el cuadrado).",
+      "prerequisites": [
+        "geometria.formas-en-objetos"
+      ]
+    },
+    {
+      "id": "ubicacion.arriba-abajo-delante-detras",
+      "subject": "math",
+      "name": "Describir dónde está algo: arriba, abajo, delante, detrás, dentro, fuera",
+      "grade": "P1",
+      "description": "Usa arriba, abajo, encima, debajo, delante, detrás, dentro, fuera, cerca y lejos para decir dónde está un objeto o una persona. Ejemplo: «El gato está debajo de la mesa y la pelota encima de la silla. ¿Qué está más arriba, el gato o la pelota?» (la pelota).",
+      "prerequisites": []
+    },
+    {
+      "id": "ubicacion.izquierda-y-derecha",
+      "subject": "math",
+      "name": "Distinguir izquierda y derecha",
+      "grade": "P1",
+      "description": "Reconoce su mano izquierda y su mano derecha y dice qué hay a cada lado suyo. Ejemplo: «Levanta la mano con la que escribes. ¿Es la derecha o la izquierda?». «¿Qué hay a tu izquierda ahora mismo?».",
+      "prerequisites": []
+    },
+    {
+      "id": "longitud.comparar-largos",
+      "subject": "math",
+      "name": "Comparar largos y alturas",
+      "grade": "P1",
+      "description": "Compara objetos usando más largo, más corto, más alto, más bajo o igual de largo, y ordena tres objetos por su tamaño. Ejemplo: «¿Qué es más largo, un lápiz o una escoba?» (la escoba). «Carla es más alta que Beto y Beto es más alto que Dani. ¿Quién es el más bajo?» (Dani).",
+      "prerequisites": []
+    },
+    {
+      "id": "longitud.medir-con-pasos-y-cuartas",
+      "subject": "math",
+      "name": "Medir con pasos, cuartas y otros objetos",
+      "grade": "P1",
+      "description": "Mide un largo contando cuántas veces cabe una unidad no convencional (cuartas, pasos, lápices) y dice el resultado. Ejemplo: «Mide con tu cuarta el ancho de tu mesa. ¿Cuántas cuartas mide?». «Una mesa mide 6 lápices y otra 4 lápices. ¿Cuál es más larga?» (la de 6).",
+      "prerequisites": [
+        "longitud.comparar-largos",
+        "numeros.contar-hasta-20"
+      ]
+    },
+    {
+      "id": "datos.contar-y-clasificar",
+      "subject": "math",
+      "name": "Clasificar objetos y contar cuántos hay de cada tipo",
+      "grade": "P1",
+      "description": "Agrupa objetos según una característica (color, tipo, tamaño) y cuenta cuántos hay en cada grupo. Ejemplo: «En la canasta hay plátano, manzana, plátano, naranja, plátano, manzana. ¿Cuántos plátanos hay?» (3). «¿De qué fruta hay menos?» (naranja).",
+      "prerequisites": [
+        "numeros.contar-hasta-10"
+      ]
+    },
+    {
+      "id": "datos.leer-tabla-de-conteo",
+      "subject": "math",
+      "name": "Leer una tabla de conteo sencilla",
+      "grade": "P1",
+      "description": "Escucha o mira una tabla de conteo con dos o tres categorías y responde cuál tiene más, cuál tiene menos y cuántos hay. Ejemplo: «En el salón, 8 niños prefieren fútbol, 5 vóley y 3 básquet. ¿Qué deporte prefieren más niños?» (fútbol). «¿Cuántos prefieren vóley?» (5).",
+      "prerequisites": [
+        "datos.contar-y-clasificar",
+        "numeros.comparar-hasta-20"
+      ]
+    },
+    {
+      "id": "azar.siempre-a-veces-nunca",
+      "subject": "math",
+      "name": "Decir si algo ocurre siempre, a veces o nunca",
+      "grade": "P1",
+      "description": "Usa siempre, a veces y nunca para describir si un suceso cotidiano ocurre. Ejemplo: «Después de la noche sale el sol: ¿siempre, a veces o nunca?» (siempre). «En Lima llueve muy fuerte: ¿siempre, a veces o nunca?» (a veces o casi nunca, con su explicación).",
+      "prerequisites": []
+    },
+    {
+      "id": "numeros.decenas-y-unidades-hasta-100",
+      "subject": "math",
+      "name": "Descomponer números de dos cifras en decenas y unidades",
+      "grade": "P2",
+      "description": "Dice cuántas decenas y cuántas unidades tiene un número hasta 99 y lo arma a partir de ellas. Ejemplo: «¿Cuántas decenas y unidades tiene el 47?» (4 decenas y 7 unidades). «¿Qué número se forma con 6 decenas y 3 unidades?» (63).",
+      "prerequisites": [
+        "numeros.contar-hasta-100"
+      ]
+    },
+    {
+      "id": "numeros.comparar-y-ordenar-hasta-100",
+      "subject": "math",
+      "name": "Comparar y ordenar números hasta 100",
+      "grade": "P2",
+      "description": "Compara dos números de dos cifras fijándose primero en las decenas y ordena varios números. Ejemplo: «¿Cuál es mayor, 58 o 85?» (85). «Ordena de mayor a menor: 34, 71, 43» (71, 43, 34).",
+      "prerequisites": [
+        "numeros.decenas-y-unidades-hasta-100",
+        "numeros.comparar-hasta-20"
+      ]
+    },
+    {
+      "id": "numeros.ordinales-hasta-vigesimo",
+      "subject": "math",
+      "name": "Usar los ordinales hasta el vigésimo",
+      "grade": "P2",
+      "description": "Usa los números ordinales del undécimo al vigésimo para indicar posiciones. Ejemplo: «En la carrera, Lucía llegó justo después del décimo puesto. ¿En qué puesto llegó?» (undécimo). «¿Cómo se dice el puesto número 15?» (decimoquinto).",
+      "prerequisites": [
+        "numeros.ordinales-hasta-decimo"
+      ]
+    },
+    {
+      "id": "numeros.dobles-y-mitades",
+      "subject": "math",
+      "name": "Calcular dobles y mitades",
+      "grade": "P2",
+      "description": "Dice el doble de un número hasta 20 y la mitad de un número par hasta 40. Ejemplo: «¿Cuál es el doble de 7?» (14). «Tienes 12 caramelos y le das la mitad a tu hermano. ¿Cuántos le das?» (6).",
+      "prerequisites": [
+        "suma-resta.sumar-hasta-20"
+      ]
+    },
+    {
+      "id": "suma-resta.sumar-decenas-completas",
+      "subject": "math",
+      "name": "Sumar y restar decenas completas",
+      "grade": "P2",
+      "description": "Suma y resta decenas completas y suma una decena completa a cualquier número de dos cifras. Ejemplo: «¿Cuánto es 30 más 40?» (70). «¿Cuánto es 25 más 10?» (35). «¿Cuánto es 80 menos 30?» (50).",
+      "prerequisites": [
+        "numeros.decenas-y-unidades-hasta-100",
+        "suma-resta.sumar-hasta-10"
+      ]
+    },
+    {
+      "id": "suma-resta.sumar-dos-cifras-sin-canje",
+      "subject": "math",
+      "name": "Sumar números de dos cifras sin canje",
+      "grade": "P2",
+      "description": "Suma dos números de dos cifras cuando las unidades no pasan de 9, sumando decenas con decenas y unidades con unidades. Ejemplo: «¿Cuánto es 32 más 25?» (57). «¿Cuánto es 41 más 18?» (59).",
+      "prerequisites": [
+        "suma-resta.sumar-decenas-completas",
+        "suma-resta.sumar-hasta-20"
+      ]
+    },
+    {
+      "id": "suma-resta.sumar-dos-cifras-con-canje",
+      "subject": "math",
+      "name": "Sumar números de dos cifras con canje",
+      "grade": "P2",
+      "description": "Suma dos números de dos cifras cuando las unidades forman una nueva decena, con resultados hasta 100. Ejemplo: «¿Cuánto es 47 más 26?» (73). «¿Cuánto es 38 más 15?» (53). Puede explicar el canje: 7 más 6 son 13, una decena y 3 unidades.",
+      "prerequisites": [
+        "suma-resta.sumar-dos-cifras-sin-canje"
+      ]
+    },
+    {
+      "id": "suma-resta.restar-dos-cifras-sin-canje",
+      "subject": "math",
+      "name": "Restar números de dos cifras sin canje",
+      "grade": "P2",
+      "description": "Resta dos números de dos cifras cuando no hace falta desarmar una decena. Ejemplo: «¿Cuánto es 68 menos 23?» (45). «¿Cuánto es 59 menos 14?» (45).",
+      "prerequisites": [
+        "numeros.decenas-y-unidades-hasta-100",
+        "suma-resta.restar-hasta-20"
+      ]
+    },
+    {
+      "id": "suma-resta.restar-dos-cifras-con-canje",
+      "subject": "math",
+      "name": "Restar números de dos cifras con canje",
+      "grade": "P2",
+      "description": "Resta dos números de dos cifras cuando hay que canjear una decena por diez unidades. Ejemplo: «¿Cuánto es 52 menos 27?» (25). «¿Cuánto es 70 menos 36?» (34).",
+      "prerequisites": [
+        "suma-resta.restar-dos-cifras-sin-canje"
+      ]
+    },
+    {
+      "id": "suma-resta.problemas-de-cambio-hasta-100",
+      "subject": "math",
+      "name": "Resolver problemas de aumentar y disminuir hasta 100",
+      "grade": "P2",
+      "description": "Resuelve problemas en los que una cantidad aumenta o disminuye, incluso cuando se pregunta por la cantidad inicial o por el cambio. Ejemplo: «Tenías 35 soles y gastaste algunos. Ahora tienes 20. ¿Cuánto gastaste?» (15). «En el bus iban 28 personas y subieron 11. ¿Cuántas van ahora?» (39).",
+      "prerequisites": [
+        "suma-resta.sumar-dos-cifras-sin-canje",
+        "suma-resta.restar-dos-cifras-sin-canje",
+        "suma-resta.problemas-juntar-y-quitar-hasta-20"
+      ]
+    },
+    {
+      "id": "suma-resta.problemas-de-comparar-e-igualar",
+      "subject": "math",
+      "name": "Resolver problemas de comparar e igualar cantidades",
+      "grade": "P2",
+      "description": "Resuelve problemas de «cuántos más», «cuántos menos» y «cuántos faltan para tener igual». Ejemplo: «María tiene 45 figuritas y José tiene 32. ¿Cuántas figuritas más tiene María?» (13). «¿Cuántas le faltan a José para tener las mismas que María?» (13).",
+      "prerequisites": [
+        "suma-resta.sumar-dos-cifras-sin-canje",
+        "suma-resta.restar-dos-cifras-sin-canje"
+      ]
+    },
+    {
+      "id": "multiplicacion.sumas-repetidas",
+      "subject": "math",
+      "name": "Entender la multiplicación como suma repetida",
+      "grade": "P2",
+      "description": "Reconoce grupos iguales y dice el total sumando varias veces la misma cantidad, usando la palabra «veces». Ejemplo: «Hay 4 platos y en cada plato hay 2 panes. ¿Cuántos panes hay en total?» (8). «¿Cuánto es 3 veces 5?» (15).",
+      "prerequisites": [
+        "suma-resta.sumar-hasta-20",
+        "patrones.aditivos-de-1-y-2"
+      ]
+    },
+    {
+      "id": "dinero.monedas-y-billetes-hasta-100",
+      "subject": "math",
+      "name": "Contar dinero con monedas y billetes hasta 100 soles",
+      "grade": "P2",
+      "description": "Dice cuánto dinero hay al juntar monedas y billetes de 10, 20 y 50 soles, y propone una forma de pagar una cantidad. Ejemplo: «Tengo un billete de 20 soles, uno de 10 y una moneda de 5. ¿Cuánto tengo?» (35 soles). «¿Con qué billetes y monedas puedes pagar 70 soles?».",
+      "prerequisites": [
+        "dinero.monedas-hasta-10-soles",
+        "suma-resta.sumar-decenas-completas"
+      ]
+    },
+    {
+      "id": "dinero.dar-vuelto-hasta-20",
+      "subject": "math",
+      "name": "Calcular el vuelto en compras hasta 20 soles",
+      "grade": "P2",
+      "description": "Calcula cuánto vuelto recibe al pagar una compra pequeña con una moneda o un billete. Ejemplo: «Compras un jugo de 6 soles y pagas con un billete de 10 soles. ¿Cuánto te dan de vuelto?» (4 soles). «Pagas 13 soles con un billete de 20. ¿Cuál es tu vuelto?» (7 soles).",
+      "prerequisites": [
+        "dinero.monedas-hasta-10-soles",
+        "suma-resta.restar-hasta-20"
+      ]
+    },
+    {
+      "id": "tiempo.meses-y-calendario",
+      "subject": "math",
+      "name": "Usar los meses del año y el calendario",
+      "grade": "P2",
+      "description": "Dice los meses en orden, sabe que la semana tiene 7 días y resuelve preguntas sencillas con el calendario. Ejemplo: «¿Qué mes viene después de julio?» (agosto). «Si hoy es lunes 3, ¿qué fecha será el próximo lunes?» (10).",
+      "prerequisites": [
+        "tiempo.dias-de-la-semana",
+        "suma-resta.sumar-hasta-20"
+      ]
+    },
+    {
+      "id": "tiempo.leer-horas-en-punto-y-media",
+      "subject": "math",
+      "name": "Leer la hora en punto y la media hora",
+      "grade": "P2",
+      "description": "Dice la hora en punto y «y media» a partir de la posición de las agujas, y ordena actividades del día por su hora. Ejemplo: «La aguja corta está en el 3 y la larga en el 12. ¿Qué hora es?» (las 3 en punto). «Son las 7 y media. ¿En qué número está la aguja larga?» (en el 6).",
+      "prerequisites": [
+        "numeros.contar-hasta-20"
+      ]
+    },
+    {
+      "id": "patrones.aditivos-de-5-y-10",
+      "subject": "math",
+      "name": "Continuar secuencias que aumentan de 5 en 5 y de 10 en 10",
+      "grade": "P2",
+      "description": "Continúa y completa secuencias hasta 100 que avanzan de 5 en 5 o de 10 en 10, y dice la regla. Ejemplo: «5, 10, 15, 20… ¿qué números siguen?» (25, 30). «13, 23, 33, ¿cuál sigue?» (43).",
+      "prerequisites": [
+        "patrones.aditivos-de-1-y-2",
+        "numeros.contar-hasta-100"
+      ]
+    },
+    {
+      "id": "patrones.decrecientes",
+      "subject": "math",
+      "name": "Continuar secuencias que disminuyen",
+      "grade": "P2",
+      "description": "Continúa secuencias de números que van disminuyendo de 1 en 1, de 2 en 2 o de 10 en 10, y dice la regla. Ejemplo: «20, 18, 16, 14… ¿qué número sigue?» (12). «90, 80, 70, ¿cuál sigue?» (60).",
+      "prerequisites": [
+        "patrones.aditivos-de-1-y-2",
+        "suma-resta.restar-hasta-20"
+      ]
+    },
+    {
+      "id": "patrones.repeticion-con-dos-criterios",
+      "subject": "math",
+      "name": "Continuar patrones de repetición más largos",
+      "grade": "P2",
+      "description": "Descubre el núcleo que se repite en un patrón de tres o cuatro elementos, o con dos características a la vez, y dice lo que sigue. Ejemplo: «Círculo rojo, cuadrado azul, cuadrado azul, círculo rojo, cuadrado azul, cuadrado azul… ¿qué sigue?» (círculo rojo).",
+      "prerequisites": [
+        "patrones.repeticion-simple"
+      ]
+    },
+    {
+      "id": "igualdades.numero-que-falta-hasta-20",
+      "subject": "math",
+      "name": "Encontrar el número que falta en una suma o resta hasta 20",
+      "grade": "P2",
+      "description": "Encuentra el número desconocido en una igualdad sencilla y explica que ambos lados valen lo mismo. Ejemplo: «8 más cierto número es igual a 15. ¿Cuál es el número?» (7). «¿Es verdad que 9 más 3 es igual a 10 más 2?» (sí, los dos son 12).",
+      "prerequisites": [
+        "igualdades.equilibrio-hasta-10",
+        "suma-resta.sumar-hasta-20",
+        "suma-resta.restar-hasta-20"
+      ]
+    },
+    {
+      "id": "geometria.figuras-planas-lados-y-vertices",
+      "subject": "math",
+      "name": "Describir figuras planas por sus lados y vértices",
+      "grade": "P2",
+      "description": "Describe y reconoce triángulos, cuadrados, rectángulos y círculos por su número de lados y vértices, y por si sus lados son rectos o curvos. Ejemplo: «Adivina la figura: tiene 4 lados, dos largos y dos cortos, y 4 vértices» (rectángulo).",
+      "prerequisites": [
+        "geometria.lados-y-esquinas"
+      ]
+    },
+    {
+      "id": "geometria.cuerpos-geometricos-basicos",
+      "subject": "math",
+      "name": "Reconocer el cubo, la esfera, el cilindro y el cono",
+      "grade": "P2",
+      "description": "Relaciona objetos con el cubo, la esfera, el cilindro, el cono y el prisma (caja), y dice si ruedan y si tienen caras planas o curvas. Ejemplo: «¿Qué forma tiene una lata de leche?» (cilindro). «¿Un dado rueda como una pelota? ¿Por qué?» (no, todas sus caras son planas).",
+      "prerequisites": [
+        "geometria.formas-en-objetos"
+      ]
+    },
+    {
+      "id": "ubicacion.seguir-recorridos",
+      "subject": "math",
+      "name": "Seguir y dar indicaciones para un recorrido",
+      "grade": "P2",
+      "description": "Sigue y da instrucciones de desplazamiento usando pasos, derecha, izquierda, adelante y atrás. Ejemplo: «Sales de la puerta, caminas 3 pasos adelante, giras a la derecha y caminas 2 pasos más. ¿Cuántos pasos diste en total?» (5). «Explícame cómo llegar de tu cuarto a la cocina».",
+      "prerequisites": [
+        "ubicacion.izquierda-y-derecha",
+        "ubicacion.arriba-abajo-delante-detras",
+        "numeros.contar-hasta-10"
+      ]
+    },
+    {
+      "id": "longitud.metro-y-centimetro",
+      "subject": "math",
+      "name": "Medir y estimar en metros y centímetros",
+      "grade": "P2",
+      "description": "Elige entre metro y centímetro para medir un objeto, estima largos y compara medidas dadas en la misma unidad. Ejemplo: «¿Mides el largo de tu lápiz en metros o en centímetros?» (centímetros). «Una cinta mide 35 centímetros y otra 53. ¿Cuál es más larga?» (la de 53).",
+      "prerequisites": [
+        "longitud.medir-con-pasos-y-cuartas",
+        "numeros.comparar-y-ordenar-hasta-100"
+      ]
+    },
+    {
+      "id": "capacidad.comparar-recipientes",
+      "subject": "math",
+      "name": "Comparar cuánto cabe en distintos recipientes",
+      "grade": "P2",
+      "description": "Compara la capacidad de recipientes usando «cabe más», «cabe menos» y unidades no convencionales como vasos o tazas. Ejemplo: «¿Dónde cabe más agua, en un balde o en una taza?» (en el balde). «Una jarra se llena con 6 vasos y una botella con 4. ¿A cuál le cabe más?» (a la jarra).",
+      "prerequisites": []
+    },
+    {
+      "id": "datos.leer-pictograma",
+      "subject": "math",
+      "name": "Leer un pictograma sencillo",
+      "grade": "P2",
+      "description": "Interpreta un pictograma en el que cada dibujo vale uno y responde preguntas de cuántos, cuál tiene más y cuántos más. Ejemplo: «En el pictograma, perros tiene 6 caritas, gatos 4 y loros 2. ¿Cuántos niños más tienen perro que gato?» (2). «¿Cuántos niños respondieron en total?» (12).",
+      "prerequisites": [
+        "datos.leer-tabla-de-conteo",
+        "suma-resta.sumar-hasta-20"
+      ]
+    },
+    {
+      "id": "datos.leer-grafico-de-barras-simple",
+      "subject": "math",
+      "name": "Leer un gráfico de barras sencillo",
+      "grade": "P2",
+      "description": "Interpreta un gráfico de barras descrito en voz alta o mostrado en su cuaderno: lee el valor de cada barra, cuál es la más alta y la diferencia entre dos barras. Ejemplo: «La barra de lunes llega a 15, la de martes a 20 y la de miércoles a 10. ¿Qué día se vendió más?» (martes). «¿Cuánto más que el miércoles?» (10).",
+      "prerequisites": [
+        "datos.leer-tabla-de-conteo",
+        "numeros.comparar-y-ordenar-hasta-100"
+      ]
+    },
+    {
+      "id": "azar.posible-e-imposible",
+      "subject": "math",
+      "name": "Decir si un suceso es posible o imposible",
+      "grade": "P2",
+      "description": "Usa posible e imposible para describir sucesos y explica por qué. Ejemplo: «En una bolsa solo hay bolitas rojas. ¿Es posible o imposible sacar una bolita azul?» (imposible). «¿Es posible que mañana haga frío?» (posible).",
+      "prerequisites": [
+        "azar.siempre-a-veces-nunca"
+      ]
+    },
+    {
+      "id": "numeros.centenas-hasta-1000",
+      "subject": "math",
+      "name": "Descomponer números de tres cifras en centenas, decenas y unidades",
+      "grade": "P3",
+      "description": "Lee, escribe y descompone números hasta 999 según el valor de cada cifra. Ejemplo: «¿Cuántas centenas, decenas y unidades tiene el 358?» (3, 5 y 8). «¿Cuánto vale la cifra 4 en el número 472?» (400).",
+      "prerequisites": [
+        "numeros.decenas-y-unidades-hasta-100"
+      ]
+    },
+    {
+      "id": "numeros.comparar-y-ordenar-hasta-1000",
+      "subject": "math",
+      "name": "Comparar y ordenar números hasta 1000",
+      "grade": "P3",
+      "description": "Compara números de tres cifras empezando por las centenas y ordena varios números. Ejemplo: «¿Cuál es mayor, 609 o 690?» (690). «Ordena de menor a mayor: 520, 502, 250» (250, 502, 520).",
+      "prerequisites": [
+        "numeros.centenas-hasta-1000",
+        "numeros.comparar-y-ordenar-hasta-100"
+      ]
+    },
+    {
+      "id": "numeros.redondear-a-decena-y-centena",
+      "subject": "math",
+      "name": "Redondear a la decena y a la centena más cercana",
+      "grade": "P3",
+      "description": "Redondea números hasta 1000 a la decena o centena más cercana para estimar. Ejemplo: «¿A qué decena está más cerca el 68?» (70). «Redondea 432 a la centena más cercana» (400).",
+      "prerequisites": [
+        "numeros.centenas-hasta-1000"
+      ]
+    },
+    {
+      "id": "numeros.pares-e-impares",
+      "subject": "math",
+      "name": "Reconocer números pares e impares",
+      "grade": "P3",
+      "description": "Dice si un número es par o impar fijándose en su última cifra y lo explica con la idea de formar parejas. Ejemplo: «¿El 37 es par o impar?» (impar). «Dime tres números pares mayores que 50».",
+      "prerequisites": [
+        "numeros.dobles-y-mitades"
+      ]
+    },
+    {
+      "id": "suma-resta.sumar-tres-cifras",
+      "subject": "math",
+      "name": "Sumar números de tres cifras",
+      "grade": "P3",
+      "description": "Suma números de hasta tres cifras, con y sin canje, y comprueba si el resultado es razonable. Ejemplo: «¿Cuánto es 245 más 138?» (383). «¿Cuánto es 400 más 250?» (650). Puede usar su cuaderno y decir el resultado.",
+      "prerequisites": [
+        "numeros.centenas-hasta-1000",
+        "suma-resta.sumar-dos-cifras-con-canje"
+      ]
+    },
+    {
+      "id": "suma-resta.restar-tres-cifras",
+      "subject": "math",
+      "name": "Restar números de tres cifras",
+      "grade": "P3",
+      "description": "Resta números de hasta tres cifras, con y sin canje. Ejemplo: «¿Cuánto es 500 menos 180?» (320). «¿Cuánto es 432 menos 215?» (217). Puede usar su cuaderno y decir el resultado.",
+      "prerequisites": [
+        "numeros.centenas-hasta-1000",
+        "suma-resta.restar-dos-cifras-con-canje"
+      ]
+    },
+    {
+      "id": "suma-resta.estimar-sumas-y-restas",
+      "subject": "math",
+      "name": "Estimar el resultado de sumas y restas",
+      "grade": "P3",
+      "description": "Redondea los números para calcular mentalmente un resultado aproximado y decide si una respuesta es razonable. Ejemplo: «Sin calcular exacto: 298 más 403, ¿está más cerca de 600 o de 700?» (700).",
+      "prerequisites": [
+        "numeros.redondear-a-decena-y-centena",
+        "suma-resta.sumar-tres-cifras",
+        "suma-resta.restar-tres-cifras"
+      ]
+    },
+    {
+      "id": "suma-resta.problemas-de-dos-pasos",
+      "subject": "math",
+      "name": "Resolver problemas de suma y resta de dos pasos",
+      "grade": "P3",
+      "description": "Resuelve problemas que necesitan dos operaciones de suma o resta y explica qué hizo en cada paso. Ejemplo: «En la biblioteca había 120 libros. Prestaron 45 y luego devolvieron 20. ¿Cuántos libros hay ahora?» (95).",
+      "prerequisites": [
+        "suma-resta.sumar-tres-cifras",
+        "suma-resta.restar-tres-cifras",
+        "suma-resta.problemas-de-cambio-hasta-100",
+        "suma-resta.problemas-de-comparar-e-igualar"
+      ]
+    },
+    {
+      "id": "multiplicacion.tablas-2-5-10",
+      "subject": "math",
+      "name": "Multiplicar con las tablas del 2, del 5 y del 10",
+      "grade": "P3",
+      "description": "Responde con rapidez las multiplicaciones de las tablas del 2, 5 y 10 y las relaciona con contar de 2 en 2, de 5 en 5 y de 10 en 10. Ejemplo: «¿Cuánto es 5 por 7?» (35). «¿Cuánto es 2 por 9?» (18). «¿Cuánto es 10 por 6?» (60).",
+      "prerequisites": [
+        "multiplicacion.sumas-repetidas",
+        "patrones.aditivos-de-5-y-10"
+      ]
+    },
+    {
+      "id": "multiplicacion.tablas-3-4-6",
+      "subject": "math",
+      "name": "Multiplicar con las tablas del 3, del 4 y del 6",
+      "grade": "P3",
+      "description": "Responde las multiplicaciones de las tablas del 3, 4 y 6, apoyándose en dobles cuando lo necesita. Ejemplo: «¿Cuánto es 4 por 7?» (28). «¿Cuánto es 6 por 8?» (48). «¿Cuánto es 3 por 9?» (27).",
+      "prerequisites": [
+        "multiplicacion.tablas-2-5-10"
+      ]
+    },
+    {
+      "id": "multiplicacion.tablas-7-8-9",
+      "subject": "math",
+      "name": "Multiplicar con las tablas del 7, del 8 y del 9",
+      "grade": "P3",
+      "description": "Responde las multiplicaciones de las tablas del 7, 8 y 9 y usa que el orden de los factores no cambia el producto. Ejemplo: «¿Cuánto es 7 por 8?» (56). «¿Cuánto es 9 por 6?» (54). «Si 8 por 7 es 56, ¿cuánto es 7 por 8?» (56).",
+      "prerequisites": [
+        "multiplicacion.tablas-3-4-6"
+      ]
+    },
+    {
+      "id": "multiplicacion.problemas-de-grupos-iguales",
+      "subject": "math",
+      "name": "Resolver problemas de multiplicación con grupos iguales",
+      "grade": "P3",
+      "description": "Reconoce cuándo un problema se resuelve multiplicando y lo resuelve con las tablas. Ejemplo: «En cada caja hay 6 lápices. ¿Cuántos lápices hay en 5 cajas?» (30). «Una entrada cuesta 4 soles. ¿Cuánto pagan 3 amigos?» (12 soles).",
+      "prerequisites": [
+        "multiplicacion.tablas-2-5-10"
+      ]
+    },
+    {
+      "id": "multiplicacion.por-10-y-100",
+      "subject": "math",
+      "name": "Multiplicar por 10 y por 100",
+      "grade": "P3",
+      "description": "Multiplica números de una y dos cifras por 10 y por 100, y por decenas completas. Ejemplo: «¿Cuánto es 34 por 10?» (340). «¿Cuánto es 7 por 100?» (700). «¿Cuánto es 3 por 20?» (60).",
+      "prerequisites": [
+        "multiplicacion.tablas-2-5-10",
+        "numeros.centenas-hasta-1000"
+      ]
+    },
+    {
+      "id": "multiplicacion.dos-cifras-por-una",
+      "subject": "math",
+      "name": "Multiplicar un número de dos cifras por uno de una cifra",
+      "grade": "P3",
+      "description": "Multiplica un número de dos cifras por uno de una cifra descomponiendo en decenas y unidades. Ejemplo: «¿Cuánto es 23 por 4?» (92; 20 por 4 son 80 y 3 por 4 son 12). «¿Cuánto es 15 por 6?» (90).",
+      "prerequisites": [
+        "multiplicacion.tablas-7-8-9",
+        "multiplicacion.por-10-y-100",
+        "suma-resta.sumar-tres-cifras"
+      ]
+    },
+    {
+      "id": "division.repartir-en-partes-iguales",
+      "subject": "math",
+      "name": "Repartir en partes iguales",
+      "grade": "P3",
+      "description": "Reparte una cantidad en grupos iguales y dice cuánto le toca a cada uno, relacionándolo con la multiplicación. Ejemplo: «Reparte 12 caramelos entre 3 niños en partes iguales. ¿Cuántos le tocan a cada uno?» (4). «¿Cuántas bolsas de 5 naranjas puedo armar con 20 naranjas?» (4).",
+      "prerequisites": [
+        "multiplicacion.tablas-2-5-10"
+      ]
+    },
+    {
+      "id": "division.dividir-con-las-tablas",
+      "subject": "math",
+      "name": "Dividir usando las tablas de multiplicar",
+      "grade": "P3",
+      "description": "Calcula divisiones exactas buscando el número que multiplicado por el divisor da el dividendo. Ejemplo: «¿Cuánto es 42 entre 6?» (7, porque 6 por 7 es 42). «¿Cuánto es 72 entre 8?» (9).",
+      "prerequisites": [
+        "division.repartir-en-partes-iguales",
+        "multiplicacion.tablas-7-8-9"
+      ]
+    },
+    {
+      "id": "fracciones.mitad-tercio-cuarto",
+      "subject": "math",
+      "name": "Reconocer medios, tercios y cuartos",
+      "grade": "P3",
+      "description": "Entiende la mitad, la tercera parte y la cuarta parte como partes iguales de una unidad, y sabe cuántas forman el entero. Ejemplo: «Partes una pizza en 4 partes iguales y te comes una. ¿Qué parte de la pizza comiste?» (un cuarto). «¿Cuántos medios forman una naranja entera?» (2).",
+      "prerequisites": [
+        "numeros.dobles-y-mitades",
+        "division.repartir-en-partes-iguales"
+      ]
+    },
+    {
+      "id": "dinero.soles-y-centimos",
+      "subject": "math",
+      "name": "Calcular con soles y céntimos",
+      "grade": "P3",
+      "description": "Sabe que un sol tiene 100 céntimos, junta monedas de 10, 20 y 50 céntimos y expresa cantidades en soles y céntimos. Ejemplo: «¿Cuántas monedas de 50 céntimos forman 2 soles?» (4). «Tengo 3 soles y dos monedas de 20 céntimos. ¿Cuánto tengo?» (3 soles con 40 céntimos).",
+      "prerequisites": [
+        "dinero.monedas-y-billetes-hasta-100",
+        "numeros.centenas-hasta-1000"
+      ]
+    },
+    {
+      "id": "tiempo.leer-horas-y-minutos",
+      "subject": "math",
+      "name": "Leer la hora con minutos",
+      "grade": "P3",
+      "description": "Lee la hora con minutos, usa «y cuarto» y «menos cuarto», y sabe que una hora tiene 60 minutos. Ejemplo: «La aguja larga está en el 3 y la corta acaba de pasar el 8. ¿Qué hora es?» (las 8 y cuarto, o 8 y 15). «¿Cuántos minutos hay en media hora?» (30).",
+      "prerequisites": [
+        "tiempo.leer-horas-en-punto-y-media",
+        "multiplicacion.tablas-2-5-10"
+      ]
+    },
+    {
+      "id": "masa.kilogramos-y-gramos",
+      "subject": "math",
+      "name": "Usar kilogramos y gramos",
+      "grade": "P3",
+      "description": "Elige entre kilogramo y gramo para expresar un peso, sabe que un kilo tiene 1000 gramos y usa medio kilo y un cuarto de kilo. Ejemplo: «¿Cuántos gramos hay en medio kilo de arroz?» (500). «¿Pesas una sandía en gramos o en kilogramos?» (kilogramos).",
+      "prerequisites": [
+        "masa.comparar-pesos",
+        "numeros.centenas-hasta-1000"
+      ]
+    },
+    {
+      "id": "patrones.aditivos-hasta-1000",
+      "subject": "math",
+      "name": "Continuar y explicar secuencias aditivas con números hasta 1000",
+      "grade": "P3",
+      "description": "Descubre la regla de una secuencia que aumenta o disminuye una cantidad fija y encuentra términos que faltan. Ejemplo: «120, 145, 170, 195… ¿cuál sigue y cuál es la regla?» (220; aumenta de 25 en 25). «500, 450, 400, ¿cuál sigue?» (350).",
+      "prerequisites": [
+        "patrones.aditivos-de-5-y-10",
+        "patrones.decrecientes",
+        "suma-resta.sumar-tres-cifras"
+      ]
+    },
+    {
+      "id": "igualdades.numero-que-falta-con-sumas-y-restas",
+      "subject": "math",
+      "name": "Encontrar el número desconocido en igualdades de suma y resta",
+      "grade": "P3",
+      "description": "Halla el valor desconocido en una igualdad con números hasta 100 usando la operación inversa. Ejemplo: «Cierto número más 28 es igual a 75. ¿Cuál es el número?» (47). «60 menos cierto número es 35. ¿Cuál es?» (25).",
+      "prerequisites": [
+        "igualdades.numero-que-falta-hasta-20",
+        "suma-resta.sumar-dos-cifras-con-canje",
+        "suma-resta.restar-dos-cifras-con-canje"
+      ]
+    },
+    {
+      "id": "igualdades.numero-que-falta-en-multiplicacion",
+      "subject": "math",
+      "name": "Encontrar el factor que falta en una multiplicación",
+      "grade": "P3",
+      "description": "Halla el número desconocido en una multiplicación sencilla apoyándose en las tablas. Ejemplo: «6 por cierto número es igual a 48. ¿Cuál es el número?» (8). «¿Qué número multiplicado por 5 da 35?» (7).",
+      "prerequisites": [
+        "multiplicacion.tablas-7-8-9"
+      ]
+    },
+    {
+      "id": "geometria.poligonos-por-numero-de-lados",
+      "subject": "math",
+      "name": "Nombrar polígonos según su número de lados",
+      "grade": "P3",
+      "description": "Nombra triángulos, cuadriláteros, pentágonos y hexágonos por su número de lados y vértices. Ejemplo: «¿Cómo se llama la figura de 5 lados?» (pentágono). «¿Cuántos vértices tiene un hexágono?» (6).",
+      "prerequisites": [
+        "geometria.figuras-planas-lados-y-vertices"
+      ]
+    },
+    {
+      "id": "geometria.prismas-caras-aristas-vertices",
+      "subject": "math",
+      "name": "Contar caras, aristas y vértices de cubos y cajas",
+      "grade": "P3",
+      "description": "Describe el cubo y el prisma rectangular por sus caras, aristas y vértices, usando un objeto real como apoyo. Ejemplo: «Toma una caja. ¿Cuántas caras tiene?» (6). «¿Cuántos vértices tiene un cubo?» (8). «¿Qué forma tienen las caras de un dado?» (cuadrados).",
+      "prerequisites": [
+        "geometria.cuerpos-geometricos-basicos"
+      ]
+    },
+    {
+      "id": "geometria.perimetro-de-poligonos",
+      "subject": "math",
+      "name": "Calcular el perímetro sumando los lados",
+      "grade": "P3",
+      "description": "Entiende el perímetro como el borde de una figura y lo calcula sumando las medidas de sus lados. Ejemplo: «Un triángulo tiene lados de 5, 7 y 8 centímetros. ¿Cuánto mide su perímetro?» (20 centímetros). «Un cuadrado tiene lados de 6 metros. ¿Cuál es su perímetro?» (24 metros).",
+      "prerequisites": [
+        "geometria.poligonos-por-numero-de-lados",
+        "suma-resta.sumar-dos-cifras-con-canje",
+        "longitud.metro-y-centimetro"
+      ]
+    },
+    {
+      "id": "longitud.convertir-metros-y-centimetros",
+      "subject": "math",
+      "name": "Convertir entre metros y centímetros",
+      "grade": "P3",
+      "description": "Sabe que un metro tiene 100 centímetros y convierte medidas sencillas entre ambas unidades. Ejemplo: «¿Cuántos centímetros hay en 3 metros?» (300). «Una mesa mide 1 metro y 20 centímetros. ¿Cuántos centímetros son?» (120).",
+      "prerequisites": [
+        "longitud.metro-y-centimetro",
+        "multiplicacion.por-10-y-100"
+      ]
+    },
+    {
+      "id": "capacidad.litros",
+      "subject": "math",
+      "name": "Medir capacidad en litros",
+      "grade": "P3",
+      "description": "Usa el litro, el medio litro y el cuarto de litro para expresar y comparar capacidades. Ejemplo: «¿Cuántas botellas de medio litro necesito para llenar una jarra de 2 litros?» (4). «¿Qué tiene más, una botella de 1 litro o dos vasos de un cuarto de litro?» (la botella).",
+      "prerequisites": [
+        "capacidad.comparar-recipientes",
+        "fracciones.mitad-tercio-cuarto"
+      ]
+    },
+    {
+      "id": "ubicacion.cuadricula-filas-y-columnas",
+      "subject": "math",
+      "name": "Ubicarse y moverse en una cuadrícula",
+      "grade": "P3",
+      "description": "Ubica casilleros por fila y columna y describe desplazamientos en una cuadrícula con cuántos casilleros y hacia dónde. Ejemplo: «Estás en la fila 2, columna 3. Avanzas 2 casilleros hacia la derecha. ¿En qué columna estás ahora?» (en la 5, misma fila 2).",
+      "prerequisites": [
+        "ubicacion.seguir-recorridos"
+      ]
+    },
+    {
+      "id": "datos.pictograma-con-escala",
+      "subject": "math",
+      "name": "Leer pictogramas donde cada símbolo vale más de uno",
+      "grade": "P3",
+      "description": "Interpreta pictogramas en los que cada símbolo representa 2, 5 o 10 unidades. Ejemplo: «Cada carita vale 5 niños. Fútbol tiene 4 caritas y vóley tiene 3. ¿Cuántos niños prefieren fútbol?» (20). «¿Cuántos más que vóley?» (5).",
+      "prerequisites": [
+        "datos.leer-pictograma",
+        "multiplicacion.tablas-2-5-10"
+      ]
+    },
+    {
+      "id": "datos.tabla-de-frecuencias",
+      "subject": "math",
+      "name": "Organizar y leer datos en una tabla de frecuencias",
+      "grade": "P3",
+      "description": "Organiza datos de una encuesta sencilla en una tabla de frecuencias y responde preguntas sobre el total y las diferencias. Ejemplo: «Preguntamos por la fruta favorita: 12 dijeron mango, 9 plátano y 7 uva. ¿Cuántos niños respondieron?» (28). «¿Cuál es la menos elegida?» (uva).",
+      "prerequisites": [
+        "datos.leer-grafico-de-barras-simple",
+        "suma-resta.sumar-dos-cifras-con-canje"
+      ]
+    },
+    {
+      "id": "azar.seguro-posible-imposible",
+      "subject": "math",
+      "name": "Clasificar sucesos como seguros, posibles o imposibles",
+      "grade": "P3",
+      "description": "Decide si un suceso es seguro, posible o imposible y justifica su respuesta. Ejemplo: «Lanzas un dado común. Sacar un 7: ¿seguro, posible o imposible?» (imposible). «Sacar un número menor que 7» (seguro). «Sacar un 3» (posible).",
+      "prerequisites": [
+        "azar.posible-e-imposible"
+      ]
+    },
+    {
+      "id": "numeros.unidades-de-millar-hasta-10000",
+      "subject": "math",
+      "name": "Leer y descomponer números de cuatro cifras",
+      "grade": "P4",
+      "description": "Lee, escribe y descompone números hasta 9999 en unidades de millar, centenas, decenas y unidades. Ejemplo: «¿Cómo se lee el número 4 mil 0 centenas 7 decenas y 5 unidades?» (cuatro mil setenta y cinco). «¿Cuánto vale la cifra 6 en 6230?» (6000).",
+      "prerequisites": [
+        "numeros.centenas-hasta-1000"
+      ]
+    },
+    {
+      "id": "numeros.comparar-y-redondear-hasta-10000",
+      "subject": "math",
+      "name": "Comparar, ordenar y redondear números de cuatro cifras",
+      "grade": "P4",
+      "description": "Compara y ordena números hasta 9999 y los redondea a la centena o al millar más cercano. Ejemplo: «¿Cuál es mayor, 3899 o 3989?» (3989). «Redondea 7640 al millar más cercano» (8000).",
+      "prerequisites": [
+        "numeros.unidades-de-millar-hasta-10000",
+        "numeros.comparar-y-ordenar-hasta-1000",
+        "numeros.redondear-a-decena-y-centena"
+      ]
+    },
+    {
+      "id": "suma-resta.sumar-y-restar-hasta-10000",
+      "subject": "math",
+      "name": "Sumar y restar números de cuatro cifras",
+      "grade": "P4",
+      "description": "Suma y resta números de hasta cuatro cifras con canjes, y estima antes para comprobar. Ejemplo: «¿Cuánto es 2500 más 1750?» (4250). «¿Cuánto es 6000 menos 2350?» (3650). Puede usar su cuaderno y decir el resultado.",
+      "prerequisites": [
+        "numeros.unidades-de-millar-hasta-10000",
+        "suma-resta.sumar-tres-cifras",
+        "suma-resta.restar-tres-cifras"
+      ]
+    },
+    {
+      "id": "multiplicacion.dos-cifras-por-dos-cifras",
+      "subject": "math",
+      "name": "Multiplicar dos números de dos cifras",
+      "grade": "P4",
+      "description": "Multiplica dos números de dos cifras descomponiendo uno de ellos, y estima el resultado. Ejemplo: «¿Cuánto es 12 por 15?» (180; 12 por 10 son 120 y 12 por 5 son 60). «¿Cuánto es 24 por 11?» (264). Puede usar su cuaderno.",
+      "prerequisites": [
+        "multiplicacion.dos-cifras-por-una"
+      ]
+    },
+    {
+      "id": "multiplicacion.problemas-de-veces-mas",
+      "subject": "math",
+      "name": "Resolver problemas de «veces más»",
+      "grade": "P4",
+      "description": "Resuelve problemas de comparación multiplicativa: doble, triple y tantas veces más, y su inverso. Ejemplo: «Rosa tiene 8 soles y su hermano tiene el triple. ¿Cuánto tiene su hermano?» (24 soles). «Un polo cuesta 36 soles, que es 4 veces lo que cuesta una gorra. ¿Cuánto cuesta la gorra?» (9 soles).",
+      "prerequisites": [
+        "multiplicacion.tablas-7-8-9",
+        "division.dividir-con-las-tablas"
+      ]
+    },
+    {
+      "id": "multiplicacion.problemas-de-dos-pasos",
+      "subject": "math",
+      "name": "Resolver problemas de dos pasos con las cuatro operaciones",
+      "grade": "P4",
+      "description": "Resuelve problemas que combinan multiplicación o división con suma o resta y explica cada paso. Ejemplo: «Compras 3 cuadernos de 7 soles cada uno y pagas con un billete de 50. ¿Cuánto te dan de vuelto?» (29 soles).",
+      "prerequisites": [
+        "multiplicacion.dos-cifras-por-una",
+        "division.dividir-con-las-tablas",
+        "suma-resta.problemas-de-dos-pasos",
+        "multiplicacion.problemas-de-grupos-iguales"
+      ]
+    },
+    {
+      "id": "division.con-residuo",
+      "subject": "math",
+      "name": "Dividir con residuo",
+      "grade": "P4",
+      "description": "Calcula divisiones que no son exactas, dice el cociente y el residuo, e interpreta qué significa lo que sobra. Ejemplo: «Repartes 17 galletas entre 5 niños en partes iguales. ¿Cuántas le tocan a cada uno y cuántas sobran?» (3 a cada uno y sobran 2).",
+      "prerequisites": [
+        "division.dividir-con-las-tablas"
+      ]
+    },
+    {
+      "id": "division.dos-cifras-entre-una",
+      "subject": "math",
+      "name": "Dividir un número de dos o tres cifras entre uno de una cifra",
+      "grade": "P4",
+      "description": "Divide números de dos y tres cifras entre un número de una cifra descomponiendo el dividendo. Ejemplo: «¿Cuánto es 84 entre 4?» (21). «¿Cuánto es 96 entre 8?» (12). «¿Cuánto es 250 entre 5?» (50).",
+      "prerequisites": [
+        "division.con-residuo",
+        "multiplicacion.dos-cifras-por-una"
+      ]
+    },
+    {
+      "id": "division.problemas-de-repartir-y-agrupar",
+      "subject": "math",
+      "name": "Resolver problemas de reparto y de agrupación",
+      "grade": "P4",
+      "description": "Resuelve problemas de división y decide qué hacer con el residuo según la situación. Ejemplo: «Hay 26 niños y en cada mototaxi caben 3. ¿Cuántas mototaxis se necesitan para llevarlos a todos?» (9, porque con 8 quedan 2 niños sin subir).",
+      "prerequisites": [
+        "division.con-residuo"
+      ]
+    },
+    {
+      "id": "fracciones.concepto-numerador-y-denominador",
+      "subject": "math",
+      "name": "Leer y representar fracciones como partes de un todo",
+      "grade": "P4",
+      "description": "Nombra fracciones con denominadores usuales (2, 3, 4, 5, 6, 8, 10) y explica qué indican el numerador y el denominador. Ejemplo: «Una torta se parte en 8 partes iguales y se comen 3. ¿Qué fracción se comió?» (tres octavos). «¿Qué fracción queda?» (cinco octavos).",
+      "prerequisites": [
+        "fracciones.mitad-tercio-cuarto"
+      ]
+    },
+    {
+      "id": "fracciones.comparar-igual-denominador",
+      "subject": "math",
+      "name": "Comparar fracciones de igual denominador y con la unidad",
+      "grade": "P4",
+      "description": "Compara fracciones con el mismo denominador y decide si una fracción es menor, igual o mayor que la unidad. Ejemplo: «¿Qué es más, tres quintos o cuatro quintos de una torta?» (cuatro quintos). «¿Cuatro cuartos es más, menos o igual que un entero?» (igual).",
+      "prerequisites": [
+        "fracciones.concepto-numerador-y-denominador"
+      ]
+    },
+    {
+      "id": "fracciones.equivalentes-simples",
+      "subject": "math",
+      "name": "Reconocer fracciones equivalentes sencillas",
+      "grade": "P4",
+      "description": "Reconoce que fracciones distintas pueden representar la misma cantidad, con medios, cuartos, octavos, tercios y sextos. Ejemplo: «¿Cuántos cuartos son lo mismo que un medio?» (dos cuartos). «¿Es lo mismo comer dos sextos que un tercio de una torta?» (sí).",
+      "prerequisites": [
+        "fracciones.concepto-numerador-y-denominador",
+        "multiplicacion.tablas-3-4-6"
+      ]
+    },
+    {
+      "id": "fracciones.fraccion-de-una-cantidad",
+      "subject": "math",
+      "name": "Calcular la fracción de una cantidad",
+      "grade": "P4",
+      "description": "Calcula la mitad, la tercera parte, la cuarta parte u otra fracción sencilla de un conjunto de objetos. Ejemplo: «¿Cuánto es un tercio de 18 canicas?» (6). «Tres cuartos de los 20 alumnos fueron al paseo. ¿Cuántos fueron?» (15).",
+      "prerequisites": [
+        "fracciones.concepto-numerador-y-denominador",
+        "division.dividir-con-las-tablas"
+      ]
+    },
+    {
+      "id": "fracciones.sumar-igual-denominador",
+      "subject": "math",
+      "name": "Sumar fracciones de igual denominador",
+      "grade": "P4",
+      "description": "Suma fracciones con el mismo denominador y reconoce cuándo el resultado forma una unidad. Ejemplo: «¿Cuánto es dos octavos más tres octavos?» (cinco octavos). «Comes un cuarto de pizza y luego dos cuartos más. ¿Cuánto comiste?» (tres cuartos).",
+      "prerequisites": [
+        "fracciones.comparar-igual-denominador"
+      ]
+    },
+    {
+      "id": "fracciones.restar-igual-denominador",
+      "subject": "math",
+      "name": "Restar fracciones de igual denominador",
+      "grade": "P4",
+      "description": "Resta fracciones con el mismo denominador, también a partir de la unidad. Ejemplo: «¿Cuánto es siete décimos menos cuatro décimos?» (tres décimos). «Había una torta entera y se comieron tres quintos. ¿Cuánto queda?» (dos quintos).",
+      "prerequisites": [
+        "fracciones.sumar-igual-denominador"
+      ]
+    },
+    {
+      "id": "dinero.vuelto-con-centimos",
+      "subject": "math",
+      "name": "Calcular totales y vueltos con soles y céntimos",
+      "grade": "P4",
+      "description": "Suma precios con céntimos y calcula el vuelto de una compra. Ejemplo: «Un pan cuesta 50 céntimos. ¿Cuánto cuestan 6 panes?» (3 soles). «Compras algo de 3 soles con 50 céntimos y pagas con 5 soles. ¿Cuál es tu vuelto?» (1 sol con 50 céntimos).",
+      "prerequisites": [
+        "dinero.soles-y-centimos",
+        "dinero.dar-vuelto-hasta-20",
+        "suma-resta.sumar-tres-cifras"
+      ]
+    },
+    {
+      "id": "tiempo.duracion-y-horarios",
+      "subject": "math",
+      "name": "Calcular duraciones y horarios",
+      "grade": "P4",
+      "description": "Calcula cuánto dura una actividad o a qué hora termina, pasando de una hora a la siguiente. Ejemplo: «La clase empieza a las 8 y 30 y dura 45 minutos. ¿A qué hora termina?» (9 y 15). «Saliste a las 3 y 50 y llegaste a las 4 y 20. ¿Cuánto demoraste?» (30 minutos).",
+      "prerequisites": [
+        "tiempo.leer-horas-y-minutos",
+        "suma-resta.sumar-dos-cifras-con-canje"
+      ]
+    },
+    {
+      "id": "masa.convertir-kilogramos-y-gramos",
+      "subject": "math",
+      "name": "Convertir entre kilogramos y gramos",
+      "grade": "P4",
+      "description": "Convierte entre kilogramos y gramos y suma pesos dados en ambas unidades. Ejemplo: «¿Cuántos gramos son 3 kilogramos?» (3000). «Compras 750 gramos de queso y 250 gramos de jamón. ¿Cuántos kilos llevas?» (1 kilo).",
+      "prerequisites": [
+        "masa.kilogramos-y-gramos",
+        "numeros.unidades-de-millar-hasta-10000",
+        "multiplicacion.por-10-y-100"
+      ]
+    },
+    {
+      "id": "patrones.multiplicativos",
+      "subject": "math",
+      "name": "Continuar secuencias multiplicativas",
+      "grade": "P4",
+      "description": "Descubre la regla de secuencias en las que cada término se obtiene multiplicando o dividiendo por un mismo número. Ejemplo: «3, 6, 12, 24… ¿cuál sigue y cuál es la regla?» (48; se multiplica por 2). «81, 27, 9, ¿cuál sigue?» (3).",
+      "prerequisites": [
+        "multiplicacion.tablas-7-8-9",
+        "division.dividir-con-las-tablas",
+        "patrones.aditivos-hasta-1000"
+      ]
+    },
+    {
+      "id": "igualdades.expresiones-equivalentes",
+      "subject": "math",
+      "name": "Decidir si dos expresiones valen lo mismo",
+      "grade": "P4",
+      "description": "Compara dos expresiones con operaciones y decide si son iguales, usando propiedades cuando puede. Ejemplo: «¿Es verdad que 6 por 4 es igual a 8 por 3?» (sí, ambos son 24). «¿Qué número falta: 25 más 17 es igual a 17 más cuánto?» (25).",
+      "prerequisites": [
+        "igualdades.numero-que-falta-en-multiplicacion",
+        "igualdades.numero-que-falta-con-sumas-y-restas"
+      ]
+    },
+    {
+      "id": "igualdades.balanza-con-valor-desconocido",
+      "subject": "math",
+      "name": "Hallar un valor desconocido en una balanza en equilibrio",
+      "grade": "P4",
+      "description": "Encuentra un valor desconocido en una situación de equilibrio que combina multiplicación y suma, y explica cómo mantuvo la igualdad. Ejemplo: «En un platillo hay 3 bolsas iguales y una pesa de 2 kilos; en el otro, 14 kilos. La balanza está en equilibrio. ¿Cuánto pesa cada bolsa?» (4 kilos).",
+      "prerequisites": [
+        "igualdades.expresiones-equivalentes",
+        "division.dividir-con-las-tablas"
+      ]
+    },
+    {
+      "id": "cambio.tablas-de-proporcionalidad",
+      "subject": "math",
+      "name": "Completar tablas donde dos cantidades cambian juntas",
+      "grade": "P4",
+      "description": "Describe cómo cambia una cantidad cuando cambia otra y completa los valores que faltan. Ejemplo: «Una caja trae 6 huevos, dos cajas traen 12. ¿Cuántos huevos traen 5 cajas?» (30). «Si 4 pasajes cuestan 8 soles, ¿cuánto cuestan 8 pasajes?» (16 soles).",
+      "prerequisites": [
+        "multiplicacion.tablas-7-8-9",
+        "multiplicacion.problemas-de-grupos-iguales"
+      ]
+    },
+    {
+      "id": "geometria.rectas-paralelas-y-perpendiculares",
+      "subject": "math",
+      "name": "Reconocer líneas paralelas y perpendiculares",
+      "grade": "P4",
+      "description": "Explica la diferencia entre líneas paralelas, perpendiculares y las que solo se cruzan, y da ejemplos del entorno. Ejemplo: «Los rieles del tren, ¿son paralelos o perpendiculares?» (paralelos). «Dime dos bordes de tu cuaderno que sean perpendiculares».",
+      "prerequisites": [
+        "geometria.poligonos-por-numero-de-lados"
+      ]
+    },
+    {
+      "id": "geometria.angulos-recto-agudo-obtuso",
+      "subject": "math",
+      "name": "Clasificar ángulos en recto, agudo y obtuso",
+      "grade": "P4",
+      "description": "Reconoce el ángulo recto en esquinas de objetos y clasifica otros ángulos como agudos u obtusos comparándolos con él. Ejemplo: «La esquina de una hoja, ¿qué tipo de ángulo forma?» (recto). «A las 3 en punto, ¿qué ángulo forman las agujas del reloj?» (recto). «¿Y a la 1 en punto?» (agudo).",
+      "prerequisites": [
+        "geometria.rectas-paralelas-y-perpendiculares"
+      ]
+    },
+    {
+      "id": "geometria.triangulos-y-cuadrilateros",
+      "subject": "math",
+      "name": "Describir triángulos y cuadriláteros por sus lados y ángulos",
+      "grade": "P4",
+      "description": "Describe y distingue cuadrado, rectángulo, rombo, trapecio y triángulos según sus lados iguales, lados paralelos y ángulos rectos. Ejemplo: «Adivina: tiene 4 lados iguales y 4 ángulos rectos» (cuadrado). «¿En qué se parecen y en qué se diferencian un cuadrado y un rectángulo?».",
+      "prerequisites": [
+        "geometria.angulos-recto-agudo-obtuso",
+        "geometria.poligonos-por-numero-de-lados"
+      ]
+    },
+    {
+      "id": "geometria.perimetro-rectangulo",
+      "subject": "math",
+      "name": "Calcular el perímetro de rectángulos y cuadrados",
+      "grade": "P4",
+      "description": "Calcula el perímetro de un rectángulo o un cuadrado a partir de sus medidas, y halla un lado si conoce el perímetro de un cuadrado. Ejemplo: «Una cancha mide 20 metros de largo y 10 de ancho. ¿Cuántos metros de cerca se necesitan para rodearla?» (60).",
+      "prerequisites": [
+        "geometria.perimetro-de-poligonos",
+        "multiplicacion.dos-cifras-por-una"
+      ]
+    },
+    {
+      "id": "geometria.area-en-unidades-cuadradas",
+      "subject": "math",
+      "name": "Medir el área contando unidades cuadradas",
+      "grade": "P4",
+      "description": "Entiende el área como la cantidad de cuadraditos que cubren una superficie y la calcula en rectángulos contando filas y columnas. Ejemplo: «Un piso rectangular tiene 4 filas de 6 losetas cada una. ¿Cuántas losetas lo cubren?» (24). «¿Qué diferencia hay entre el perímetro y el área de tu cuaderno?».",
+      "prerequisites": [
+        "geometria.perimetro-de-poligonos",
+        "multiplicacion.tablas-7-8-9"
+      ]
+    },
+    {
+      "id": "ubicacion.coordenadas-en-cuadricula",
+      "subject": "math",
+      "name": "Ubicar puntos con coordenadas en una cuadrícula",
+      "grade": "P4",
+      "description": "Usa un par de referencias (letra y número, o dos números) para ubicar y nombrar posiciones en un croquis o cuadrícula, y describe rutas entre ellas. Ejemplo: «El tesoro está en B3 y tú en B1. ¿Cuántos casilleros debes avanzar y en qué dirección?» (2 hacia arriba, si los números crecen hacia arriba).",
+      "prerequisites": [
+        "ubicacion.cuadricula-filas-y-columnas"
+      ]
+    },
+    {
+      "id": "longitud.kilometros-y-metros",
+      "subject": "math",
+      "name": "Usar kilómetros, metros y milímetros",
+      "grade": "P4",
+      "description": "Elige la unidad adecuada entre kilómetro, metro, centímetro y milímetro, y convierte entre kilómetros y metros. Ejemplo: «¿Cuántos metros hay en 2 kilómetros?» (2000). «¿En qué unidad medirías la distancia de Lima a Cusco?» (kilómetros).",
+      "prerequisites": [
+        "longitud.convertir-metros-y-centimetros",
+        "numeros.unidades-de-millar-hasta-10000"
+      ]
+    },
+    {
+      "id": "capacidad.litros-y-mililitros",
+      "subject": "math",
+      "name": "Usar litros y mililitros",
+      "grade": "P4",
+      "description": "Sabe que un litro tiene 1000 mililitros, elige la unidad adecuada y convierte cantidades sencillas. Ejemplo: «¿Cuántos mililitros hay en medio litro?» (500). «¿Cuántos vasos de 250 mililitros llenas con una botella de 1 litro?» (4).",
+      "prerequisites": [
+        "capacidad.litros",
+        "numeros.unidades-de-millar-hasta-10000"
+      ]
+    },
+    {
+      "id": "datos.grafico-de-barras-con-escala",
+      "subject": "math",
+      "name": "Leer gráficos de barras con escala",
+      "grade": "P4",
+      "description": "Interpreta gráficos de barras cuya escala va de 2 en 2, de 5 en 5 o de 10 en 10, y saca conclusiones. Ejemplo: «La escala va de 10 en 10. La barra de enero llega a 40 y la de febrero queda a la mitad entre 20 y 30. ¿Cuánto se vendió en febrero?» (25). «¿Cuánto en total?» (65).",
+      "prerequisites": [
+        "datos.tabla-de-frecuencias",
+        "datos.pictograma-con-escala"
+      ]
+    },
+    {
+      "id": "datos.moda",
+      "subject": "math",
+      "name": "Encontrar la moda de un conjunto de datos",
+      "grade": "P4",
+      "description": "Identifica la moda como el dato que más se repite y explica qué dice sobre el grupo. Ejemplo: «Las edades de un equipo son 9, 10, 9, 11, 9, 10. ¿Cuál es la moda?» (9). «En una encuesta, 12 eligieron chicha, 7 limonada y 12 maracuyá. ¿Hay una sola moda?» (no, hay dos).",
+      "prerequisites": [
+        "datos.tabla-de-frecuencias"
+      ]
+    },
+    {
+      "id": "datos.tabla-de-doble-entrada",
+      "subject": "math",
+      "name": "Leer tablas de doble entrada",
+      "grade": "P4",
+      "description": "Lee una tabla que cruza dos características y responde preguntas combinando filas y columnas. Ejemplo: «En tercero hay 12 niñas y 10 niños; en cuarto, 9 niñas y 14 niños. ¿Cuántas niñas hay en total?» (21). «¿En qué grado hay más estudiantes?» (en cuarto, 23 contra 22).",
+      "prerequisites": [
+        "datos.tabla-de-frecuencias"
+      ]
+    },
+    {
+      "id": "azar.mas-probable-menos-probable",
+      "subject": "math",
+      "name": "Comparar sucesos: más probable, menos probable, igual de probable",
+      "grade": "P4",
+      "description": "Compara la ocurrencia de dos sucesos usando más probable, menos probable e igual de probable, y lo justifica contando casos. Ejemplo: «En una bolsa hay 7 bolitas rojas y 2 verdes. Sin mirar, ¿qué color es más probable sacar?» (rojo, porque hay más).",
+      "prerequisites": [
+        "azar.seguro-posible-imposible"
+      ]
+    },
+    {
+      "id": "numeros.hasta-un-millon",
+      "subject": "math",
+      "name": "Leer y descomponer números de hasta seis cifras",
+      "grade": "P5",
+      "description": "Lee, escribe y descompone números hasta 999 999 según el valor de posición. Ejemplo: «¿Cómo se lee 250 mil 300?» (doscientos cincuenta mil trescientos). «¿Cuántas decenas de millar tiene el número 73 500?» (7).",
+      "prerequisites": [
+        "numeros.unidades-de-millar-hasta-10000"
+      ]
+    },
+    {
+      "id": "numeros.comparar-y-redondear-hasta-un-millon",
+      "subject": "math",
+      "name": "Comparar y redondear números de hasta seis cifras",
+      "grade": "P5",
+      "description": "Compara, ordena y redondea números grandes para estimar. Ejemplo: «¿Qué ciudad tiene más habitantes, una con 384 000 o una con 348 000?» (la de 384 000). «Redondea 46 800 a la unidad de millar más cercana» (47 000).",
+      "prerequisites": [
+        "numeros.hasta-un-millon",
+        "numeros.comparar-y-redondear-hasta-10000"
+      ]
+    },
+    {
+      "id": "numeros.multiplos-y-divisores",
+      "subject": "math",
+      "name": "Encontrar múltiplos y divisores de un número",
+      "grade": "P5",
+      "description": "Dice múltiplos de un número y encuentra todos los divisores de números hasta 100. Ejemplo: «Dime los cinco primeros múltiplos de 6» (6, 12, 18, 24, 30). «¿Cuáles son los divisores de 12?» (1, 2, 3, 4, 6 y 12). «¿El 45 es múltiplo de 9?» (sí).",
+      "prerequisites": [
+        "multiplicacion.tablas-7-8-9",
+        "division.con-residuo"
+      ]
+    },
+    {
+      "id": "multiplicacion.varias-cifras",
+      "subject": "math",
+      "name": "Multiplicar números de varias cifras",
+      "grade": "P5",
+      "description": "Multiplica números de tres o más cifras por números de una y dos cifras, y por 10, 100 y 1000, estimando antes el resultado. Ejemplo: «¿Cuánto es 125 por 8?» (1000). «¿Cuánto es 45 por 1000?» (45 000). «¿Cuánto es 230 por 12?» (2760), con su cuaderno.",
+      "prerequisites": [
+        "multiplicacion.dos-cifras-por-dos-cifras",
+        "numeros.hasta-un-millon"
+      ]
+    },
+    {
+      "id": "division.entre-dos-cifras",
+      "subject": "math",
+      "name": "Dividir entre un número de dos cifras",
+      "grade": "P5",
+      "description": "Divide números de hasta cuatro cifras entre un número de dos cifras, estimando el cociente y comprobando con la multiplicación. Ejemplo: «¿Cuánto es 180 entre 12?» (15). «¿Cuánto es 500 entre 25?» (20). «¿Cuánto es 345 entre 15?» (23), con su cuaderno.",
+      "prerequisites": [
+        "division.dos-cifras-entre-una",
+        "multiplicacion.dos-cifras-por-dos-cifras"
+      ]
+    },
+    {
+      "id": "operaciones.combinadas-con-parentesis",
+      "subject": "math",
+      "name": "Resolver operaciones combinadas",
+      "grade": "P5",
+      "description": "Resuelve expresiones con varias operaciones respetando el orden: primero los paréntesis, luego multiplicaciones y divisiones, y al final sumas y restas. Ejemplo: «¿Cuánto es 5 más 3 por 4?» (17). «¿Cuánto es, entre paréntesis 5 más 3, por 4?» (32).",
+      "prerequisites": [
+        "multiplicacion.problemas-de-dos-pasos"
+      ]
+    },
+    {
+      "id": "fracciones.equivalentes-y-simplificar",
+      "subject": "math",
+      "name": "Hallar fracciones equivalentes y simplificar",
+      "grade": "P5",
+      "description": "Obtiene fracciones equivalentes multiplicando o dividiendo numerador y denominador por un mismo número, y simplifica hasta la fracción irreducible. Ejemplo: «Simplifica doce dieciochoavos» (dos tercios). «Dime una fracción equivalente a tres quintos con denominador 20» (doce veinteavos).",
+      "prerequisites": [
+        "fracciones.equivalentes-simples",
+        "numeros.multiplos-y-divisores"
+      ]
+    },
+    {
+      "id": "fracciones.comparar-distinto-denominador",
+      "subject": "math",
+      "name": "Comparar fracciones de distinto denominador",
+      "grade": "P5",
+      "description": "Compara y ordena fracciones con denominadores distintos llevándolas a un denominador común o comparando con un medio. Ejemplo: «¿Qué es mayor, dos tercios o tres quintos?» (dos tercios: diez quinceavos contra nueve quinceavos).",
+      "prerequisites": [
+        "fracciones.equivalentes-y-simplificar",
+        "fracciones.comparar-igual-denominador"
+      ]
+    },
+    {
+      "id": "fracciones.numeros-mixtos-e-impropias",
+      "subject": "math",
+      "name": "Convertir entre fracciones impropias y números mixtos",
+      "grade": "P5",
+      "description": "Reconoce fracciones mayores que la unidad y las expresa como número mixto, y al revés. Ejemplo: «¿Cómo se escribe siete cuartos como número mixto?» (uno y tres cuartos). «Dos enteros y un tercio, ¿cuántos tercios son?» (siete tercios).",
+      "prerequisites": [
+        "fracciones.comparar-igual-denominador",
+        "division.con-residuo"
+      ]
+    },
+    {
+      "id": "fracciones.sumar-distinto-denominador",
+      "subject": "math",
+      "name": "Sumar fracciones de distinto denominador",
+      "grade": "P5",
+      "description": "Suma fracciones con denominadores distintos buscando un denominador común y simplifica el resultado. Ejemplo: «¿Cuánto es un medio más un tercio?» (cinco sextos). «¿Cuánto es un cuarto más tres octavos?» (cinco octavos).",
+      "prerequisites": [
+        "fracciones.equivalentes-y-simplificar",
+        "fracciones.sumar-igual-denominador"
+      ]
+    },
+    {
+      "id": "fracciones.restar-distinto-denominador",
+      "subject": "math",
+      "name": "Restar fracciones de distinto denominador",
+      "grade": "P5",
+      "description": "Resta fracciones con denominadores distintos buscando un denominador común. Ejemplo: «¿Cuánto es tres cuartos menos un medio?» (un cuarto). «¿Cuánto es cinco sextos menos un tercio?» (tres sextos, es decir, un medio).",
+      "prerequisites": [
+        "fracciones.sumar-distinto-denominador",
+        "fracciones.restar-igual-denominador"
+      ]
+    },
+    {
+      "id": "fracciones.problemas-con-fracciones",
+      "subject": "math",
+      "name": "Resolver problemas con fracciones",
+      "grade": "P5",
+      "description": "Resuelve problemas cotidianos que requieren sumar, restar o hallar la fracción de una cantidad. Ejemplo: «Usaste un medio kilo de harina para un queque y un cuarto de kilo para galletas. ¿Cuánta harina usaste?» (tres cuartos de kilo). «De 40 soles gastaste dos quintos. ¿Cuánto gastaste?» (16 soles).",
+      "prerequisites": [
+        "fracciones.sumar-distinto-denominador",
+        "fracciones.restar-distinto-denominador",
+        "fracciones.fraccion-de-una-cantidad"
+      ]
+    },
+    {
+      "id": "decimales.decimos-y-centesimos",
+      "subject": "math",
+      "name": "Leer y escribir decimales hasta los centésimos",
+      "grade": "P5",
+      "description": "Lee decimales hasta los centésimos, los relaciona con fracciones de denominador 10 y 100 y con soles y céntimos. Ejemplo: «¿Cómo se lee 0 coma 7?» (siete décimos). «¿Cómo escribes en decimal 3 soles con 25 céntimos?» (3 coma 25). «¿Cuántos décimos hay en una unidad?» (10).",
+      "prerequisites": [
+        "fracciones.concepto-numerador-y-denominador",
+        "dinero.soles-y-centimos"
+      ]
+    },
+    {
+      "id": "decimales.comparar-y-ordenar",
+      "subject": "math",
+      "name": "Comparar y ordenar decimales",
+      "grade": "P5",
+      "description": "Compara y ordena decimales hasta los centésimos y los ubica entre dos números naturales. Ejemplo: «¿Cuál es mayor, 0 coma 5 o 0 coma 45?» (0 coma 5). «¿Entre qué dos números naturales está 3 coma 8?» (entre 3 y 4).",
+      "prerequisites": [
+        "decimales.decimos-y-centesimos"
+      ]
+    },
+    {
+      "id": "decimales.sumar-y-restar",
+      "subject": "math",
+      "name": "Sumar y restar decimales",
+      "grade": "P5",
+      "description": "Suma y resta decimales hasta los centésimos alineando unidades, décimos y centésimos. Ejemplo: «¿Cuánto es 2 coma 5 más 1 coma 75?» (4 coma 25). «Pagas 12 soles con 80 con un billete de 20. ¿Cuál es el vuelto?» (7 soles con 20).",
+      "prerequisites": [
+        "decimales.decimos-y-centesimos",
+        "suma-resta.sumar-y-restar-hasta-10000",
+        "dinero.vuelto-con-centimos"
+      ]
+    },
+    {
+      "id": "tiempo.convertir-horas-minutos-segundos",
+      "subject": "math",
+      "name": "Convertir entre horas, minutos y segundos",
+      "grade": "P5",
+      "description": "Convierte entre horas, minutos y segundos y expresa duraciones de distintas formas. Ejemplo: «¿Cuántos minutos son 2 horas y media?» (150). «¿Cuántos segundos hay en 5 minutos?» (300). «Una película dura 135 minutos. ¿Cuántas horas y minutos son?» (2 horas y 15 minutos).",
+      "prerequisites": [
+        "tiempo.duracion-y-horarios",
+        "multiplicacion.dos-cifras-por-una",
+        "division.con-residuo"
+      ]
+    },
+    {
+      "id": "patrones.regla-general-de-una-secuencia",
+      "subject": "math",
+      "name": "Hallar un término lejano de una secuencia con su regla",
+      "grade": "P5",
+      "description": "Relaciona la posición de un término con su valor para encontrar términos lejanos sin escribir toda la secuencia. Ejemplo: «En la secuencia 4, 8, 12, 16…, ¿cuál es el término número 10?» (40). «En 5, 8, 11, 14…, ¿cuánto aumenta cada vez y cuál será el sexto término?» (aumenta 3; el sexto es 20).",
+      "prerequisites": [
+        "patrones.multiplicativos"
+      ]
+    },
+    {
+      "id": "ecuaciones.un-paso",
+      "subject": "math",
+      "name": "Resolver ecuaciones de un paso",
+      "grade": "P5",
+      "description": "Halla el valor desconocido en una ecuación sencilla de suma, resta, multiplicación o división usando la operación inversa. Ejemplo: «Un número más 15 es igual a 40. ¿Cuál es el número?» (25). «4 veces un número es 36. ¿Cuál es?» (9). «Un número entre 5 es 7. ¿Cuál es?» (35).",
+      "prerequisites": [
+        "igualdades.balanza-con-valor-desconocido"
+      ]
+    },
+    {
+      "id": "ecuaciones.plantear-desde-un-problema",
+      "subject": "math",
+      "name": "Plantear una ecuación a partir de un problema",
+      "grade": "P5",
+      "description": "Traduce una situación a una igualdad con un valor desconocido y la resuelve. Ejemplo: «Pienso un número, lo multiplico por 3 y obtengo 27. Di la ecuación y el número» (3 por n igual a 27; n es 9). «Tenía cierta cantidad, gasté 18 soles y me quedan 32. ¿Cuánto tenía?» (50).",
+      "prerequisites": [
+        "ecuaciones.un-paso"
+      ]
+    },
+    {
+      "id": "proporcionalidad.directa-con-tablas",
+      "subject": "math",
+      "name": "Resolver problemas de proporcionalidad directa con el valor unitario",
+      "grade": "P5",
+      "description": "Reconoce cuándo dos magnitudes son directamente proporcionales y calcula valores usando el valor de una unidad. Ejemplo: «3 kilos de papa cuestan 12 soles. ¿Cuánto cuestan 5 kilos?» (20 soles, porque cada kilo cuesta 4).",
+      "prerequisites": [
+        "cambio.tablas-de-proporcionalidad",
+        "division.dos-cifras-entre-una"
+      ]
+    },
+    {
+      "id": "geometria.clasificar-triangulos",
+      "subject": "math",
+      "name": "Clasificar triángulos por sus lados y por sus ángulos",
+      "grade": "P5",
+      "description": "Clasifica triángulos en equilátero, isósceles y escaleno, y en acutángulo, rectángulo y obtusángulo. Ejemplo: «Un triángulo tiene lados de 5, 5 y 8 centímetros. ¿Cómo se llama?» (isósceles). «¿Cómo se llama el triángulo que tiene un ángulo recto?» (triángulo rectángulo).",
+      "prerequisites": [
+        "geometria.triangulos-y-cuadrilateros"
+      ]
+    },
+    {
+      "id": "geometria.clasificar-cuadrilateros",
+      "subject": "math",
+      "name": "Clasificar cuadriláteros por sus lados paralelos",
+      "grade": "P5",
+      "description": "Clasifica cuadriláteros en paralelogramos (cuadrado, rectángulo, rombo, romboide), trapecios y trapezoides, y explica relaciones entre ellos. Ejemplo: «¿Cuántos pares de lados paralelos tiene un trapecio?» (uno). «¿Todo cuadrado es un rectángulo? ¿Por qué?» (sí, tiene cuatro ángulos rectos).",
+      "prerequisites": [
+        "geometria.triangulos-y-cuadrilateros"
+      ]
+    },
+    {
+      "id": "geometria.angulos-en-grados",
+      "subject": "math",
+      "name": "Usar grados para medir ángulos y la suma de ángulos del triángulo",
+      "grade": "P5",
+      "description": "Sabe que el ángulo recto mide 90 grados y el llano 180, clasifica ángulos por su medida y usa que los ángulos de un triángulo suman 180 grados. Ejemplo: «Un ángulo mide 120 grados. ¿Es agudo, recto u obtuso?» (obtuso). «Dos ángulos de un triángulo miden 60 y 50 grados. ¿Cuánto mide el tercero?» (70).",
+      "prerequisites": [
+        "geometria.angulos-recto-agudo-obtuso",
+        "suma-resta.restar-tres-cifras"
+      ]
+    },
+    {
+      "id": "geometria.area-rectangulo-y-cuadrado",
+      "subject": "math",
+      "name": "Calcular el área de rectángulos y cuadrados",
+      "grade": "P5",
+      "description": "Calcula el área de rectángulos y cuadrados multiplicando sus medidas y la expresa en centímetros cuadrados o metros cuadrados. Ejemplo: «Un cuarto mide 4 metros de largo y 3 de ancho. ¿Cuál es su área?» (12 metros cuadrados). «¿Cuál es el área de un cuadrado de 7 centímetros de lado?» (49 centímetros cuadrados).",
+      "prerequisites": [
+        "geometria.area-en-unidades-cuadradas",
+        "geometria.perimetro-rectangulo"
+      ]
+    },
+    {
+      "id": "geometria.area-triangulo",
+      "subject": "math",
+      "name": "Calcular el área de un triángulo",
+      "grade": "P5",
+      "description": "Entiende que el área de un triángulo es la mitad de la de un rectángulo con la misma base y altura, y la calcula. Ejemplo: «Un triángulo tiene 10 centímetros de base y 6 de altura. ¿Cuál es su área?» (30 centímetros cuadrados).",
+      "prerequisites": [
+        "geometria.area-rectangulo-y-cuadrado",
+        "geometria.clasificar-triangulos"
+      ]
+    },
+    {
+      "id": "geometria.prismas-y-piramides",
+      "subject": "math",
+      "name": "Describir prismas y pirámides",
+      "grade": "P5",
+      "description": "Distingue prismas de pirámides y los describe por la forma de su base y su número de caras, aristas y vértices. Ejemplo: «¿Cuántas caras tiene una pirámide de base cuadrada?» (5). «¿Qué forma tienen las caras laterales de una pirámide?» (triángulos). «¿Y las de un prisma?» (rectángulos).",
+      "prerequisites": [
+        "geometria.prismas-caras-aristas-vertices",
+        "geometria.triangulos-y-cuadrilateros"
+      ]
+    },
+    {
+      "id": "geometria.volumen-contando-cubos",
+      "subject": "math",
+      "name": "Medir el volumen contando cubos unidad",
+      "grade": "P5",
+      "description": "Entiende el volumen como la cantidad de cubitos que llenan un cuerpo y lo calcula en construcciones con forma de caja contando capas. Ejemplo: «Armas una caja con cubitos: cada piso tiene 3 filas de 4 cubitos y hay 2 pisos. ¿Cuántos cubitos usaste?» (24).",
+      "prerequisites": [
+        "geometria.prismas-y-piramides",
+        "geometria.area-en-unidades-cuadradas"
+      ]
+    },
+    {
+      "id": "ubicacion.plano-cartesiano",
+      "subject": "math",
+      "name": "Ubicar puntos en el plano cartesiano",
+      "grade": "P5",
+      "description": "Ubica y nombra puntos con pares ordenados en el primer cuadrante, diciendo primero el desplazamiento horizontal y luego el vertical. Ejemplo: «Para llegar al punto 4 coma 2 desde el origen, ¿cuánto avanzas a la derecha y cuánto subes?» (4 a la derecha y 2 hacia arriba). «¿Qué punto está 3 a la derecha y 5 arriba?» (3 coma 5).",
+      "prerequisites": [
+        "ubicacion.coordenadas-en-cuadricula"
+      ]
+    },
+    {
+      "id": "ubicacion.traslaciones-en-el-plano",
+      "subject": "math",
+      "name": "Trasladar puntos y figuras en el plano",
+      "grade": "P5",
+      "description": "Describe y aplica traslaciones en el plano cartesiano indicando cuántas unidades y en qué dirección. Ejemplo: «El punto 2 coma 3 se traslada 4 unidades a la derecha y 1 hacia abajo. ¿Dónde queda?» (en 6 coma 2). «¿Cambia el tamaño de una figura al trasladarla?» (no).",
+      "prerequisites": [
+        "ubicacion.plano-cartesiano"
+      ]
+    },
+    {
+      "id": "longitud.convertir-unidades",
+      "subject": "math",
+      "name": "Convertir entre unidades de longitud",
+      "grade": "P5",
+      "description": "Convierte entre kilómetros, metros, centímetros y milímetros, usando decimales cuando hace falta. Ejemplo: «¿Cuántos metros son 2 coma 5 kilómetros?» (2500). «¿Cuántos centímetros son 45 milímetros?» (4 coma 5). «Mides 1 metro con 38 centímetros. ¿Cómo lo dices solo en metros?» (1 coma 38 metros).",
+      "prerequisites": [
+        "longitud.kilometros-y-metros",
+        "decimales.decimos-y-centesimos"
+      ]
+    },
+    {
+      "id": "datos.barras-dobles",
+      "subject": "math",
+      "name": "Leer gráficos de barras dobles",
+      "grade": "P5",
+      "description": "Interpreta gráficos de barras dobles que comparan dos grupos y saca conclusiones. Ejemplo: «En lunes, la barra de niñas llega a 12 y la de niños a 15; en martes, niñas 18 y niños 10. ¿Qué día asistieron más estudiantes en total?» (el martes, 28 contra 27).",
+      "prerequisites": [
+        "datos.grafico-de-barras-con-escala",
+        "datos.tabla-de-doble-entrada"
+      ]
+    },
+    {
+      "id": "datos.promedio",
+      "subject": "math",
+      "name": "Calcular el promedio de un conjunto de datos",
+      "grade": "P5",
+      "description": "Calcula la media aritmética sumando los datos y dividiendo entre la cantidad de datos, y la entiende como un reparto equitativo. Ejemplo: «Tus notas son 14, 16 y 18. ¿Cuál es tu promedio?» (16). «Tres amigos tienen 5, 7 y 9 soles. Si repartieran por igual, ¿cuánto tendría cada uno?» (7).",
+      "prerequisites": [
+        "division.dos-cifras-entre-una",
+        "datos.moda"
+      ]
+    },
+    {
+      "id": "azar.resultados-posibles",
+      "subject": "math",
+      "name": "Listar todos los resultados posibles de un experimento",
+      "grade": "P5",
+      "description": "Enumera de forma ordenada todos los resultados posibles de un experimento aleatorio sencillo. Ejemplo: «¿Cuáles son todos los resultados posibles al lanzar un dado?» (1, 2, 3, 4, 5 y 6). «Lanzas dos monedas. ¿Qué combinaciones pueden salir?» (cara-cara, cara-sello, sello-cara, sello-sello).",
+      "prerequisites": [
+        "azar.mas-probable-menos-probable"
+      ]
+    },
+    {
+      "id": "numeros.millones",
+      "subject": "math",
+      "name": "Leer y comparar números de más de seis cifras",
+      "grade": "P6",
+      "description": "Lee, escribe, compara y redondea números de siete o más cifras. Ejemplo: «¿Cómo se lee un 3 seguido de seis ceros?» (tres millones). «¿Cuál es mayor, 2 millones 450 mil o 2 millones 405 mil?» (2 millones 450 mil). «¿Cuántas unidades de millar hay en un millón?» (mil).",
+      "prerequisites": [
+        "numeros.comparar-y-redondear-hasta-un-millon"
+      ]
+    },
+    {
+      "id": "numeros.primos-y-compuestos",
+      "subject": "math",
+      "name": "Distinguir números primos y compuestos",
+      "grade": "P6",
+      "description": "Decide si un número hasta 100 es primo o compuesto buscando sus divisores, y usa criterios de divisibilidad por 2, 3, 5 y 10. Ejemplo: «¿El 21 es primo?» (no, es 3 por 7). «Dime los números primos menores que 20» (2, 3, 5, 7, 11, 13, 17 y 19).",
+      "prerequisites": [
+        "numeros.multiplos-y-divisores"
+      ]
+    },
+    {
+      "id": "numeros.mcm-y-mcd",
+      "subject": "math",
+      "name": "Hallar el mínimo común múltiplo y el máximo común divisor",
+      "grade": "P6",
+      "description": "Calcula el MCM y el MCD de dos números pequeños y los usa en problemas. Ejemplo: «¿Cuál es el mínimo común múltiplo de 4 y 6?» (12). «¿Cuál es el máximo común divisor de 12 y 18?» (6). «Un bus pasa cada 6 minutos y otro cada 8. Si salen juntos, ¿en cuántos minutos vuelven a coincidir?» (24).",
+      "prerequisites": [
+        "numeros.primos-y-compuestos"
+      ]
+    },
+    {
+      "id": "numeros.potencias-cuadrado-y-cubo",
+      "subject": "math",
+      "name": "Calcular cuadrados y cubos",
+      "grade": "P6",
+      "description": "Entiende la potencia como multiplicación repetida y calcula cuadrados y cubos de números pequeños. Ejemplo: «¿Cuánto es 7 al cuadrado?» (49). «¿Cuánto es 2 al cubo?» (8). «¿Qué número elevado al cuadrado da 81?» (9).",
+      "prerequisites": [
+        "multiplicacion.varias-cifras"
+      ]
+    },
+    {
+      "id": "fracciones.sumar-y-restar-mixtos",
+      "subject": "math",
+      "name": "Sumar y restar números mixtos",
+      "grade": "P6",
+      "description": "Suma y resta números mixtos y fracciones impropias con distinto denominador. Ejemplo: «¿Cuánto es uno y un medio más dos y un cuarto?» (tres y tres cuartos). «¿Cuánto es tres menos uno y un tercio?» (uno y dos tercios).",
+      "prerequisites": [
+        "fracciones.numeros-mixtos-e-impropias",
+        "fracciones.restar-distinto-denominador"
+      ]
+    },
+    {
+      "id": "fracciones.multiplicar",
+      "subject": "math",
+      "name": "Multiplicar fracciones",
+      "grade": "P6",
+      "description": "Multiplica una fracción por un número natural y dos fracciones entre sí, e interpreta «la fracción de una fracción». Ejemplo: «¿Cuánto es la mitad de tres cuartos?» (tres octavos). «¿Cuánto es 4 por dos tercios?» (ocho tercios, o dos y dos tercios).",
+      "prerequisites": [
+        "fracciones.equivalentes-y-simplificar",
+        "fracciones.fraccion-de-una-cantidad",
+        "fracciones.numeros-mixtos-e-impropias"
+      ]
+    },
+    {
+      "id": "fracciones.dividir",
+      "subject": "math",
+      "name": "Dividir con fracciones",
+      "grade": "P6",
+      "description": "Divide un número natural entre una fracción y una fracción entre un número natural, apoyándose en la idea de «cuántas veces cabe». Ejemplo: «¿Cuántos vasos de un cuarto de litro salen de 2 litros?» (8). «Repartes medio queque entre 3 personas. ¿Qué fracción del queque recibe cada una?» (un sexto).",
+      "prerequisites": [
+        "fracciones.multiplicar"
+      ]
+    },
+    {
+      "id": "decimales.milesimos",
+      "subject": "math",
+      "name": "Leer y comparar decimales hasta los milésimos",
+      "grade": "P6",
+      "description": "Lee, escribe, compara y redondea decimales hasta los milésimos. Ejemplo: «¿Cómo se lee 0 coma 125?» (ciento veinticinco milésimos). «¿Cuál es mayor, 0 coma 3 o 0 coma 298?» (0 coma 3). «Redondea 4 coma 76 al décimo más cercano» (4 coma 8).",
+      "prerequisites": [
+        "decimales.comparar-y-ordenar"
+      ]
+    },
+    {
+      "id": "decimales.multiplicar-y-dividir-por-10-100-1000",
+      "subject": "math",
+      "name": "Multiplicar y dividir decimales por 10, 100 y 1000",
+      "grade": "P6",
+      "description": "Multiplica y divide decimales por 10, 100 y 1000 explicando hacia dónde se mueve la coma. Ejemplo: «¿Cuánto es 3 coma 45 por 10?» (34 coma 5). «¿Cuánto es 250 entre 100?» (2 coma 5). «¿Cuánto es 0 coma 8 por 1000?» (800).",
+      "prerequisites": [
+        "decimales.decimos-y-centesimos",
+        "multiplicacion.varias-cifras"
+      ]
+    },
+    {
+      "id": "decimales.multiplicar-por-natural",
+      "subject": "math",
+      "name": "Multiplicar un decimal por un número natural",
+      "grade": "P6",
+      "description": "Multiplica un decimal por un número natural y estima el resultado. Ejemplo: «Un pasaje cuesta 1 coma 50 soles. ¿Cuánto cuestan 6 pasajes?» (9 soles). «¿Cuánto es 2 coma 4 por 3?» (7 coma 2).",
+      "prerequisites": [
+        "decimales.sumar-y-restar",
+        "multiplicacion.dos-cifras-por-dos-cifras"
+      ]
+    },
+    {
+      "id": "decimales.multiplicar-decimales",
+      "subject": "math",
+      "name": "Multiplicar dos números decimales",
+      "grade": "P6",
+      "description": "Multiplica dos decimales sencillos y ubica la coma razonando sobre el tamaño del resultado. Ejemplo: «¿Cuánto es 0 coma 5 por 0 coma 4?» (0 coma 2). «¿Cuánto es 1 coma 5 por 2 coma 2?» (3 coma 3).",
+      "prerequisites": [
+        "decimales.multiplicar-por-natural",
+        "decimales.multiplicar-y-dividir-por-10-100-1000"
+      ]
+    },
+    {
+      "id": "decimales.dividir-entre-natural",
+      "subject": "math",
+      "name": "Dividir un decimal entre un número natural",
+      "grade": "P6",
+      "description": "Divide un decimal entre un natural y obtiene cocientes decimales en divisiones de naturales que no son exactas. Ejemplo: «Cuatro amigos pagan en partes iguales una cuenta de 10 soles. ¿Cuánto paga cada uno?» (2 coma 50 soles). «¿Cuánto es 7 coma 2 entre 3?» (2 coma 4).",
+      "prerequisites": [
+        "decimales.multiplicar-por-natural",
+        "division.entre-dos-cifras"
+      ]
+    },
+    {
+      "id": "porcentajes.fraccion-decimal-y-porcentaje",
+      "subject": "math",
+      "name": "Relacionar fracciones, decimales y porcentajes",
+      "grade": "P6",
+      "description": "Entiende el porcentaje como «tantos de cada 100» y pasa entre fracción, decimal y porcentaje en los casos usuales. Ejemplo: «¿Qué porcentaje es la mitad?» (50 por ciento). «¿Cómo se escribe 25 por ciento como fracción?» (un cuarto). «¿Qué decimal es 75 por ciento?» (0 coma 75).",
+      "prerequisites": [
+        "decimales.decimos-y-centesimos",
+        "fracciones.equivalentes-y-simplificar"
+      ]
+    },
+    {
+      "id": "porcentajes.porcentajes-usuales",
+      "subject": "math",
+      "name": "Calcular mentalmente el 10, 25 y 50 por ciento",
+      "grade": "P6",
+      "description": "Calcula mentalmente el 50, 25 y 10 por ciento de una cantidad, y a partir de ellos otros como el 20 o el 75 por ciento. Ejemplo: «¿Cuánto es el 50 por ciento de 80?» (40). «¿Cuánto es el 10 por ciento de 250 soles?» (25 soles). «¿Y el 20 por ciento?» (50 soles).",
+      "prerequisites": [
+        "porcentajes.fraccion-decimal-y-porcentaje",
+        "fracciones.fraccion-de-una-cantidad"
+      ]
+    },
+    {
+      "id": "porcentajes.calcular-porcentaje-de-una-cantidad",
+      "subject": "math",
+      "name": "Calcular cualquier porcentaje de una cantidad",
+      "grade": "P6",
+      "description": "Calcula un porcentaje cualquiera de una cantidad multiplicando por el decimal o la fracción equivalente. Ejemplo: «¿Cuánto es el 15 por ciento de 200?» (30). «En un salón de 40 estudiantes, el 30 por ciento usa lentes. ¿Cuántos son?» (12).",
+      "prerequisites": [
+        "porcentajes.porcentajes-usuales",
+        "decimales.multiplicar-por-natural"
+      ]
+    },
+    {
+      "id": "porcentajes.descuentos-y-aumentos",
+      "subject": "math",
+      "name": "Resolver problemas de descuentos y aumentos",
+      "grade": "P6",
+      "description": "Calcula el precio final después de un descuento o un aumento en porcentaje. Ejemplo: «Unas zapatillas cuestan 120 soles y tienen 25 por ciento de descuento. ¿Cuánto pagas?» (90 soles). «Un pasaje de 2 soles sube 10 por ciento. ¿Cuánto cuesta ahora?» (2 soles con 20 céntimos).",
+      "prerequisites": [
+        "porcentajes.calcular-porcentaje-de-una-cantidad",
+        "decimales.sumar-y-restar"
+      ]
+    },
+    {
+      "id": "dinero.presupuesto-con-decimales",
+      "subject": "math",
+      "name": "Resolver problemas de compras y presupuesto con decimales",
+      "grade": "P6",
+      "description": "Resuelve problemas de varios pasos con precios decimales: totales, vueltos y si alcanza el dinero. Ejemplo: «Compras 3 kilos de arroz a 4 coma 50 el kilo y una botella de aceite de 9 coma 80. ¿Te alcanza con 25 soles? ¿Cuánto sobra o falta?» (sí alcanza; gastas 23 coma 30 y sobra 1 coma 70).",
+      "prerequisites": [
+        "decimales.multiplicar-por-natural",
+        "decimales.sumar-y-restar",
+        "operaciones.combinadas-con-parentesis"
+      ]
+    },
+    {
+      "id": "masa.convertir-con-decimales",
+      "subject": "math",
+      "name": "Convertir unidades de masa con decimales",
+      "grade": "P6",
+      "description": "Convierte entre gramos, kilogramos y toneladas usando decimales. Ejemplo: «¿Cuántos kilogramos son 2500 gramos?» (2 coma 5). «¿Cuántos kilogramos hay en media tonelada?» (500). «¿Cuántos gramos son 0 coma 75 kilos?» (750).",
+      "prerequisites": [
+        "masa.convertir-kilogramos-y-gramos",
+        "decimales.multiplicar-y-dividir-por-10-100-1000"
+      ]
+    },
+    {
+      "id": "proporcionalidad.razones",
+      "subject": "math",
+      "name": "Expresar y comparar razones",
+      "grade": "P6",
+      "description": "Expresa la relación entre dos cantidades como una razón, la simplifica y encuentra razones equivalentes. Ejemplo: «En un salón hay 12 niñas y 18 niños. ¿Cuál es la razón entre niñas y niños en su forma más simple?» (2 a 3). «Si la limonada lleva 1 vaso de limón por 4 de agua, ¿cuánta agua va con 3 vasos de limón?» (12).",
+      "prerequisites": [
+        "fracciones.equivalentes-y-simplificar",
+        "proporcionalidad.directa-con-tablas"
+      ]
+    },
+    {
+      "id": "proporcionalidad.regla-de-tres-directa",
+      "subject": "math",
+      "name": "Resolver problemas de proporcionalidad directa",
+      "grade": "P6",
+      "description": "Resuelve problemas de proporcionalidad directa con el valor unitario o con una regla de tres simple, también con resultados decimales. Ejemplo: «4 cuadernos cuestan 18 soles. ¿Cuánto cuestan 10 cuadernos?» (45 soles). «Un auto recorre 150 kilómetros en 2 horas. A ese ritmo, ¿cuánto recorre en 5 horas?» (375 kilómetros).",
+      "prerequisites": [
+        "proporcionalidad.directa-con-tablas",
+        "decimales.dividir-entre-natural"
+      ]
+    },
+    {
+      "id": "ecuaciones.dos-pasos",
+      "subject": "math",
+      "name": "Resolver ecuaciones de dos pasos",
+      "grade": "P6",
+      "description": "Resuelve ecuaciones que necesitan dos operaciones inversas y comprueba la solución. Ejemplo: «El doble de un número más 3 es igual a 15. ¿Cuál es el número?» (6). «Tres veces un número menos 4 es 20. ¿Cuál es?» (8).",
+      "prerequisites": [
+        "ecuaciones.plantear-desde-un-problema",
+        "operaciones.combinadas-con-parentesis"
+      ]
+    },
+    {
+      "id": "patrones.expresar-regla-con-letras",
+      "subject": "math",
+      "name": "Expresar la regla de un patrón con una letra",
+      "grade": "P6",
+      "description": "Expresa con una letra la regla general de una secuencia o de una relación entre dos cantidades y la usa para calcular. Ejemplo: «Cada mesa tiene 4 sillas. Si n es el número de mesas, ¿cómo expresas el número de sillas?» (4 por n). «En la secuencia 3, 5, 7, 9…, ¿qué regla da el término de la posición n?» (2 por n, más 1).",
+      "prerequisites": [
+        "patrones.regla-general-de-una-secuencia",
+        "ecuaciones.un-paso"
+      ]
+    },
+    {
+      "id": "geometria.circulo-y-circunferencia",
+      "subject": "math",
+      "name": "Reconocer los elementos del círculo",
+      "grade": "P6",
+      "description": "Distingue círculo y circunferencia y nombra centro, radio y diámetro, sabiendo que el diámetro es el doble del radio. Ejemplo: «El radio de una rueda mide 30 centímetros. ¿Cuánto mide su diámetro?» (60 centímetros). «¿Cómo se llama la línea que va del centro al borde?» (radio).",
+      "prerequisites": [
+        "geometria.clasificar-cuadrilateros"
+      ]
+    },
+    {
+      "id": "geometria.problemas-de-perimetro-y-area",
+      "subject": "math",
+      "name": "Resolver problemas de perímetro y área",
+      "grade": "P6",
+      "description": "Resuelve problemas que relacionan perímetro y área, y halla una medida que falta. Ejemplo: «Un rectángulo tiene 24 metros cuadrados de área y 6 metros de largo. ¿Cuánto mide su ancho?» (4 metros). «¿Y su perímetro?» (20 metros).",
+      "prerequisites": [
+        "geometria.area-rectangulo-y-cuadrado",
+        "ecuaciones.un-paso"
+      ]
+    },
+    {
+      "id": "geometria.area-de-figuras-compuestas",
+      "subject": "math",
+      "name": "Calcular el área de figuras compuestas",
+      "grade": "P6",
+      "description": "Calcula el área de una figura descomponiéndola en rectángulos y triángulos. Ejemplo: «Un terreno tiene forma de L: se forma con un rectángulo de 6 por 4 metros y otro de 3 por 2 metros. ¿Cuál es su área total?» (30 metros cuadrados).",
+      "prerequisites": [
+        "geometria.area-triangulo",
+        "geometria.area-rectangulo-y-cuadrado"
+      ]
+    },
+    {
+      "id": "geometria.volumen-prisma-rectangular",
+      "subject": "math",
+      "name": "Calcular el volumen de un prisma rectangular",
+      "grade": "P6",
+      "description": "Calcula el volumen de una caja multiplicando largo, ancho y altura, y lo expresa en centímetros cúbicos o metros cúbicos. Ejemplo: «Una caja mide 5 centímetros de largo, 4 de ancho y 3 de alto. ¿Cuál es su volumen?» (60 centímetros cúbicos). «¿Cuál es el volumen de un cubo de 3 centímetros de arista?» (27).",
+      "prerequisites": [
+        "geometria.volumen-contando-cubos",
+        "numeros.potencias-cuadrado-y-cubo"
+      ]
+    },
+    {
+      "id": "capacidad.convertir-litros-y-mililitros",
+      "subject": "math",
+      "name": "Convertir unidades de capacidad con decimales",
+      "grade": "P6",
+      "description": "Convierte entre litros y mililitros usando decimales y resuelve problemas de capacidad. Ejemplo: «¿Cuántos litros son 1500 mililitros?» (1 coma 5). «¿Cuántos vasos de 200 mililitros se llenan con una botella de 3 litros?» (15).",
+      "prerequisites": [
+        "capacidad.litros-y-mililitros",
+        "decimales.multiplicar-y-dividir-por-10-100-1000"
+      ]
+    },
+    {
+      "id": "ubicacion.ampliar-y-reducir-figuras",
+      "subject": "math",
+      "name": "Ampliar y reducir figuras",
+      "grade": "P6",
+      "description": "Calcula las medidas de una figura ampliada o reducida manteniendo la proporción, y describe qué cambia y qué no. Ejemplo: «Un rectángulo mide 3 por 2 centímetros. Si lo amplías al doble, ¿cuánto miden sus lados?» (6 por 4). «¿Su perímetro también se duplica?» (sí, pasa de 10 a 20).",
+      "prerequisites": [
+        "proporcionalidad.razones",
+        "geometria.perimetro-rectangulo"
+      ]
+    },
+    {
+      "id": "datos.grafico-de-lineas",
+      "subject": "math",
+      "name": "Leer gráficos de líneas",
+      "grade": "P6",
+      "description": "Interpreta gráficos de líneas que muestran cómo cambia un dato en el tiempo: cuándo sube, cuándo baja y cuánto. Ejemplo: «La temperatura fue 15 grados a las 8, 19 a las 10, 23 a las 12 y 20 a las 2 de la tarde. ¿Entre qué horas bajó?» (entre las 12 y las 2). «¿Cuánto subió de 8 a 12?» (8 grados).",
+      "prerequisites": [
+        "datos.barras-dobles"
+      ]
+    },
+    {
+      "id": "datos.grafico-circular-con-porcentajes",
+      "subject": "math",
+      "name": "Leer gráficos circulares con porcentajes",
+      "grade": "P6",
+      "description": "Interpreta un gráfico circular con sectores en porcentajes y calcula cuántos corresponden a cada sector. Ejemplo: «De 200 estudiantes, el gráfico dice 50 por ciento a pie, 30 por ciento en bus y el resto en bicicleta. ¿Qué porcentaje va en bicicleta?» (20 por ciento). «¿Cuántos estudiantes son?» (40).",
+      "prerequisites": [
+        "porcentajes.calcular-porcentaje-de-una-cantidad",
+        "datos.barras-dobles"
+      ]
+    },
+    {
+      "id": "datos.elegir-moda-o-promedio",
+      "subject": "math",
+      "name": "Elegir entre la moda y el promedio para describir datos",
+      "grade": "P6",
+      "description": "Calcula la moda y el promedio de un mismo conjunto de datos y explica cuál lo describe mejor. Ejemplo: «Las propinas de cinco amigos son 5, 5, 5, 5 y 30 soles. ¿Cuál es la moda y cuál el promedio?» (moda 5, promedio 10). «¿Cuál representa mejor lo que recibe la mayoría?» (la moda).",
+      "prerequisites": [
+        "datos.promedio",
+        "datos.moda"
+      ]
+    },
+    {
+      "id": "azar.probabilidad-como-fraccion",
+      "subject": "math",
+      "name": "Expresar la probabilidad como fracción",
+      "grade": "P6",
+      "description": "Expresa la probabilidad de un suceso como casos favorables entre casos posibles. Ejemplo: «En una bolsa hay 3 bolitas rojas y 5 azules. ¿Cuál es la probabilidad de sacar una roja?» (tres octavos). «Al lanzar un dado, ¿cuál es la probabilidad de sacar un número par?» (tres sextos, o un medio).",
+      "prerequisites": [
+        "azar.resultados-posibles",
+        "fracciones.equivalentes-y-simplificar"
+      ]
+    },
+    {
+      "id": "azar.comparar-probabilidades",
+      "subject": "math",
+      "name": "Comparar probabilidades para tomar decisiones",
+      "grade": "P6",
+      "description": "Compara la probabilidad de dos sucesos expresada en fracciones y decide cuál conviene. Ejemplo: «En la bolsa A hay 2 rojas de 5 bolitas; en la bolsa B, 3 rojas de 10. Si ganas sacando roja, ¿qué bolsa eliges?» (la A: cuatro décimos contra tres décimos).",
+      "prerequisites": [
+        "azar.probabilidad-como-fraccion",
+        "fracciones.comparar-distinto-denominador"
+      ]
+    }
+  ]
+}
