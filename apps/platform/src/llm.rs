@@ -20,8 +20,11 @@ pub struct Request<'a> {
     pub tier: Tier,
     pub system: &'a str,
     pub user: &'a str,
-    /// Name and JSON Schema of the object to return.
+    /// What is being asked for, to tell requests apart in logs and tests.
     pub answer: &'a str,
+    /// JSON Schema of the object to return. Every object in it must set
+    /// `additionalProperties: false`, and numeric or length limits are not
+    /// supported: check those after parsing.
     pub schema: &'a Value,
     pub max_tokens: u32,
 }
@@ -41,8 +44,10 @@ pub trait Llm: Send + Sync {
     async fn answer(&self, request: Request<'_>) -> Result<Value, LlmError>;
 }
 
-/// Claude through the Anthropic Messages API. The schema is passed as a tool
-/// the model is required to call, which makes its input the structured answer.
+/// Claude through the Anthropic Messages API, with structured outputs: the
+/// schema goes in `output_config.format` and the answer comes back as JSON
+/// text. (Forcing a tool call, the older way to get an object, is refused by
+/// the current models.)
 pub struct Anthropic {
     client: reqwest::Client,
     settings: Supervisor,
@@ -61,21 +66,29 @@ pub fn anthropic_body(model: &str, request: &Request<'_>) -> Value {
         "max_tokens": request.max_tokens,
         "system": request.system,
         "messages": [{ "role": "user", "content": request.user }],
-        "tools": [{
-            "name": request.answer,
-            "description": "Return the answer in this structure.",
-            "input_schema": request.schema,
-        }],
-        "tool_choice": { "type": "tool", "name": request.answer },
+        "output_config": {
+            // How hard the model thinks before answering. Guidance has to keep
+            // up with a conversation; plans and reviews can take longer.
+            "effort": match request.tier {
+                Tier::Live => "low",
+                Tier::Deep => "medium",
+            },
+            "format": { "type": "json_schema", "schema": request.schema },
+        },
     })
 }
 
-pub fn anthropic_answer(response: &Value, answer: &str) -> Option<Value> {
+/// The object in the response, if the model finished and wrote one. A reply
+/// that was cut short or declined has no usable answer.
+pub fn anthropic_answer(response: &Value) -> Option<Value> {
+    if response["stop_reason"] != "end_turn" {
+        return None;
+    }
     response["content"]
         .as_array()?
         .iter()
-        .find(|block| block["type"] == "tool_use" && block["name"] == answer)
-        .map(|block| block["input"].clone())
+        .filter(|block| block["type"] == "text")
+        .find_map(|block| serde_json::from_str::<Value>(block["text"].as_str()?).ok())
         .filter(Value::is_object)
 }
 
@@ -102,7 +115,7 @@ impl Llm for Anthropic {
             return Err(LlmError::Status(response.status().as_u16()));
         }
         let body: Value = response.json().await.map_err(|error| LlmError::Transport(error.to_string()))?;
-        anthropic_answer(&body, request.answer).ok_or(LlmError::NoAnswer)
+        anthropic_answer(&body).ok_or(LlmError::NoAnswer)
     }
 }
 
@@ -111,10 +124,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_request_forces_the_structured_answer() {
-        let schema = json!({ "type": "object" });
-        let request = Request {
-            tier: Tier::Live,
+    fn the_request_asks_for_the_schema_and_thinks_less_when_live() {
+        let schema = json!({ "type": "object", "additionalProperties": false });
+        let request = |tier| Request {
+            tier,
             system: "be brief",
             user: "hello",
             answer: "guidance",
@@ -122,23 +135,33 @@ mod tests {
             max_tokens: 200,
         };
 
-        let body = anthropic_body("claude-haiku-5-5", &request);
+        let live = anthropic_body("claude-haiku-5-5", &request(Tier::Live));
+        let deep = anthropic_body("claude-sonnet-5-5", &request(Tier::Deep));
 
-        assert_eq!(body["tool_choice"], json!({ "type": "tool", "name": "guidance" }));
-        assert_eq!(body["tools"][0]["input_schema"], schema);
-        assert_eq!(body["messages"][0]["content"], "hello");
+        assert_eq!(live["output_config"]["format"], json!({ "type": "json_schema", "schema": schema }));
+        assert_eq!(live["output_config"]["effort"], "low");
+        assert_eq!(deep["output_config"]["effort"], "medium");
+        assert_eq!(live["messages"][0]["content"], "hello");
+        assert!(live.get("tools").is_none() && live.get("tool_choice").is_none());
     }
 
     #[test]
-    fn the_answer_is_the_input_of_the_forced_tool() {
-        let response = json!({ "content": [
-            { "type": "text", "text": "thinking aloud" },
-            { "type": "tool_use", "name": "guidance", "input": { "text": "slow down" } },
-        ]});
+    fn the_answer_is_the_json_text_of_a_finished_reply() {
+        let reply = |stop_reason: &str, text: &str| {
+            json!({ "stop_reason": stop_reason, "content": [
+                { "type": "thinking", "thinking": "" },
+                { "type": "text", "text": text },
+            ]})
+        };
 
-        assert_eq!(anthropic_answer(&response, "guidance"), Some(json!({ "text": "slow down" })));
-        assert_eq!(anthropic_answer(&response, "other"), None);
-        assert_eq!(anthropic_answer(&json!({ "content": [] }), "guidance"), None);
-        assert_eq!(anthropic_answer(&json!({}), "guidance"), None);
+        assert_eq!(
+            anthropic_answer(&reply("end_turn", r#"{"text":"slow down"}"#)),
+            Some(json!({ "text": "slow down" }))
+        );
+        assert_eq!(anthropic_answer(&reply("max_tokens", r#"{"text":"slow"#)), None);
+        assert_eq!(anthropic_answer(&reply("refusal", r#"{"text":"x"}"#)), None);
+        assert_eq!(anthropic_answer(&reply("end_turn", "not json")), None);
+        assert_eq!(anthropic_answer(&reply("end_turn", "[1]")), None);
+        assert_eq!(anthropic_answer(&json!({})), None);
     }
 }
