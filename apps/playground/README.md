@@ -9,12 +9,14 @@ It is a small Node server with no database. It serves the page and has one endpo
 | Variable | Meaning |
 |---|---|
 | `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | Signs the room tokens |
-| `PLAYGROUND_LIVEKIT_URL` | The LiveKit URL as the browser reaches it (falls back to `LIVEKIT_URL`) |
+| `CAPRICORN_LIVEKIT_PUBLIC_URL` | The LiveKit URL as the browser reaches it (falls back to `LIVEKIT_URL`) |
 | `PLAYGROUND_ACCESS_CODE` | At least 16 characters. Whoever has it can start a session |
 | `PLAYGROUND_HOST`, `PLAYGROUND_PORT` | Default `127.0.0.1:8090` |
 | `PLAYGROUND_BASE_PATH` | Default `/playground` |
 | `PLAYGROUND_SESSION_MINUTES` | How long a token lasts. Default 20 |
 | `CAPRICORN_AGENT_NAME` | The agent to ask for. Default `capricorn-tutor` |
+| `CAPRICORN_PLATFORM_URL`, `CAPRICORN_ADMIN_TOKEN` | Optional. With them, sessions are created by the [platform](../platform/README.md): the supervisor plans and follows them, and the page shows its plan and guidance |
+| `PLAYGROUND_CHILD_ID` | Optional, with a platform: a child profile to try the tutor with. Its guardian must have consented to `voice` |
 
 Put it behind a reverse proxy with HTTPS: browsers only give the microphone and the camera to secure pages.
 

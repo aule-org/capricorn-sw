@@ -16,6 +16,8 @@ export type Settings = {
   accessCode: string;
   agentName: string;
   sessionMinutes: number;
+  /** With a platform, sessions are created there and the supervisor takes part. */
+  platform: { url: string; adminToken: string; childId: string | null } | null;
 };
 
 export class ConfigError extends Error {}
@@ -26,9 +28,11 @@ export function readSettings(env: Record<string, string | undefined>): Settings 
   const get = (name: string, fallback = "") => env[name]?.trim() || fallback;
   const problems: string[] = [];
 
-  const livekitUrl = get("PLAYGROUND_LIVEKIT_URL") || get("LIVEKIT_URL");
+  // PLAYGROUND_LIVEKIT_URL is the earlier name of CAPRICORN_LIVEKIT_PUBLIC_URL.
+  const livekitUrl =
+    get("CAPRICORN_LIVEKIT_PUBLIC_URL") || get("PLAYGROUND_LIVEKIT_URL") || get("LIVEKIT_URL");
   if (!/^wss?:\/\/[^\s/]+/.test(livekitUrl)) {
-    problems.push("PLAYGROUND_LIVEKIT_URL (or LIVEKIT_URL) must be a ws:// or wss:// URL");
+    problems.push("CAPRICORN_LIVEKIT_PUBLIC_URL (or LIVEKIT_URL) must be a ws:// or wss:// URL");
   }
   for (const name of ["LIVEKIT_API_KEY", "LIVEKIT_API_SECRET"]) {
     if (!get(name)) problems.push(`${name} is not set`);
@@ -54,6 +58,19 @@ export function readSettings(env: Record<string, string | undefined>): Settings 
     problems.push("PLAYGROUND_SESSION_MINUTES must be a whole number from 1 to 120");
   }
 
+  const platformUrl = get("CAPRICORN_PLATFORM_URL").replace(/\/+$/, "");
+  const adminToken = get("CAPRICORN_ADMIN_TOKEN");
+  const childId = get("PLAYGROUND_CHILD_ID");
+  if (platformUrl && !/^https?:\/\/[^\s/]+/.test(platformUrl)) {
+    problems.push("CAPRICORN_PLATFORM_URL must be an http:// or https:// URL");
+  }
+  if (platformUrl && !adminToken) {
+    problems.push("CAPRICORN_ADMIN_TOKEN is needed with CAPRICORN_PLATFORM_URL");
+  }
+  if (childId && !/^[0-9a-f-]{36}$/i.test(childId)) {
+    problems.push("PLAYGROUND_CHILD_ID must be a child's id");
+  }
+
   if (problems.length > 0) throw new ConfigError(problems.join("; "));
 
   return {
@@ -66,5 +83,6 @@ export function readSettings(env: Record<string, string | undefined>): Settings 
     accessCode,
     agentName: get("CAPRICORN_AGENT_NAME", "capricorn-tutor"),
     sessionMinutes,
+    platform: platformUrl ? { url: platformUrl, adminToken, childId: childId || null } : null,
   };
 }

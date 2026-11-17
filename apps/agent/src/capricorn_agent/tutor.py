@@ -80,6 +80,11 @@ def with_frame(chat_ctx: llm.ChatContext, frame: rtc.VideoFrame | None) -> llm.C
     return chat_ctx
 
 
+def with_notes(instructions: str, notes: str) -> str:
+    notes = notes.strip()
+    return f"{instructions}\n\n{notes}" if notes else instructions
+
+
 def _text_of(chunk: Any) -> str:
     if isinstance(chunk, str):
         return chunk
@@ -88,11 +93,23 @@ def _text_of(chunk: Any) -> str:
 
 
 class Tutor(Agent):
-    def __init__(self, *, language: str, gates: Gates, camera: Any = None) -> None:
-        super().__init__(instructions=INSTRUCTIONS[language])
+    def __init__(
+        self, *, language: str, gates: Gates, camera: Any = None, context: str = ""
+    ) -> None:
+        # `context` is what the platform knows about this student and the
+        # supervisor's plan for the session; empty when there is no platform.
+        self._base = with_notes(INSTRUCTIONS[language], context)
+        super().__init__(instructions=self._base)
         self._language = language
         self._gates = gates
         self._camera = camera
+
+    async def advise(self, guidance: str) -> None:
+        """Applies the supervisor's latest guidance to the turns that follow.
+
+        It replaces the previous guidance instead of piling up.
+        """
+        await self.update_instructions(with_notes(self._base, guidance))
 
     async def on_enter(self) -> None:
         self.session.generate_reply(instructions=GREETING[self._language])

@@ -35,6 +35,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/children/{child_id}/reviews", get(child_reviews))
         .route("/v1/skills", put(put_skills).get(get_skills))
         .route("/v1/sessions", post(sessions::create_session))
+        .route("/v1/sessions/{session_id}/supervisor", get(sessions::supervisor_view))
         // Agent API, one session per token
         .route("/v1/agent/session", get(sessions::agent_start))
         .route("/v1/agent/session/turns", post(sessions::agent_turns))

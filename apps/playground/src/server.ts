@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 
 import { GuessLimiter, sameCode } from "./access.ts";
 import { ConfigError, LANGUAGES, readSettings, type Language, type Settings } from "./config.ts";
-import { createSession } from "./session.ts";
+import { PlatformError, createSession, supervisorView } from "./session.ts";
 
 const publicDir = new URL("../public/", import.meta.url);
 // The browser build that ships inside the livekit-client package.
@@ -77,7 +77,7 @@ export function createPlayground(settings: Settings): Server {
   const json = (response: ServerResponse, status: number, body: unknown) =>
     send(response, status, "application/json; charset=utf-8", JSON.stringify(body));
 
-  async function session(request: IncomingMessage, response: ServerResponse) {
+  async function session(path: string, request: IncomingMessage, response: ServerResponse) {
     if (limiter.blocked()) return json(response, 429, { error: "too_many_attempts" });
     let body: Record<string, unknown>;
     try {
@@ -90,6 +90,13 @@ export function createPlayground(settings: Settings): Server {
       return json(response, 401, { error: "wrong_code" });
     }
     const language = LANGUAGES.find((known) => known === body.language) ?? ("es" as Language);
+    // With a platform, the page may also ask what the supervisor is doing.
+    if (path === "/api/supervisor") {
+      if (!settings.platform || typeof body.session_id !== "string") {
+        return json(response, 404, { error: "not_found" });
+      }
+      return json(response, 200, await supervisorView(settings, body.session_id));
+    }
     return json(response, 200, await createSession(settings, language));
   }
 
@@ -106,9 +113,9 @@ export function createPlayground(settings: Settings): Server {
 
     const handle = async () => {
       if (path === "/healthz" && request.method === "GET") return json(response, 200, { ok: true });
-      if (path === "/api/session") {
+      if (path === "/api/session" || path === "/api/supervisor") {
         if (request.method !== "POST") return json(response, 405, { error: "method_not_allowed" });
-        return session(request, response);
+        return session(path, request, response);
       }
       const asset = STATIC[path];
       if (asset && request.method === "GET") {
@@ -117,6 +124,9 @@ export function createPlayground(settings: Settings): Server {
       return json(response, 404, { error: "not_found" });
     };
     handle().catch((error: unknown) => {
+      if (error instanceof PlatformError && !response.headersSent) {
+        return json(response, 502, { error: "platform", message: error.message });
+      }
       console.error("request failed:", error instanceof Error ? error.message : error);
       if (!response.headersSent) json(response, 500, { error: "internal" });
       else response.end();

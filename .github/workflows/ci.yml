@@ -82,10 +82,10 @@ jobs:
   images:
     name: Images (${{ matrix.app }})
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     strategy:
       matrix:
-        app: [agent, playground]
+        app: [agent, playground, platform]
     steps:
       - uses: actions/checkout@v7
       - run: docker build --file apps/${{ matrix.app }}/Dockerfile --tag capricorn-${{ matrix.app }}:ci .

@@ -5,7 +5,7 @@
 //! later says about it is checked against the token of that one session.
 
 use axum::Json;
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use chrono::Utc;
 use rand::RngCore;
@@ -490,4 +490,30 @@ pub async fn review_session(state: &AppState, session_id: Uuid) -> ApiResult<()>
         .execute(&state.pool)
         .await?;
     Ok(())
+}
+
+/// What the supervisor planned and advised in one session, for the people
+/// running the server to see it work.
+pub async fn supervisor_view(
+    _: Operator,
+    State(state): State<AppState>,
+    Path(session_id): Path<Uuid>,
+) -> ApiResult<Json<Value>> {
+    let status: Option<String> = sqlx::query_scalar("select status from sessions where id = $1")
+        .bind(session_id)
+        .fetch_optional(&state.pool)
+        .await?;
+    let status = status.ok_or(ApiError::NotFound("session"))?;
+    let brief = stored_brief(&state.pool, session_id).await?;
+    let guidance: Vec<(i64, i32, String, sqlx::types::Json<supervisor::Signals>)> = sqlx::query_as(
+        "select id, after_seq, guidance, signals from session_guidance where session_id = $1 order by id",
+    )
+    .bind(session_id)
+    .fetch_all(&state.pool)
+    .await?;
+    let guidance: Vec<Value> = guidance
+        .into_iter()
+        .map(|(id, after_seq, text, signals)| json!({ "id": id, "after_seq": after_seq, "text": text, "signals": signals.0 }))
+        .collect();
+    Ok(Json(json!({ "status": status, "brief": brief, "guidance": guidance })))
 }

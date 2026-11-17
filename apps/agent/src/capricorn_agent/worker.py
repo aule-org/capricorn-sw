@@ -15,6 +15,7 @@ from livekit.plugins import silero
 
 from .camera import Camera
 from .config import LANGUAGES, ConfigError, Settings
+from .platform import Platform, platform_session
 from .providers import build_llm, build_stt, build_tts
 from .safety import Gates, audience_of
 from .tutor import Tutor
@@ -69,6 +70,13 @@ async def entrypoint(ctx: JobContext) -> None:
 
     await ctx.connect()
     camera = Camera(ctx.room)
+
+    # With a platform, the tutor starts from what is known about the student
+    # and reports the conversation; without one it is a tutor with no memory.
+    linked = platform_session(ctx.job.metadata)
+    platform = Platform(linked) if linked else None
+    context = await platform.start() if platform else ""
+    tutor = Tutor(language=language, gates=gates, camera=camera, context=context)
     session = AgentSession(
         stt=build_stt(settings, language),
         llm=build_llm(settings),
@@ -81,16 +89,27 @@ async def entrypoint(ctx: JobContext) -> None:
         await session.say(GOODBYE[language], allow_interruptions=False, add_to_chat_ctx=False)
         session.shutdown()
 
-    timer = asyncio.create_task(end_when_time_is_up())
+    tasks = [asyncio.create_task(end_when_time_is_up())]
+    if platform:
+
+        @session.on("conversation_item_added")
+        def report(event) -> None:
+            if getattr(event.item, "type", None) == "message":
+                platform.heard(event.item.role, event.item.text_content)
+
+        tasks.append(asyncio.create_task(platform.run(tutor.advise)))
 
     async def cleanup() -> None:
-        timer.cancel()
+        for task in tasks:
+            task.cancel()
         camera.stop()
+        if platform:
+            await platform.end()
 
     ctx.add_shutdown_callback(cleanup)
 
     await session.start(
-        agent=Tutor(language=language, gates=gates, camera=camera),
+        agent=tutor,
         room=ctx.room,
         # The camera is read by ``Camera``; the session's own video input only
         # feeds realtime models. Audio is not recorded.

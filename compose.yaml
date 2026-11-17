@@ -1,10 +1,13 @@
-# The voice tutor and its playground, next to a LiveKit server you already run.
-# Settings come from one env file (see .env.example):
+# Capricorn's server, next to a LiveKit server you already run: the platform
+# and its worker, their database, a local embedding model, the voice tutor and
+# the playground. Settings come from one env file (see .env.example):
 #
 #   CAPRICORN_ENV_FILE=/etc/capricorn/capricorn.env docker compose up -d --build
+#   docker compose exec embeddings ollama pull bge-m3      # once
 #
-# Both services use the host network (Linux): the agent only makes outgoing
-# connections, and the playground listens on loopback for your reverse proxy.
+# The services of this repository use the host network (Linux) and listen on
+# loopback only: put your reverse proxy in front of the playground. The
+# database and the embedding model are published on loopback ports.
 x-service: &service
   env_file:
     - ${CAPRICORN_ENV_FILE:-.env}
@@ -31,6 +34,53 @@ services:
       dockerfile: apps/agent/Dockerfile
     mem_limit: 2g
 
+  postgres:
+    image: pgvector/pgvector:pg17
+    env_file:
+      - ${CAPRICORN_ENV_FILE:-.env}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - capricorn-db:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Embeddings for the children's memories, computed on this machine.
+  embeddings:
+    image: ollama/ollama:latest
+    ports:
+      - "127.0.0.1:11435:11434"
+    volumes:
+      - capricorn-models:/root/.ollama
+    restart: unless-stopped
+    mem_limit: 3g
+
+  platform:
+    <<: *service
+    build:
+      context: .
+      dockerfile: apps/platform/Dockerfile
+    command: ["serve"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: 512m
+
+  worker:
+    <<: *service
+    build:
+      context: .
+      dockerfile: apps/platform/Dockerfile
+    command: ["worker"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: 512m
+
   playground:
     <<: *service
     build:
@@ -44,3 +94,7 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+
+volumes:
+  capricorn-db:
+  capricorn-models:

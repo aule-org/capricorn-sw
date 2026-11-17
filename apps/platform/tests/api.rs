@@ -359,6 +359,11 @@ async fn a_session_is_planned_watched_and_reviewed(pool: PgPool) {
     assert_eq!(app.count("select count(*) from session_turns").await, 2);
     let guidance = &second["guidance"][0];
     assert!(guidance["instructions"].as_str().unwrap().contains("Give a smaller hint and wait."));
+    let (_, view) = app.admin(Method::GET, &format!("/v1/sessions/{session}/supervisor"), None).await;
+    assert_eq!(view["status"], "active");
+    assert_eq!(view["brief"]["skills"][0]["skill_id"], "fractions.add");
+    assert_eq!(view["guidance"][0]["signals"]["frustrated"], true);
+    assert_eq!(view["guidance"][0]["after_seq"], 1);
     let (_, third) = app
         .call(
             Method::POST,

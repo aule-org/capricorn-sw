@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
+import { createServer } from "node:http";
 import { after, before, test } from "node:test";
 
 import { TokenVerifier } from "livekit-server-sdk";
@@ -101,4 +102,68 @@ test("too many wrong codes lock the endpoint, even for the right one", async () 
   } finally {
     locked.close();
   }
+});
+
+test("with a platform, the session and the supervisor's view come from it", async () => {
+  const seen: { path: string; auth: string | undefined; body: unknown }[] = [];
+  const platform = createServer(async (request, response) => {
+    const chunks: Buffer[] = [];
+    for await (const chunk of request) chunks.push(chunk as Buffer);
+    const text = Buffer.concat(chunks).toString("utf8");
+    seen.push({ path: request.url ?? "", auth: request.headers.authorization, body: text ? JSON.parse(text) : null });
+    response.setHeader("Content-Type", "application/json");
+    if (request.url === "/v1/sessions") {
+      response.statusCode = 201;
+      return response.end(JSON.stringify({ session_id: "s-1", serverUrl: "wss://x", token: "jwt", room: "r" }));
+    }
+    if (request.url === "/v1/sessions/s-1/supervisor") {
+      return response.end(JSON.stringify({ brief: { goal: "Review" }, guidance: [] }));
+    }
+    response.statusCode = 403;
+    response.end(JSON.stringify({ error: { code: "forbidden", message: "no consent" } }));
+  });
+  await new Promise<void>((resolve) => platform.listen(0, "127.0.0.1", resolve));
+  const childId = "0198c5a0-0000-7000-8000-000000000001";
+  const linked = createPlayground(
+    readSettings({
+      ...COMPLETE,
+      CAPRICORN_PLATFORM_URL: `http://127.0.0.1:${(platform.address() as AddressInfo).port}/`,
+      CAPRICORN_ADMIN_TOKEN: "admin-token",
+      PLAYGROUND_CHILD_ID: childId,
+    }),
+  );
+  await new Promise<void>((resolve) => linked.listen(0, "127.0.0.1", resolve));
+  const url = `http://127.0.0.1:${(linked.address() as AddressInfo).port}/playground/api`;
+  const post = (path: string, body: object) =>
+    fetch(`${url}/${path}`, { method: "POST", body: JSON.stringify(body) });
+  try {
+    const code = COMPLETE.PLAYGROUND_ACCESS_CODE;
+    const session = await post("session", { code, language: "en" });
+    assert.equal(session.status, 200);
+    assert.equal((await session.json()).session_id, "s-1");
+    assert.deepEqual(seen[0], {
+      path: "/v1/sessions",
+      auth: "Bearer admin-token",
+      body: { audience: "operator", language: "en", child_id: childId },
+    });
+
+    const view = await post("supervisor", { code, session_id: "s-1" });
+    assert.deepEqual(await view.json(), { brief: { goal: "Review" }, guidance: [] });
+    assert.equal((await post("supervisor", { code: "wrong", session_id: "s-1" })).status, 401);
+
+    const refused = await post("supervisor", { code, session_id: "other" });
+    assert.equal(refused.status, 502);
+    assert.deepEqual(await refused.json(), { error: "platform", message: "no consent" });
+  } finally {
+    linked.close();
+    platform.close();
+  }
+});
+
+test("without a platform there is no supervisor to ask about", async () => {
+  const response = await fetch(`${base}/api/supervisor`, {
+    method: "POST",
+    body: JSON.stringify({ code: COMPLETE.PLAYGROUND_ACCESS_CODE, session_id: "s-1" }),
+  });
+  assert.equal(response.status, 404);
 });

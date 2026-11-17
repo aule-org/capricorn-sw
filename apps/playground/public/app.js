@@ -18,6 +18,8 @@ const STATE_TEXT = {
   left: "The tutor left the session.",
 };
 
+const SUPERVISOR_POLL_MS = 3000;
+
 const ERRORS = {
   wrong_code: "That access code is not right.",
   too_many_attempts: "Too many wrong codes. Wait a minute and try again.",
@@ -31,6 +33,7 @@ const message = $("message");
 let room = null;
 let clock = null;
 let tutorTimer = null;
+let supervisorTimer = null;
 
 function showMessage(text) {
   message.textContent = text;
@@ -88,6 +91,34 @@ async function onTranscription(reader, participant) {
   }
 }
 
+function item(text) {
+  const element = document.createElement("li");
+  element.textContent = text;
+  return element;
+}
+
+// Shows the supervisor's plan and the guidance it gives the tutor, when the
+// session was created by a platform.
+async function showSupervisor(sessionId) {
+  try {
+    const response = await fetch("api/supervisor", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: $("code").value, session_id: sessionId }),
+    });
+    if (!response.ok) return;
+    const view = await response.json();
+    $("supervisor").hidden = false;
+    $("plan").textContent = view.brief?.goal ?? "No plan for this session.";
+    $("plan-skills").replaceChildren(
+      ...(view.brief?.skills ?? []).map((skill) => item(`${skill.skill_id}: ${skill.start_with}`)),
+    );
+    $("notes").replaceChildren(...(view.guidance ?? []).map((note) => item(note.text)));
+  } catch {
+    // The panel is a view of the session, not part of it.
+  }
+}
+
 function watchTutor(participant) {
   if (participant.kind !== ParticipantKind.AGENT) return;
   clearTimeout(tutorTimer);
@@ -131,6 +162,10 @@ async function join(session) {
   setTutorState("waiting");
   tutorTimer = setTimeout(() => setTutorState("missing"), TUTOR_WAIT_MS);
   startClock(session.expiresInSeconds);
+  if (session.session_id) {
+    showSupervisor(session.session_id);
+    supervisorTimer = setInterval(() => showSupervisor(session.session_id), SUPERVISOR_POLL_MS);
+  }
   entry.hidden = true;
   stage.hidden = false;
 
@@ -150,6 +185,8 @@ function leave(reason) {
   room = null;
   clearInterval(clock);
   clearTimeout(tutorTimer);
+  clearInterval(supervisorTimer);
+  $("supervisor").hidden = true;
   leaving.disconnect();
   $("audio").replaceChildren();
   stage.hidden = true;
@@ -171,7 +208,9 @@ entry.addEventListener("submit", async (event) => {
       body: JSON.stringify({ code: $("code").value, language: $("language").value }),
     });
     const body = await response.json();
-    if (!response.ok) throw new Error(ERRORS[body.error] ?? "The session could not be started.");
+    if (!response.ok) {
+      throw new Error(ERRORS[body.error] ?? body.message ?? "The session could not be started.");
+    }
     await join(body);
   } catch (error) {
     const text =
