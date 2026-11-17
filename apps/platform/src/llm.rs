@@ -16,8 +16,18 @@ pub enum Tier {
     Live,
 }
 
+/// How hard the model thinks before it answers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Effort {
+    /// When someone is waiting: guidance during a session, the plan before it.
+    Low,
+    /// When nobody is: the review after a session.
+    Medium,
+}
+
 pub struct Request<'a> {
     pub tier: Tier,
+    pub effort: Effort,
     pub system: &'a str,
     pub user: &'a str,
     /// What is being asked for, to tell requests apart in logs and tests.
@@ -33,8 +43,8 @@ pub struct Request<'a> {
 pub enum LlmError {
     #[error("the language model could not be reached: {0}")]
     Transport(String),
-    #[error("the language model answered with status {0}")]
-    Status(u16),
+    #[error("the language model answered with status {0}{1}")]
+    Status(u16, String),
     #[error("the language model did not return the requested object")]
     NoAnswer,
 }
@@ -67,11 +77,9 @@ pub fn anthropic_body(model: &str, request: &Request<'_>) -> Value {
         "system": request.system,
         "messages": [{ "role": "user", "content": request.user }],
         "output_config": {
-            // How hard the model thinks before answering. Guidance has to keep
-            // up with a conversation; plans and reviews can take longer.
-            "effort": match request.tier {
-                Tier::Live => "low",
-                Tier::Deep => "medium",
+            "effort": match request.effort {
+                Effort::Low => "low",
+                Effort::Medium => "medium",
             },
             "format": { "type": "json_schema", "schema": request.schema },
         },
@@ -111,8 +119,23 @@ impl Llm for Anthropic {
             // The error text of a transport failure never includes the body.
             .map_err(|error| LlmError::Transport(error.without_url().to_string()))?;
         if !response.status().is_success() {
-            // The body can echo what was sent, so it is not logged.
-            return Err(LlmError::Status(response.status().as_u16()));
+            let status = response.status().as_u16();
+            // A refused request says why in its error type and message, which
+            // describe the request's parameters. Nothing else of the body is kept.
+            let reason = match response.json::<Value>().await {
+                Ok(body) if status == 400 => format!(
+                    " ({}: {})",
+                    body["error"]["type"].as_str().unwrap_or("unknown"),
+                    body["error"]["message"]
+                        .as_str()
+                        .unwrap_or_default()
+                        .chars()
+                        .take(160)
+                        .collect::<String>()
+                ),
+                _ => String::new(),
+            };
+            return Err(LlmError::Status(status, reason));
         }
         let body: Value = response.json().await.map_err(|error| LlmError::Transport(error.to_string()))?;
         anthropic_answer(&body).ok_or(LlmError::NoAnswer)
@@ -124,10 +147,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_request_asks_for_the_schema_and_thinks_less_when_live() {
+    fn the_request_asks_for_the_schema_at_the_given_effort() {
         let schema = json!({ "type": "object", "additionalProperties": false });
-        let request = |tier| Request {
+        let request = |tier, effort| Request {
             tier,
+            effort,
             system: "be brief",
             user: "hello",
             answer: "guidance",
@@ -135,8 +159,8 @@ mod tests {
             max_tokens: 200,
         };
 
-        let live = anthropic_body("claude-haiku-5-5", &request(Tier::Live));
-        let deep = anthropic_body("claude-sonnet-5-5", &request(Tier::Deep));
+        let live = anthropic_body("claude-haiku-5-5", &request(Tier::Live, Effort::Low));
+        let deep = anthropic_body("claude-sonnet-5-5", &request(Tier::Deep, Effort::Medium));
 
         assert_eq!(live["output_config"]["format"], json!({ "type": "json_schema", "schema": schema }));
         assert_eq!(live["output_config"]["effort"], "low");

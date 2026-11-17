@@ -79,6 +79,8 @@ services:
     build:
       context: .
       dockerfile: apps/platform/Dockerfile
+    # One image for the API and the worker, so they are never out of step.
+    image: capricorn-platform
     command: ["serve"]
     depends_on:
       postgres:
@@ -90,6 +92,8 @@ services:
     build:
       context: .
       dockerfile: apps/platform/Dockerfile
+    # One image for the API and the worker, so they are never out of step.
+    image: capricorn-platform
     command: ["worker"]
     depends_on:
       postgres:
