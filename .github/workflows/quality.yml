@@ -81,8 +81,12 @@ jobs:
         working-directory: apps/platform
         run: |
           mkdir -p ../../reports
+          # Rust emits paths relative to its crate; GitHub needs repository paths.
           cargo clippy --all-targets --locked --message-format=json -- -D warnings \
-            | clippy-sarif > ../../reports/clippy.sarif
+            | clippy-sarif \
+            | jq 'walk(if type == "object" and has("artifactLocation") then
+                .artifactLocation.uri |= (if startswith("/") or startswith("file:") then . else "apps/platform/" + . end)
+              else . end)' > ../../reports/clippy.sarif
       - name: Dependency audit
         if: ${{ !cancelled() }}
         working-directory: apps/platform
