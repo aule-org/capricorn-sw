@@ -1,6 +1,7 @@
 """Content moderation with a fake provider: no network, no real text."""
 
 import asyncio
+import logging
 from types import SimpleNamespace
 
 import pytest
@@ -238,6 +239,17 @@ async def test_one_client_serves_the_session_and_is_closed_with_it():
     assert client.closed
 
 
+def logged(record: logging.LogRecord) -> str:
+    """What the code put in the record: its message and extra fields.
+
+    The record's own bookkeeping (timestamps, thread and process ids) is left
+    out, because a digit sequence there can match by chance.
+    """
+    standard = logging.LogRecord("", 0, "", 0, "", (), None).__dict__
+    ours = {key: value for key, value in record.__dict__.items() if key not in standard}
+    return f"{record.getMessage()} {ours}"
+
+
 async def test_logs_carry_categories_and_never_the_text(caplog):
     guard, _ = moderator(provider_response(violence=0.9))
 
@@ -246,8 +258,8 @@ async def test_logs_carry_categories_and_never_the_text(caplog):
 
     (record,) = caplog.records
     assert record.categories == ["violence", "harassment"]
-    assert "secret" not in str(record.__dict__)
-    assert "0.9" not in str(record.__dict__)
+    assert "secret" not in logged(record)
+    assert "0.9" not in logged(record)
 
 
 @pytest.mark.parametrize(
