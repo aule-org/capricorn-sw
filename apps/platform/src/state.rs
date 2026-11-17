@@ -10,6 +10,7 @@ use crate::config::Config;
 use crate::llm::{Anthropic, Llm};
 use crate::mail::{Mailer, SmtpMailer};
 use crate::memory::{Embedder, HttpEmbedder};
+use crate::push::{Fcm, Pusher, ServiceAccount};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -21,6 +22,8 @@ pub struct AppState {
     pub embedder: Option<Arc<dyn Embedder>>,
     /// Without one nobody can sign in and notices are only shown in the app.
     pub mailer: Option<Arc<dyn Mailer>>,
+    /// Without one, notices reach a guardian in the app and by email only.
+    pub pusher: Option<Arc<dyn Pusher>>,
     /// Sessions the supervisor is reading right now, so a burst of turns
     /// starts one reading, not one per turn.
     pub watching: Arc<Mutex<HashSet<Uuid>>>,
@@ -43,12 +46,28 @@ impl AppState {
                 None
             }
         });
+        let pusher = config.fcm_service_account.as_deref().and_then(|path| {
+            let account = std::fs::read_to_string(path)
+                .map_err(|error| error.to_string())
+                .and_then(|text| {
+                    serde_json::from_str::<ServiceAccount>(&text).map_err(|error| error.to_string())
+                })
+                .and_then(|account| Fcm::new(account).map_err(|error| error.to_string()));
+            match account {
+                Ok(fcm) => Some(Arc::new(fcm) as Arc<dyn Pusher>),
+                Err(error) => {
+                    tracing::error!(%error, "push is off: CAPRICORN_FCM_SERVICE_ACCOUNT could not be used");
+                    None
+                }
+            }
+        });
         Self {
             pool,
             config: Arc::new(config),
             llm,
             embedder,
             mailer,
+            pusher,
             watching: Arc::default(),
             claim_attempts: Arc::default(),
         }

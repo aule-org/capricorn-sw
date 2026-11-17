@@ -14,6 +14,7 @@ use capricorn_platform::config::{Config, EventsWebhook, LiveKit};
 use capricorn_platform::llm::{Llm, LlmError, Request as LlmRequest};
 use capricorn_platform::mail::{MailError, Mailer};
 use capricorn_platform::memory::{DIMENSIONS, Embedder, MemoryError};
+use capricorn_platform::push::{Delivery, Push, PushError, Pusher};
 use capricorn_platform::state::AppState;
 use capricorn_platform::{events, http, jobs};
 use serde_json::{Value, json};
@@ -93,7 +94,31 @@ impl Mailer for Outbox {
     }
 }
 
+/// Keeps every push instead of sending it, and can play a token the push
+/// service has forgotten.
+#[derive(Default)]
+struct Phones {
+    pushed: Mutex<Vec<(String, String, Value)>>,
+    gone: Mutex<HashSet<String>>,
+}
+
+#[async_trait]
+impl Pusher for Phones {
+    async fn send(&self, token: &str, push: &Push<'_>) -> Result<Delivery, PushError> {
+        if self.gone.lock().unwrap().contains(token) {
+            return Ok(Delivery::Gone);
+        }
+        self.pushed.lock().unwrap().push((
+            token.to_string(),
+            format!("{}: {}", push.title, push.body),
+            push.data.clone(),
+        ));
+        Ok(Delivery::Sent)
+    }
+}
+
 struct App {
+    phones: Arc<Phones>,
     router: Router,
     state: AppState,
     llm: Arc<ScriptedLlm>,
@@ -121,9 +146,11 @@ fn app_with(pool: PgPool, events_webhook: Option<EventsWebhook>) -> App {
         embeddings: None,
         mail: None,
         events_webhook,
+        fcm_service_account: None,
         timezone_offset_minutes: -300,
     };
     let mail = Arc::new(Outbox::default());
+    let phones = Arc::new(Phones::default());
     let llm = Arc::new(ScriptedLlm { asked: Mutex::new(Vec::new()) });
     let state = AppState {
         pool,
@@ -131,10 +158,11 @@ fn app_with(pool: PgPool, events_webhook: Option<EventsWebhook>) -> App {
         llm: Some(llm.clone()),
         embedder: Some(Arc::new(WordEmbedder)),
         mailer: Some(mail.clone()),
+        pusher: Some(phones.clone()),
         watching: Arc::new(Mutex::new(HashSet::new())),
         claim_attempts: Arc::new(Mutex::new(HashMap::new())),
     };
-    App { router: http::router(state.clone()), state, llm, mail }
+    App { phones, router: http::router(state.clone()), state, llm, mail }
 }
 
 impl App {
@@ -1051,4 +1079,108 @@ async fn events_become_notices_for_the_family_and_reach_the_webhook(pool: PgPool
         StatusCode::NO_CONTENT
     );
     assert_eq!(app.count("select count(*) from guardians where not notices_by_email").await, 1);
+}
+
+async fn register(app: &App, token: &str, guardian: &str, platform: &str) -> StatusCode {
+    let body = json!({ "token": token, "platform": platform });
+    app.call(Method::PUT, "/v1/push/tokens", Some(guardian), Some(body)).await.0
+}
+
+async fn forget(app: &App, token: &str, guardian: &str) -> StatusCode {
+    app.call(Method::DELETE, "/v1/push/tokens", Some(guardian), Some(json!({ "token": token }))).await.0
+}
+
+#[sqlx::test(migrator = "capricorn_platform::MIGRATOR")]
+async fn a_notice_is_announced_on_the_guardians_phones_without_saying_what_it_is(pool: PgPool) {
+    let app = app(pool);
+    let ana = app.sign_in("ana@example.org", "Ana").await;
+    let luis = app.sign_in("luis@example.org", "Luis").await;
+    let (phone, tablet, old_phone) =
+        ("ana-phone-token-0123456789", "ana-tablet-token-0123456789", "ana-old-phone-token-0123456789");
+    for token in [phone, tablet, old_phone] {
+        assert_eq!(register(&app, token, &ana, "android").await, StatusCode::NO_CONTENT);
+    }
+    assert_eq!(register(&app, phone, &ana, "ios").await, StatusCode::NO_CONTENT, "registering again is fine");
+    assert_eq!(register(&app, "short", &ana, "android").await, StatusCode::BAD_REQUEST);
+    assert_eq!(register(&app, phone, &ana, "pager").await, StatusCode::BAD_REQUEST);
+    // Luis signs in on what used to be Ana's tablet: the token is his now.
+    assert_eq!(register(&app, tablet, &luis, "android").await, StatusCode::NO_CONTENT);
+    assert_eq!(app.count("select count(*) from push_tokens").await, 3);
+    // The push service has forgotten the old phone.
+    app.phones.gone.lock().unwrap().insert(old_phone.to_string());
+
+    let (_, me) = app.call(Method::GET, "/v1/me", Some(&ana), None).await;
+    assert_eq!(me["guardian"]["notices_by_push"], true);
+    let family = me["family_id"].as_str().unwrap();
+    let (_, child) = app
+        .call(
+            Method::POST,
+            &format!("/v1/families/{family}/children"),
+            Some(&ana),
+            Some(json!({ "nickname": "Mateo" })),
+        )
+        .await;
+    let child = child["id"].as_str().unwrap().to_string();
+    app.call(
+        Method::POST,
+        &format!("/v1/children/{child}/consents"),
+        Some(&ana),
+        Some(json!({ "purpose": "voice", "granted": true, "policy_version": "2026-11" })),
+    )
+    .await;
+
+    // A session where a gate offered support, then its review.
+    let session_with_a_flag = || async {
+        let (_, token) = app.session(&child).await;
+        let agent = Some(token.as_str());
+        let flag = json!({ "gate": "moderation_input", "action": "support", "categories": ["self_harm"] });
+        app.call(Method::POST, "/v1/agent/session/flags", agent, Some(flag)).await;
+        let turn = json!({ "turns": [{ "seq": 0, "role": "child", "content": "Hola" }] });
+        app.call(Method::POST, "/v1/agent/session/turns", agent, Some(turn)).await;
+        app.call(Method::POST, "/v1/agent/session/end", agent, Some(json!({}))).await;
+        eventually("guidance settled", || async { app.state.watching.lock().unwrap().is_empty() }).await;
+        assert!(jobs::work_once(&app.state).await.unwrap());
+        app.deliver_events().await;
+    };
+    session_with_a_flag().await;
+
+    // Two notices, each announced on Ana's phone only.
+    let pushed = app.phones.pushed.lock().unwrap().clone();
+    assert_eq!(pushed.len(), 2);
+    let kinds: Vec<&str> = pushed.iter().map(|(_, _, data)| data["kind"].as_str().unwrap()).collect();
+    assert_eq!(kinds, ["attention", "session_summary"]);
+    for (token, text, data) in &pushed {
+        assert_eq!(token, phone);
+        assert!(text.starts_with("Capricorn: "), "{text}");
+        assert!(!text.contains("Mateo") && !text.to_lowercase().contains("self"), "{text}");
+        assert!(data["notice_id"].as_str().unwrap().parse::<uuid::Uuid>().is_ok());
+    }
+    assert_eq!(app.count("select count(*) from notices where pushed_at is not null").await, 2);
+    // The dead token was forgotten; Luis's stayed.
+    let left: Vec<String> = sqlx::query_scalar("select token from push_tokens order by token")
+        .fetch_all(&app.state.pool)
+        .await
+        .unwrap();
+    assert_eq!(left, [phone, tablet]);
+
+    // Delivering the same events again does not buzz the phone again.
+    sqlx::query("update outbox set delivered_at = null").execute(&app.state.pool).await.unwrap();
+    app.deliver_events().await;
+    assert_eq!(app.phones.pushed.lock().unwrap().len(), 2);
+
+    // A guardian who turns pushes off gets none; the notices are still written.
+    assert_eq!(
+        app.call(Method::PUT, "/v1/me", Some(&ana), Some(json!({ "notices_by_push": false }))).await.0,
+        StatusCode::NO_CONTENT
+    );
+    session_with_a_flag().await;
+    assert_eq!(app.phones.pushed.lock().unwrap().len(), 2);
+    assert_eq!(app.count("select count(*) from notices").await, 4);
+    assert_eq!(app.count("select count(*) from notices where pushed_at is not null").await, 2);
+
+    // Signing out of a phone forgets it; one guardian cannot remove another's.
+    assert_eq!(forget(&app, tablet, &ana).await, StatusCode::NO_CONTENT);
+    assert_eq!(app.count("select count(*) from push_tokens").await, 2);
+    assert_eq!(forget(&app, phone, &ana).await, StatusCode::NO_CONTENT);
+    assert_eq!(app.count("select count(*) from push_tokens").await, 1);
 }

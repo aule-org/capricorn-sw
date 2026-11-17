@@ -14,7 +14,7 @@ use crate::error::{ApiError, ApiResult};
 use crate::families::{self, child_for};
 use crate::learning::{self, NewAttempt, Skill, is_slug};
 use crate::state::AppState;
-use crate::{devices, memory, notices, sessions, signin};
+use crate::{devices, memory, notices, push, sessions, signin};
 
 pub fn router(state: AppState) -> Router {
     Router::new()
@@ -43,6 +43,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/me", get(signin::me).put(signin::update_me).delete(signin::erase_family))
         .route("/v1/notices", get(notices::list))
         .route("/v1/notices/{notice_id}/read", post(notices::mark_read))
+        .route("/v1/push/tokens", put(push::register).delete(push::unregister))
         // Devices: made by the operator, claimed by a guardian
         .route("/v1/devices", post(devices::register).get(devices::list))
         .route("/v1/devices/claim", post(devices::claim))
