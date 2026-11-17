@@ -10,7 +10,9 @@ from livekit.agents import llm, stt, tts
 from .config import Settings
 
 # Replies are spoken, so a long one is a bug: keep the model from producing it.
-MAX_REPLY_TOKENS = 400
+# This also caps latency: the whole reply is generated before any of it is spoken
+# (the output gate buffers it), so a shorter ceiling is a shorter wait to first word.
+MAX_REPLY_TOKENS = 160
 
 
 def build_stt(settings: Settings, language: str) -> stt.STT:
