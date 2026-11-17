@@ -34,7 +34,7 @@ These are requirements for the code that lands here:
 
 ## Status
 
-Early. The repository has the event contracts, the start of the agent and CI; the platform, the worker and the tutor are not written yet. [ARCHITECTURE.md](ARCHITECTURE.md) describes the design and what is built.
+Early. The repository has the event contracts, a first voice tutor and a [playground](apps/playground/README.md) to talk to it from a browser. The tutor only accepts sessions from the people running the server: the safety gates are not written yet, and it refuses a child's session without them. The platform and the worker are not written yet. [ARCHITECTURE.md](ARCHITECTURE.md) describes the design and what is built.
 
 ## Repository layout
 
@@ -43,13 +43,17 @@ apps/
   platform/   API for families, consent, devices and sessions (Node, TypeScript)
   worker/     event consumers and scheduled jobs (Node, TypeScript)
   agent/      the voice tutor on LiveKit Agents (Python)
+  playground/ a web page to talk to the tutor with a microphone and a camera (Node, TypeScript)
 contracts/    the events they exchange, as JSON Schema
+compose.yaml  the agent and the playground, next to your LiveKit server
 ```
 
 ```bash
-pnpm install && pnpm test          # contracts
+pnpm install && pnpm test          # contracts and playground
 cd apps/agent && uv run pytest     # agent
 ```
+
+To run the tutor and the playground, copy `.env.example` to `.env`, fill it in and run `docker compose up -d --build`.
 
 ## How the pieces fit
 

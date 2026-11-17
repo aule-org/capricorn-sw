@@ -1,0 +1,270 @@
+:root {
+  --bg: #f6f4ef;
+  --surface: #ffffff;
+  --ink: #1d1b16;
+  --muted: #6b665c;
+  --line: #ddd8cc;
+  --accent: #b45309;
+  --accent-ink: #ffffff;
+  --danger: #b42318;
+  --tile: #14130f;
+  --tile-ink: #f6f4ef;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14130f;
+    --surface: #1e1c17;
+    --ink: #f1eee6;
+    --muted: #a39d90;
+    --line: #37342c;
+    --accent: #f59e0b;
+    --accent-ink: #1d1b16;
+    --danger: #f97066;
+    --tile: #0b0a08;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Elements with their own display value would otherwise ignore `hidden`. */
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+main {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 32px 16px 48px;
+}
+
+h1 {
+  margin: 0 0 4px;
+  font-size: 1.5rem;
+  letter-spacing: -0.01em;
+}
+
+header p,
+.note {
+  margin: 0;
+  color: var(--muted);
+}
+
+form {
+  display: grid;
+  gap: 16px;
+  max-width: 420px;
+  margin-top: 28px;
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+input,
+select,
+button {
+  font: inherit;
+  color: inherit;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  padding: 10px 12px;
+  background: var(--bg);
+}
+
+button {
+  cursor: pointer;
+  font-weight: 600;
+  background: var(--surface);
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+button[type="submit"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+button[aria-pressed="false"] {
+  color: var(--muted);
+  border-style: dashed;
+}
+
+button.danger {
+  color: var(--danger);
+  border-color: currentColor;
+}
+
+.note {
+  font-size: 0.8125rem;
+}
+
+#stage {
+  margin-top: 28px;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.tile {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--tile);
+  color: var(--tile-ink);
+  display: grid;
+  place-items: center;
+}
+
+.tile video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+.tile-label {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgb(0 0 0 / 0.55);
+  font-size: 0.8125rem;
+}
+
+.tile-empty,
+.tile-state {
+  position: relative;
+  margin: 0;
+  font-size: 0.875rem;
+  opacity: 0.8;
+}
+
+.tutor {
+  grid-template-rows: 1fr auto;
+  padding: 24px 16px 44px;
+}
+
+.orb {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fcd34d, #d97706 70%);
+  opacity: 0.35;
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
+}
+
+.tutor[data-state="listening"] .orb {
+  opacity: 0.7;
+}
+
+.tutor[data-state="thinking"] .orb {
+  opacity: 0.85;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.tutor[data-state="speaking"] .orb {
+  opacity: 1;
+  animation: pulse 0.6s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    transform: scale(1.12);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orb {
+    animation: none !important;
+  }
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.clock {
+  margin-left: auto;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+#transcript {
+  list-style: none;
+  margin: 20px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+#transcript li {
+  max-width: 85%;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+#transcript li[data-who="you"] {
+  justify-self: end;
+  background: transparent;
+}
+
+#transcript li::before {
+  content: attr(data-name);
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.message {
+  margin-top: 16px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--danger);
+  color: var(--danger);
+}

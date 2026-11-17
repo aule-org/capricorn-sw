@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   contracts:
-    name: Contracts (Node)
+    name: Contracts and playground (Node)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -22,9 +22,10 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @capricorn/playground typecheck
       - run: pnpm test
 
   agent:
@@ -43,3 +44,14 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run pytest
+
+  images:
+    name: Images (${{ matrix.app }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        app: [agent, playground]
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker build --file apps/${{ matrix.app }}/Dockerfile --tag capricorn-${{ matrix.app }}:ci .

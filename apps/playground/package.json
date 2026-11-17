@@ -1,0 +1,20 @@
+{
+  "name": "@capricorn/playground",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A web page to talk to the Capricorn tutor with a microphone and a camera, for the people running a server",
+  "scripts": {
+    "start": "node src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"test/*.test.ts\""
+  },
+  "dependencies": {
+    "livekit-client": "2.24.1",
+    "livekit-server-sdk": "2.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
+}
