@@ -1,7 +1,13 @@
-from livekit import rtc
-from livekit.agents import llm
+from types import SimpleNamespace
+from unittest.mock import PropertyMock, patch
 
-from capricorn_agent.tutor import INSTRUCTIONS, with_frame
+import pytest
+from livekit import rtc
+from livekit.agents import StopResponse, llm
+
+from capricorn_agent.moderation import Action, Decision
+from capricorn_agent.replies import REPLIES
+from capricorn_agent.tutor import INSTRUCTIONS, Tutor, checked, with_frame
 from capricorn_agent.worker import GOODBYE, language_of
 
 
@@ -55,3 +61,138 @@ def test_language_comes_from_the_dispatch_when_supported():
     assert language_of('{"language": "fr"}', "es") == "es"
     assert language_of("not json", "es") == "es"
     assert language_of("", "en") == "en"
+
+
+class ScriptedGates:
+    """Stands in for the gates: answers each turn with the next decision."""
+
+    checks_spoken = True
+
+    def __init__(self, *decisions):
+        self.decisions = list(decisions)
+        self.heard_texts = []
+        self.spoken_texts = []
+
+    async def heard(self, context, message):
+        self.heard_texts.append(message.text_content)
+        return self.decisions.pop(0)
+
+    async def spoken(self, text):
+        self.spoken_texts.append(text)
+        return self.decisions.pop(0)
+
+
+class Session:
+    """Records what the tutor says outside the model, as the voice would."""
+
+    def __init__(self):
+        self.said = []
+        self.interrupted = False
+
+    def say(self, text, *, add_to_chat_ctx, allow_interruptions):
+        self.said.append((text, add_to_chat_ctx, allow_interruptions))
+
+        async def played():
+            return SimpleNamespace(interrupted=self.interrupted)
+
+        return played()
+
+
+ALLOW = Decision(Action.ALLOW)
+HAZARD = Decision(Action.REDIRECT, "adult_help")
+
+
+async def hear(tutor, session, text="¿lo desenchufo?"):
+    """One turn of the person. True when the tutor may answer it."""
+    message = llm.ChatMessage(role="user", content=[text])
+    with patch.object(Tutor, "session", new_callable=PropertyMock, return_value=session):
+        try:
+            await tutor.on_user_turn_completed(llm.ChatContext.empty(), message)
+        except StopResponse:
+            return False
+    return True
+
+
+async def stream(*chunks):
+    for chunk in chunks:
+        yield chunk
+
+
+async def test_an_allowed_turn_goes_to_the_model_and_nothing_else_is_said():
+    gates, session = ScriptedGates(ALLOW), Session()
+
+    assert await hear(Tutor(language="es", gates=gates), session)
+    assert session.said == []
+
+
+@pytest.mark.parametrize(
+    ("decision", "kept"),
+    [
+        (Decision(Action.REDIRECT, "redirect"), False),
+        (Decision(Action.SUPPORT, "self_harm_support"), False),
+        (Decision(Action.SUPPORT, "child_support"), False),
+        (Decision(Action.UNAVAILABLE, "unavailable"), False),
+        (Decision(Action.UNAVAILABLE, "context_limit"), False),
+        # An offer stays in the conversation so the next answer can refer to it.
+        (Decision(Action.REDIRECT, "clarify"), True),
+        (HAZARD, True),
+    ],
+)
+@pytest.mark.parametrize("language", ["es", "en"])
+async def test_a_stopped_turn_gets_the_fixed_reply_and_never_reaches_the_model(
+    decision, kept, language
+):
+    gates, session = ScriptedGates(decision), Session()
+
+    assert not await hear(Tutor(language=language, gates=gates), session)
+    assert session.said == [(REPLIES[decision.reply][language], kept, False)]
+
+
+async def test_hazards_in_a_row_get_the_full_offer_and_then_shorter_reminders():
+    gates, session = ScriptedGates(HAZARD, HAZARD, HAZARD, HAZARD, ALLOW, HAZARD), Session()
+    tutor = Tutor(language="es", gates=gates)
+
+    for _ in range(6):
+        await hear(tutor, session)
+
+    keys = ["adult_help", "adult_help_riddle", "adult_help_story", "adult_help_riddle"]
+    assert [said[0] for said in session.said] == [
+        REPLIES[key]["es"]
+        for key in [*keys, "adult_help"]  # a safe turn starts over
+    ]
+
+
+async def test_a_reminder_that_was_not_heard_in_full_is_not_counted():
+    gates, session = ScriptedGates(HAZARD, HAZARD), Session()
+    session.interrupted = True
+    tutor = Tutor(language="en", gates=gates)
+
+    await hear(tutor, session)
+    await hear(tutor, session)
+
+    assert [said[0] for said in session.said] == [REPLIES["adult_help"]["en"]] * 2
+
+
+async def test_a_reply_is_held_until_all_of_it_has_passed():
+    gates = ScriptedGates(ALLOW)
+    released = []
+
+    async def model():
+        yield "Muy "
+        assert released == []  # nothing is spoken while the model is still writing
+        yield llm.ChatChunk(id="1", delta=llm.ChoiceDelta(role="assistant", content="bien."))
+
+    async for chunk in checked(model(), gates, "es"):
+        released.append(chunk)
+
+    assert gates.spoken_texts == ["Muy bien."]
+    assert [getattr(chunk, "id", chunk) for chunk in released] == ["Muy ", "1"]
+
+
+@pytest.mark.parametrize("key", ["redirect", "unavailable"])
+async def test_a_reply_that_does_not_pass_is_replaced_whole(key):
+    gates = ScriptedGates(Decision(Action.REDIRECT, key))
+
+    spoken = [chunk async for chunk in checked(stream("algo ", "indebido"), gates, "en")]
+
+    assert spoken == [REPLIES[key]["en"]]

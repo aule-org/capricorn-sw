@@ -6,7 +6,8 @@ from typing import Any
 from livekit import rtc
 from livekit.agents import Agent, ModelSettings, StopResponse, llm
 
-from .safety import SAFE_REPLY, Gates
+from .replies import ADULT_HELP_SEQUENCE, OFFERS, reply
+from .safety import Gates
 
 # The longest side of the frame the model receives. Enough to read handwriting.
 FRAME_SIDE = 1024
@@ -92,6 +93,22 @@ def _text_of(chunk: Any) -> str:
     return (delta.content or "") if delta is not None else ""
 
 
+async def checked(stream: AsyncIterable[Any], gates: Gates, language: str) -> AsyncIterable[Any]:
+    """The model's reply once the gate on what is spoken has approved all of it.
+
+    Nothing reaches the voice before the whole reply has been judged: a safe
+    beginning says nothing about how a sentence ends. A reply that does not
+    pass is replaced by a fixed one.
+    """
+    chunks = [chunk async for chunk in stream]
+    decision = await gates.spoken("".join(_text_of(chunk) for chunk in chunks))
+    if decision.allowed:
+        for chunk in chunks:
+            yield chunk
+    else:
+        yield reply(decision.reply or "unavailable", language)
+
+
 class Tutor(Agent):
     def __init__(
         self, *, language: str, gates: Gates, camera: Any = None, context: str = ""
@@ -103,6 +120,7 @@ class Tutor(Agent):
         self._language = language
         self._gates = gates
         self._camera = camera
+        self._hazards_in_a_row = 0
 
     async def advise(self, guidance: str) -> None:
         """Applies the supervisor's latest guidance to the turns that follow.
@@ -117,25 +135,32 @@ class Tutor(Agent):
     async def on_user_turn_completed(
         self, turn_ctx: llm.ChatContext, new_message: llm.ChatMessage
     ) -> None:
-        if not await self._gates.allow_heard(new_message.text_content or ""):
-            self.session.say(SAFE_REPLY[self._language], add_to_chat_ctx=False)
-            raise StopResponse()
+        # Read and reset before waiting, so a cancelled or safe turn starts the
+        # sequence of reminders over.
+        hazards, self._hazards_in_a_row = self._hazards_in_a_row, 0
+        decision = await self._gates.heard(turn_ctx, new_message)
+        if decision.allowed:
+            return
+        key = decision.reply or "unavailable"
+        if key == "adult_help":
+            key = ADULT_HELP_SEQUENCE[hazards]
+        # The stopped turn never reaches the model: StopResponse discards it.
+        speech = await self.session.say(
+            reply(key, self._language), add_to_chat_ctx=key in OFFERS, allow_interruptions=False
+        )
+        if decision.reply == "adult_help" and not speech.interrupted:
+            # After the full offer, alternate the two shorter reminders.
+            self._hazards_in_a_row = hazards + 1 if hazards + 1 < len(ADULT_HELP_SEQUENCE) else 1
+        raise StopResponse()
 
     async def llm_node(
         self, chat_ctx: llm.ChatContext, tools: list[llm.Tool], model_settings: ModelSettings
     ) -> AsyncIterable[llm.ChatChunk | str]:
         frame = self._camera.latest() if self._camera is not None else None
         stream = Agent.default.llm_node(self, with_frame(chat_ctx, frame), tools, model_settings)
-        if not self._gates.checks_spoken:
-            async for chunk in stream:
-                yield chunk
-            return
-
-        # With a gate on what is spoken, nothing reaches the voice until the
-        # whole reply has passed it.
-        chunks = [chunk async for chunk in stream]
-        if await self._gates.allow_spoken("".join(_text_of(chunk) for chunk in chunks)):
-            for chunk in chunks:
-                yield chunk
-        else:
-            yield SAFE_REPLY[self._language]
+        if self._gates.checks_spoken:
+            # Buffering costs the time to the first word, so it is only paid
+            # when there is a gate to wait for.
+            stream = checked(stream, self._gates, self._language)
+        async for chunk in stream:
+            yield chunk

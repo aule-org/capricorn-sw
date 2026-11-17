@@ -7,7 +7,7 @@ refuses to start.
 
 import os
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 # The environment variable each provider's LiveKit plugin reads its key from.
 STT_KEYS = {
@@ -21,6 +21,10 @@ TTS_KEYS = {
     "openai": "OPENAI_API_KEY",
 }
 LLM_KEY = "ANTHROPIC_API_KEY"
+# Each key turns its safety gate on (see ``safety``). There is no switch to turn
+# a configured gate off.
+MODERATION_KEY = "OPENAI_API_KEY"
+PHYSICAL_SAFETY_KEY = "TYPESAFE_API_KEY"
 LIVEKIT_KEYS = ("LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET")
 
 LANGUAGES = ("es", "en")
@@ -39,6 +43,14 @@ class Settings:
     llm_model: str
     language: str
     session_max_minutes: int
+    # Kept out of the repr so a logged Settings never shows a key.
+    openai_api_key: str | None = field(default=None, repr=False)
+    typesafe_api_key: str | None = field(default=None, repr=False)
+
+    @property
+    def gates_complete(self) -> bool:
+        """Whether both safety gates are configured, which a child's session needs."""
+        return bool(self.openai_api_key and self.typesafe_api_key)
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -65,6 +77,12 @@ class Settings:
             if not get(name):
                 problems.append(f"{name} is not set")
 
+        # A gate key is sent in a header; one with a space or a line break in it
+        # is a paste error that would only show up as a gate that never answers.
+        for name in (MODERATION_KEY, PHYSICAL_SAFETY_KEY):
+            if any(char.isspace() or not char.isprintable() for char in get(name)):
+                problems.append(f"{name} must not contain spaces or control characters")
+
         language = get("CAPRICORN_LANGUAGE", "es").lower()
         if language not in LANGUAGES:
             problems.append(f"CAPRICORN_LANGUAGE must be one of: {', '.join(LANGUAGES)}")
@@ -85,4 +103,6 @@ class Settings:
             llm_model=get("CAPRICORN_LLM_MODEL", "claude-sonnet-5-5"),
             language=language,
             session_max_minutes=minutes,
+            openai_api_key=get(MODERATION_KEY) or None,
+            typesafe_api_key=get(PHYSICAL_SAFETY_KEY) or None,
         )

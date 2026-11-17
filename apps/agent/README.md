@@ -8,18 +8,38 @@ Capricorn's voice tutor: a [LiveKit Agents](https://github.com/livekit/agents) w
 |---|---|
 | `worker` | The LiveKit worker: one tutor session per room it is dispatched to, with a time limit |
 | `tutor` | The tutor's instructions, and where the gates and the camera plug into a turn |
-| `safety` | The two safety gates of [ARCHITECTURE.md](../../ARCHITECTURE.md) and who a session is for |
+| `safety` | Who a session is for, and the two safety gates of [ARCHITECTURE.md](../../ARCHITECTURE.md) run together on every turn |
+| `moderation` | The content-moderation gate: what the person said and what the tutor is about to say |
+| `physical_safety` | The physical-safety gate: whether what the person said needs a nearby adult |
+| `replies` | The fixed replies a person hears when a gate stops a turn, in Spanish and English |
 | `camera` | The latest camera frame, held in memory and never stored |
 | `providers` | Builds the speech and language models from the settings |
-| `platform` | Gets the student's profile and the supervisor's plan, reports turns in the background, applies guidance |
+| `platform` | Gets the student's profile and the supervisor's plan, reports turns and safety flags in the background, applies guidance |
 | `config` | Reads and checks the environment |
 | `events` | Wraps what the agent reports in the shared [contracts](../../contracts/README.md) |
 
 ## Who it talks to
 
-No safety gate is implemented yet. A session is for a child unless the server that created the room marked it `{"audience": "operator"}` in the dispatch metadata, and the agent refuses a child's session while either gate is missing. Today that means it only talks to the people running the server, through the [playground](../playground/README.md).
+A session is for a child unless the server that created the room marked it `{"audience": "operator"}` in the dispatch metadata. The agent refuses a child's session unless both safety gates are configured. In an operator's session (an adult on the team, through the [playground](../playground/README.md)) the gates that are configured run and the others are skipped.
 
-Not built yet: the gates themselves, and publishing `session.ended` and `safety.flagged`.
+The two gates:
+
+- **Content moderation** uses OpenAI's moderation endpoint (`omni-moderation-latest`) with thresholds set for children, plus a short local list of phrases that must not depend on a provider. It checks what the person said before the tutor answers, and the tutor's whole reply before any of it is spoken.
+- **Physical safety** uses [TypeSafe](https://typesafe.ai)'s Jev model (`jev-1.14.0`). It checks what the person said, with the text of the recent conversation as context, at the same time as moderation; the tutor waits for both.
+
+Both fail closed. If a gate fails, is late or answers something the agent does not fully understand, the person hears a fixed reply and the unchecked text is never answered or spoken. The fixed replies depend on what happened: a redirection, support for self-harm or for a child's sexual safety, a request to get a nearby adult for a physical hazard, a request to rephrase when the physical-safety verdict is uncertain, or a plain "I can't answer safely right now".
+
+When a gate stops a turn the agent tells the platform which gate, what it did and the categories involved, from a fixed list, at most once per topic every five minutes. Logs and flags carry categories, verdicts and durations only: never what was said, a score, a request or response body, or a key.
+
+Before real children use it:
+
+- **TypeSafe receives the text of the conversation.** It needs an agreement that covers minors' data, with zero retention and no training, before it is used with real children.
+- **OpenAI's moderation endpoint receives what the child says and what the tutor answers.** Its terms must be checked against the requirement in ARCHITECTURE.md that providers allow minors' data with zero retention.
+- A session starts when both gates are configured; the agent does not probe that the providers answer before it starts. If one is down, every turn gets the fixed reply.
+- The physical-safety gate is told the age is unknown: the dispatch does not carry the child's age yet.
+- The verdicts were evaluated on synthetic conversations only ([evals/physical-safety](evals/physical-safety/README.md), run by hand against the real provider). The gates do not replace an adult nearby.
+
+Not built yet: publishing `session.ended` and `safety.flagged` as events.
 
 ## Settings
 
@@ -32,6 +52,8 @@ Environment variables; `.env.example` at the repository root lists them all.
 | `CAPRICORN_TTS` | `cartesia`, `elevenlabs` or `openai` |
 | `ANTHROPIC_API_KEY` | The language model is Claude |
 | `ASSEMBLYAI_API_KEY`, `DEEPGRAM_API_KEY`, `CARTESIA_API_KEY`, `ELEVEN_API_KEY`, `OPENAI_API_KEY` | Only for the providers chosen above |
+| `OPENAI_API_KEY` | Also turns on the content-moderation gate, whichever speech providers are chosen |
+| `TYPESAFE_API_KEY` | Turns on the physical-safety gate |
 | `CAPRICORN_TTS_VOICE` | Optional voice id |
 | `CAPRICORN_LLM_MODEL` | Default `claude-sonnet-5-5` |
 | `CAPRICORN_LANGUAGE` | `es` (default) or `en`; a session can ask for the other |
@@ -39,7 +61,7 @@ Environment variables; `.env.example` at the repository root lists them all.
 | `CAPRICORN_AGENT_NAME` | Default `capricorn-tutor` |
 | `CAPRICORN_PLATFORM_URL` | Optional. Where the [platform](../platform/README.md) is; without it the tutor has no memory of the student |
 
-The worker refuses to start if a setting is missing and says which. Before using a provider with children, check that its terms allow minors' data with zero retention.
+The worker refuses to start if a setting is missing and says which. Without both gate keys it starts, warns, and accepts operator sessions only. A gate with a key always runs: there is no setting to turn it off. Before using a provider with children, check that its terms allow minors' data with zero retention.
 
 ## Develop
 
