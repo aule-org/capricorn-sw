@@ -8,13 +8,13 @@ use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use chrono::Utc;
-use rand::RngCore;
+use rand::Rng;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::auth::{Agent, Caller, Input, Operator, SESSION_COLUMNS, Session, token_hash};
+use crate::auth::{Agent, Caller, Input, Operator, Session, token_hash};
 use crate::error::{ApiError, ApiResult};
 use crate::families::{Child, child_for, current_consent, find_child};
 use crate::livekit::{RoomToken, room_token};
@@ -497,9 +497,10 @@ pub async fn agent_flag(
 /// note for the guardian. Then the transcript goes, unless the guardian agreed
 /// to keep it for a while. Safe to run again after a failure.
 pub async fn review_session(state: &AppState, session_id: Uuid) -> ApiResult<()> {
-    let session: Option<Session> = sqlx::query_as(&format!(
-        "select {SESSION_COLUMNS} from sessions where id = $1 and reviewed_at is null"
-    ))
+    let session: Option<Session> = sqlx::query_as(
+        "select id, child_id, audience, room, language, status, keep_transcript, use_memory, created_at, ended_at
+         from sessions where id = $1 and reviewed_at is null"
+    )
     .bind(session_id)
     .fetch_optional(&state.pool)
     .await?;

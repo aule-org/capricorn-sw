@@ -144,10 +144,11 @@ impl Config {
             model: get("CAPRICORN_EMBEDDINGS_MODEL").unwrap_or("bge-m3").to_string(),
             api_key: get("CAPRICORN_EMBEDDINGS_API_KEY").map(str::to_string),
         });
-        if let Some(embeddings) = &embeddings {
-            if !embeddings.url.starts_with("http://") && !embeddings.url.starts_with("https://") {
-                problems.push("CAPRICORN_EMBEDDINGS_URL must be an http:// or https:// URL".into());
-            }
+        if let Some(embeddings) = &embeddings
+            && !embeddings.url.starts_with("http://")
+            && !embeddings.url.starts_with("https://")
+        {
+            problems.push("CAPRICORN_EMBEDDINGS_URL must be an http:// or https:// URL".into());
         }
 
         let mail = match (get("CAPRICORN_SMTP_URL"), get("CAPRICORN_MAIL_FROM")) {

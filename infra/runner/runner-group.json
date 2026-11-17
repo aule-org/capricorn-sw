@@ -1,0 +1,12 @@
+{
+  "name": "aule-quality",
+  "visibility": "selected",
+  "selected_repository_ids": [1460916565, 1460810812],
+  "allows_public_repositories": true,
+  "restricted_to_workflows": true,
+  "selected_workflows": [
+    "meet-aule/capricorn-sw/.github/workflows/ci.yml@refs/heads/main",
+    "meet-aule/capricorn-sw/.github/workflows/quality.yml@refs/heads/main",
+    "meet-aule/capricorn-fw/.github/workflows/quality.yml@refs/heads/capricorn"
+  ]
+}

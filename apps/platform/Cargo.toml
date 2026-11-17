@@ -2,7 +2,7 @@
 name = "capricorn-platform"
 version = "0.0.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.94"
 license = "Apache-2.0"
 description = "Capricorn's platform: families, children, consent, sessions, the learning model, memory and the supervisor"
 repository = "https://github.com/meet-aule/capricorn-sw"
@@ -20,15 +20,15 @@ path = "src/main.rs"
 async-trait = "0.1"
 axum = { version = "0.8", features = ["json", "macros"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std", "serde"] }
-base64 = "0.22"
+base64 = "0.23"
 hex = "0.4"
-hmac = "0.12"
-rand = "0.9"
+hmac = "0.13"
+rand = "0.10"
 reqwest = { version = "0.13", default-features = false, features = ["json", "form", "rustls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-sha2 = "0.10"
-sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "chrono", "uuid", "json", "migrate", "macros"] }
+sha2 = "0.11"
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "chrono", "uuid", "json", "migrate", "macros"] }
 subtle = "2"
 thiserror = "2"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "signal"] }
@@ -37,7 +37,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 uuid = { version = "1", features = ["v4", "v7", "serde"] }
 lettre = { version = "0.11", default-features = false, features = ["tokio1-rustls-tls", "smtp-transport", "builder"] }
 semver = "1"
-jsonwebtoken = "9"
+jsonwebtoken = { version = "12", features = ["aws_lc_rs"] }
 
 [dev-dependencies]
 jsonschema = "0.61.2"

@@ -8,7 +8,7 @@
 //! carry ids, times, counts and fixed categories, never a child's words.
 
 use chrono::{DateTime, SecondsFormat, Utc};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use serde_json::{Value, json};
 use sha2::Sha256;
 use sqlx::PgExecutor;

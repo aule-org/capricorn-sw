@@ -285,7 +285,7 @@ impl App {
         while events::deliver_once(&self.state).await.unwrap() {}
     }
 
-    async fn count(&self, sql: &str) -> i64 {
+    async fn count(&self, sql: &'static str) -> i64 {
         sqlx::query_scalar(sql).fetch_one(&self.state.pool).await.unwrap()
     }
 }
@@ -597,8 +597,14 @@ async fn taking_consent_back_and_erasing_a_child_remove_their_data(pool: PgPool)
         app.admin(Method::DELETE, &format!("/v1/children/{child}"), None).await.0,
         StatusCode::NO_CONTENT
     );
-    for table in ["children", "sessions", "attempts", "session_reviews", "session_briefs"] {
-        assert_eq!(app.count(&format!("select count(*) from {table}")).await, 0, "{table}");
+    for query in [
+        "select count(*) from children",
+        "select count(*) from sessions",
+        "select count(*) from attempts",
+        "select count(*) from session_reviews",
+        "select count(*) from session_briefs",
+    ] {
+        assert_eq!(app.count(query).await, 0, "{query}");
     }
     assert_eq!(app.count("select count(*) from consent_records").await, 3, "the proof of consent stays");
     assert!(
@@ -800,7 +806,7 @@ async fn claim(app: &App, token: &str, code: &str, child: Option<&str>) -> (Stat
 }
 
 fn sign(key: &[u8; 32], message: &str) -> String {
-    use hmac::Mac;
+    use hmac::{KeyInit, Mac};
     let mut mac = hmac::Hmac::<sha2::Sha256>::new_from_slice(key).unwrap();
     mac.update(message.as_bytes());
     hex::encode(mac.finalize().into_bytes())

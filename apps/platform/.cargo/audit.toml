@@ -1,0 +1,7 @@
+[advisories]
+# SQLx locks optional SQLite dependencies even with default-features = false.
+# This platform enables only PostgreSQL. CI checks that libsqlite3-sys is absent
+# from the resolved build graph before applying this exception. Remove it when
+# SQLx upgrades its optional SQLite dependency, or before enabling SQLite.
+# https://rustsec.org/advisories/RUSTSEC-2026-0459.html
+ignore = ["RUSTSEC-2026-0459"]

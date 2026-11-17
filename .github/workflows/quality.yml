@@ -1,0 +1,113 @@
+name: Code quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 14 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  python:
+    name: Ruff
+    # Public pull requests always run on GitHub's disposable machines.
+    # Set this variable only after enforcing the runner group's workflow policy.
+    runs-on: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.AULE_QUALITY_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v7
+      - run: uv sync --locked
+        working-directory: apps/agent
+      - name: Ruff report
+        run: |
+          mkdir -p reports
+          apps/agent/.venv/bin/ruff check apps/agent --output-format sarif > reports/ruff.sarif
+      - name: Formatting
+        if: ${{ !cancelled() }}
+        run: apps/agent/.venv/bin/ruff format --check apps/agent
+      - uses: github/codeql-action/upload-sarif@v4
+        if: ${{ !cancelled() && github.event_name != 'pull_request' && hashFiles('reports/ruff.sarif') != '' }}
+        with:
+          sarif_file: reports/ruff.sarif
+          category: ruff
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: ruff-report
+          path: reports/ruff.sarif
+          if-no-files-found: error
+          retention-days: 14
+
+  rust:
+    name: Clippy and RustSec
+    runs-on: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.AULE_QUALITY_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/platform
+      - name: Report tools
+        run: |
+          cargo install --locked clippy-sarif --version 0.8.0
+          cargo install --locked cargo-audit --version 0.23.0
+      - name: Clippy report
+        working-directory: apps/platform
+        run: |
+          mkdir -p ../../reports
+          # Rust emits paths relative to its crate; GitHub needs repository paths.
+          cargo clippy --all-targets --locked --message-format=json -- -D warnings \
+            | clippy-sarif \
+            | jq 'walk(if type == "object" and has("artifactLocation") then
+                .artifactLocation.uri |= (if startswith("/") or startswith("file:") then . else "apps/platform/" + . end)
+              else . end)' > ../../reports/clippy.sarif
+      - name: Dependency audit
+        if: ${{ !cancelled() }}
+        working-directory: apps/platform
+        run: |
+          mkdir -p ../../reports
+          # The audit exception is valid only while SQLite is not compiled.
+          cargo tree --locked --target all --edges normal,build --prefix none > "$RUNNER_TEMP/dependency-tree.txt"
+          if grep -q '^libsqlite3-sys ' "$RUNNER_TEMP/dependency-tree.txt"; then
+            echo '::error::SQLite is now enabled; remove and reassess the RustSec exception.'
+            exit 1
+          fi
+          cargo audit --file "$PWD/Cargo.lock" --format sarif > ../../reports/rustsec.sarif
+      - uses: github/codeql-action/upload-sarif@v4
+        if: ${{ !cancelled() && github.event_name != 'pull_request' && hashFiles('reports/*.sarif') != '' }}
+        with:
+          sarif_file: reports
+          category: rust
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: rust-reports
+          path: reports/*.sarif
+          if-no-files-found: error
+          retention-days: 14
