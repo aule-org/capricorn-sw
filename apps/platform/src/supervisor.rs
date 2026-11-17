@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::learning::{Candidate, Reason, is_slug};
-use crate::llm::{Llm, LlmError, Request, Tier};
+use crate::llm::{Effort, Llm, LlmError, Request, Tier};
 use crate::memory::{Memory, NewMemory};
 
 /// What the supervisor may know about the child. No name: it does not need one.
@@ -205,6 +205,7 @@ English, briefly and concretely. {UNTRUSTED}",
             tier: Tier::Deep,
             system: &system,
             user: &user,
+            effort: Effort::Low,
             answer: "session_brief",
             schema: &brief_schema(),
             max_tokens: 4000,
@@ -312,6 +313,7 @@ Say what to do next, not what went wrong. Write in English, for the tutor only. 
             tier: Tier::Live,
             system: &system,
             user: &user,
+            effort: Effort::Low,
             answer: "guidance",
             schema: &guidance_schema(),
             max_tokens: 1500,
@@ -435,6 +437,7 @@ clearly shows it. {UNTRUSTED}"
             tier: Tier::Deep,
             system: &system,
             user: &user,
+            effort: Effort::Medium,
             answer: "session_review",
             schema: &review_schema(),
             max_tokens: 8000,
@@ -499,7 +502,7 @@ pub mod tests {
                 request.answer.to_string(),
                 request.user.to_string(),
             ));
-            self.reply.clone().map_err(|_| LlmError::Status(529))
+            self.reply.clone().map_err(|_| LlmError::Status(529, String::new()))
         }
     }
 

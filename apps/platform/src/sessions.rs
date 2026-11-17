@@ -25,7 +25,7 @@ use crate::{events, jobs, learning, memory};
 pub const AUDIENCES: [&str; 2] = ["child", "operator"];
 /// How long the agent waits for the supervisor's plan before starting with
 /// the learner model's own.
-const BRIEF_WAIT: std::time::Duration = std::time::Duration::from_secs(4);
+const BRIEF_WAIT: std::time::Duration = std::time::Duration::from_secs(6);
 const MAX_TURN_CHARS: usize = 4000;
 const MAX_TURNS_PER_REQUEST: usize = 20;
 
