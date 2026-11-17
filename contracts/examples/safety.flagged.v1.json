@@ -1,0 +1,18 @@
+{
+  "specversion": "1.0",
+  "id": "7a9d2e44-0c1b-4e8f-a2d3-b4c5d6e7f809",
+  "source": "capricorn/agent",
+  "type": "safety.flagged.v1",
+  "time": "2026-11-17T15:36:48Z",
+  "datacontenttype": "application/json",
+  "subject": "5d2a7c34-91be-4f6a-b0c3-7e1f2a9d4c55",
+  "data": {
+    "session_id": "5d2a7c34-91be-4f6a-b0c3-7e1f2a9d4c55",
+    "child_id": "c0ffee00-1234-4abc-9def-001122334455",
+    "gate": "physical_safety",
+    "action": "adult_help",
+    "categories": [
+      "physical_hazard/heat"
+    ]
+  }
+}

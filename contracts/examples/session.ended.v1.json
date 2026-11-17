@@ -1,0 +1,19 @@
+{
+  "specversion": "1.0",
+  "id": "0b1f6c1e-6f0a-4d0e-9a51-3f8a2c9d7e10",
+  "source": "capricorn/agent",
+  "type": "session.ended.v1",
+  "time": "2026-11-17T15:42:10Z",
+  "datacontenttype": "application/json",
+  "subject": "5d2a7c34-91be-4f6a-b0c3-7e1f2a9d4c55",
+  "data": {
+    "session_id": "5d2a7c34-91be-4f6a-b0c3-7e1f2a9d4c55",
+    "device_id": "a3e1b2c4-5d6f-4a7b-8c9d-0e1f2a3b4c5d",
+    "child_id": "c0ffee00-1234-4abc-9def-001122334455",
+    "started_at": "2026-11-17T15:30:02Z",
+    "ended_at": "2026-11-17T15:42:10Z",
+    "duration_seconds": 728,
+    "end_reason": "child_ended",
+    "turns": 41
+  }
+}

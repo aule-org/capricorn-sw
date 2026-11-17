@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/aule-org/capricorn-sw/contracts/events/safety.flagged.v1.schema.json",
+  "title": "safety.flagged.v1",
+  "description": "A safety gate stopped a turn. Produced by the agent. Carries categories only: never the child's words, the reply or any score.",
+  "type": "object",
+  "required": [
+    "session_id",
+    "child_id",
+    "gate",
+    "action",
+    "categories"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "session_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "child_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "gate": {
+      "enum": [
+        "moderation_input",
+        "moderation_output",
+        "physical_safety",
+        "abuse_limit"
+      ]
+    },
+    "action": {
+      "enum": [
+        "redirect",
+        "adult_help",
+        "clarify",
+        "support",
+        "unavailable",
+        "cooldown"
+      ]
+    },
+    "categories": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z_/]+$"
+      },
+      "uniqueItems": true
+    }
+  }
+}

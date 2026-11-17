@@ -34,7 +34,22 @@ These are requirements for the code that lands here:
 
 ## Status
 
-Planned. There is nothing to run yet. The first version will start from the voice agent and device services of our earlier device, which families used at home.
+Early. The repository has the event contracts, the start of the agent and CI; the platform, the worker and the tutor are not written yet. [ARCHITECTURE.md](ARCHITECTURE.md) describes the design and what is built.
+
+## Repository layout
+
+```text
+apps/
+  platform/   API for families, consent, devices and sessions (Node, TypeScript)
+  worker/     event consumers and scheduled jobs (Node, TypeScript)
+  agent/      the voice tutor on LiveKit Agents (Python)
+contracts/    the events they exchange, as JSON Schema
+```
+
+```bash
+pnpm install && pnpm test          # contracts
+cd apps/agent && uv run pytest     # agent
+```
 
 ## How the pieces fit
 

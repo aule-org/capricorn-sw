@@ -1,0 +1,25 @@
+# Contracts
+
+The events Capricorn's components send each other, as JSON Schema. This folder is the single source of truth: the Node platform and the Python agent both validate against these files, so a change here that one side does not follow fails its tests.
+
+```text
+envelope.schema.json   the envelope every event uses (CloudEvents 1.0, structured JSON)
+events/                one schema per event type and version, for the envelope's `data`
+examples/              one valid example per event type, used by the tests of both sides
+```
+
+## Rules
+
+- **Names:** `<thing>.<what_happened>.v<N>`, past tense: `session.ended.v1`.
+- **Versions:** adding an optional field keeps the version. Removing or renaming a field, changing a type or making a field required needs a new version (`v2`) next to the old one, until no consumer reads the old one.
+- **No unknown fields:** every event schema sets `additionalProperties: false`.
+- **Privacy:** events never carry a child's words, audio, transcripts or model scores. They carry IDs, timestamps, counts and fixed categories. If a consumer needs more, it asks the platform through an authenticated API.
+- **Every event type has an example** in `examples/`, as a full envelope.
+
+## Check
+
+```bash
+pnpm install
+pnpm test                               # Node: schemas compile, examples validate
+cd apps/agent && uv run pytest          # Python: same examples, plus the agent's event builder
+```

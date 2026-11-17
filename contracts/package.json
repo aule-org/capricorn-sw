@@ -1,0 +1,14 @@
+{
+  "name": "@capricorn/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Event contracts for Capricorn: JSON Schema, shared by the Node platform and the Python agent",
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\""
+  },
+  "devDependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
+  }
+}
