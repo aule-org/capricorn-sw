@@ -136,10 +136,10 @@ impl Fcm {
     }
 
     async fn access_token(&self) -> Result<String, PushError> {
-        if let Some((token, expires)) = self.access.lock().expect("lock").as_ref() {
-            if Instant::now() < *expires {
-                return Ok(token.clone());
-            }
+        if let Some((token, expires)) = self.access.lock().expect("lock").as_ref()
+            && Instant::now() < *expires
+        {
+            return Ok(token.clone());
         }
         let assertion = assertion(&self.account, &self.key, chrono::Utc::now().timestamp())?;
         let response = self

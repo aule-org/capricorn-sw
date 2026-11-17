@@ -7,8 +7,9 @@ SARIF reports from the default branches also appear in each repository's
 
 The organization runner group must match `runner-group.json`: access is limited
 to these two repositories and their `quality.yml` workflows at `main` (SW) and
-`capricorn` (FW). Do not enable the repository variable until GitHub returns
-`restricted_to_workflows: true` and the exact two allowed workflow refs.
+`capricorn` (FW), plus SW's manual runner smoke test in `ci.yml` on `main`.
+Do not enable the repository variable until GitHub returns
+`restricted_to_workflows: true` and the exact three allowed workflow refs.
 
 ## Prepare
 

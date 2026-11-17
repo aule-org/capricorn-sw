@@ -78,10 +78,11 @@ jobs:
           cargo install --locked clippy-sarif --version 0.8.0
           cargo install --locked cargo-audit --version 0.23.0
       - name: Clippy report
+        working-directory: apps/platform
         run: |
-          mkdir -p reports
-          cargo clippy --manifest-path apps/platform/Cargo.toml --all-targets --locked --message-format=json -- -D warnings \
-            | clippy-sarif > reports/clippy.sarif
+          mkdir -p ../../reports
+          cargo clippy --all-targets --locked --message-format=json -- -D warnings \
+            | clippy-sarif > ../../reports/clippy.sarif
       - name: Dependency audit
         if: ${{ !cancelled() }}
         working-directory: apps/platform
@@ -93,7 +94,7 @@ jobs:
             echo '::error::SQLite is now enabled; remove and reassess the RustSec exception.'
             exit 1
           fi
-          cargo audit --format sarif > ../../reports/rustsec.sarif
+          cargo audit --file "$PWD/Cargo.lock" --format sarif > ../../reports/rustsec.sarif
       - uses: github/codeql-action/upload-sarif@v4
         if: ${{ !cancelled() && github.event_name != 'pull_request' && hashFiles('reports/*.sarif') != '' }}
         with:

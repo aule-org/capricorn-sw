@@ -115,13 +115,13 @@ pub async fn on_event(state: &AppState, event: &Value) -> Result<(), sqlx::Error
     .fetch_optional(&state.pool)
     .await?;
 
-    if let (Some(notice_id), Some(pusher)) = (created, &state.pusher) {
-        if crate::push::announce(&state.pool, pusher.as_ref(), family_id, notice_id, kind).await? {
-            sqlx::query("update notices set pushed_at = now() where id = $1")
-                .bind(notice_id)
-                .execute(&state.pool)
-                .await?;
-        }
+    if let (Some(notice_id), Some(pusher)) = (created, &state.pusher)
+        && crate::push::announce(&state.pool, pusher.as_ref(), family_id, notice_id, kind).await?
+    {
+        sqlx::query("update notices set pushed_at = now() where id = $1")
+            .bind(notice_id)
+            .execute(&state.pool)
+            .await?;
     }
     if let (Some(notice_id), Some(mailer)) = (created, &state.mailer) {
         let recipients: Vec<String> =
