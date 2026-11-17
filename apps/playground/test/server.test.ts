@@ -27,7 +27,7 @@ const start = (body: unknown) =>
   });
 
 test("serves the page and its scripts with a strict policy", async () => {
-  for (const path of ["/", "/app.js", "/style.css", "/livekit-client.js"]) {
+  for (const path of ["/", "/app.js", "/visuals.js", "/style.css", "/livekit-client.js"]) {
     const response = await fetch(base + path);
     assert.equal(response.status, 200, path);
     assert.match(response.headers.get("content-security-policy") ?? "", /default-src 'none'/);
@@ -166,4 +166,18 @@ test("without a platform there is no supervisor to ask about", async () => {
     body: JSON.stringify({ code: COMPLETE.PLAYGROUND_ACCESS_CODE, session_id: "s-1" }),
   });
   assert.equal(response.status, 404);
+});
+
+test("served at the root, the page and its health probe still answer", async () => {
+  const root = createPlayground(readSettings({ ...COMPLETE, PLAYGROUND_BASE_PATH: "/" }));
+  await new Promise<void>((resolve) => root.listen(0, "127.0.0.1", resolve));
+  const origin = `http://127.0.0.1:${(root.address() as AddressInfo).port}`;
+  try {
+    assert.equal((await fetch(`${origin}/`)).status, 200);
+    assert.equal((await fetch(`${origin}/healthz`)).status, 200);
+    // What the compose healthcheck asks for when the base path is "/".
+    assert.equal((await fetch(`${origin}//healthz`)).status, 200);
+  } finally {
+    root.close();
+  }
 });

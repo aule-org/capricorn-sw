@@ -4,6 +4,8 @@ A web page to talk to the Capricorn tutor from a browser, with your microphone a
 
 It is a small Node server with no database. It serves the page and has one endpoint, which trades the access code for a LiveKit token. The token is good for one new room and asks the [agent](../agent/README.md) to join it as an operator session.
 
+When the tutor shows something (an exercise, fraction bars, a number line...), the page draws it under the video from the description it receives; `public/visuals.js` is that drawing code, a plain function from the description to SVG.
+
 ## Settings
 
 | Variable | Meaning |

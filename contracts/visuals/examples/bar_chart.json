@@ -1,0 +1,18 @@
+{
+  "kind": "bar_chart",
+  "title": "Goles por partido",
+  "bars": [
+    {
+      "label": "Lun",
+      "value": 2
+    },
+    {
+      "label": "Mié",
+      "value": 5
+    },
+    {
+      "label": "Vie",
+      "value": 3
+    }
+  ]
+}

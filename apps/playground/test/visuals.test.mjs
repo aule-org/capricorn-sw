@@ -1,0 +1,77 @@
+import assert from "node:assert/strict";
+import { readdirSync, readFileSync } from "node:fs";
+import { test } from "node:test";
+
+import { renderVisual } from "../public/visuals.js";
+
+const examples = new URL("../../../contracts/visuals/examples/", import.meta.url);
+const example = (name) => JSON.parse(readFileSync(new URL(`${name}.json`, examples), "utf8"));
+const count = (svg, tag) => svg.split(`<${tag} `).length - 1;
+
+test("every example in the contract can be drawn", () => {
+  const names = readdirSync(examples).map((file) => file.replace(".json", ""));
+  assert.ok(names.length >= 7);
+  for (const name of names) {
+    const svg = renderVisual(example(name));
+    assert.match(svg, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 640 360"/, name);
+    assert.match(svg, /<\/svg>$/, name);
+    assert.doesNotMatch(svg, /NaN|undefined|Infinity/, name);
+  }
+});
+
+test("the drawing uses black on white only", () => {
+  for (const name of ["fraction_bars", "bar_chart", "number_line"]) {
+    const colours = new Set(renderVisual(example(name)).match(/#[0-9a-f]{3,6}\b/gi));
+    assert.deepEqual([...colours].sort(), ["#111", "#fff"], name);
+  }
+});
+
+test("a fraction bar has one part per denominator and shades the numerator", () => {
+  const svg = renderVisual({ kind: "fraction_bars", fractions: [{ numerator: 3, denominator: 8 }] });
+
+  assert.equal(count(svg, "rect") - 2, 8, "eight parts, plus the background and the outline");
+  assert.equal(svg.match(/<rect [^>]*fill="#111"\/>/g).length, 3, "three shaded parts");
+  assert.equal(count(svg, "line"), 7, "a divider between every two parts");
+  assert.equal(svg.split('stroke="#fff"').length - 1, 2, "white dividers between shaded parts");
+  assert.match(svg, />3\/8</);
+});
+
+test("an array draws rows times columns dots", () => {
+  assert.equal(count(renderVisual({ kind: "dot_array", rows: 3, columns: 4 }), "circle"), 12);
+  assert.equal(count(renderVisual({ kind: "dot_array", rows: 12, columns: 12 }), "circle"), 144);
+});
+
+test("a number line labels its ticks, marks points and draws jumps", () => {
+  const svg = renderVisual(example("number_line"));
+
+  for (const label of ["0", "10", "20", "+6"]) assert.ok(svg.includes(`>${label}<`), label);
+  assert.equal(count(svg, "circle"), 1);
+  assert.equal(count(svg, "path") - 1, 1, "one jump, plus the arrow head's own path");
+});
+
+test("a long number line thins its ticks, and a backwards one is refused", () => {
+  const svg = renderVisual({ kind: "number_line", from: 0, to: 1000, step: 1 });
+  assert.ok(count(svg, "text") <= 21);
+
+  assert.throws(() => renderVisual({ kind: "number_line", from: 5, to: 5, step: 1 }), /greater than from/);
+});
+
+test("a table keeps its columns even when a row is short", () => {
+  const svg = renderVisual({ kind: "table", headers: ["a", "b", "c"], cells: [["1"], ["2", "3", "4", "5"]] });
+
+  assert.equal(count(svg, "rect") - 1, 9);
+  assert.ok(!svg.includes(">5<"));
+});
+
+test("text from the tutor cannot become markup", () => {
+  const svg = renderVisual({ kind: "exercise", title: '<script>alert("x")</script>', lines: ["a < b & c > d"] });
+
+  assert.ok(!svg.includes("<script"));
+  assert.ok(svg.includes("a &lt; b &amp; c &gt; d"));
+  assert.ok(svg.includes('aria-label="&lt;script&gt;'));
+});
+
+test("an unknown kind is refused", () => {
+  assert.throws(() => renderVisual({ kind: "video" }), /unknown kind/);
+  assert.throws(() => renderVisual(null), /unknown kind/);
+});

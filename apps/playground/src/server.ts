@@ -21,6 +21,7 @@ const livekitClient = join(
 const STATIC: Record<string, { file: string | URL; type: string }> = {
   "/": { file: new URL("index.html", publicDir), type: "text/html; charset=utf-8" },
   "/app.js": { file: new URL("app.js", publicDir), type: "text/javascript; charset=utf-8" },
+  "/visuals.js": { file: new URL("visuals.js", publicDir), type: "text/javascript; charset=utf-8" },
   "/style.css": { file: new URL("style.css", publicDir), type: "text/css; charset=utf-8" },
   "/livekit-client.js": { file: livekitClient, type: "text/javascript; charset=utf-8" },
 };
@@ -101,7 +102,9 @@ export function createPlayground(settings: Settings): Server {
   }
 
   return createServer((request, response) => {
-    const { pathname } = new URL(request.url ?? "/", "http://playground");
+    // Doubled slashes are folded, so "/" as the base path and a probe of
+    // "//healthz" mean the same thing.
+    const pathname = new URL(request.url ?? "/", "http://playground").pathname.replace(/\/{2,}/g, "/");
     if (pathname === settings.basePath && settings.basePath) {
       response.writeHead(308, { ...headers, Location: `${settings.basePath}/` });
       return response.end();

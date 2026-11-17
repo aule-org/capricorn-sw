@@ -125,6 +125,7 @@ Built:
   - notices to guardians, in the app, by email and with a push to their phone (Firebase Cloud Messaging) that says only that there is something to read;
   - a Postgres job queue and the housekeeping that deletes transcripts on time and closes abandoned sessions.
 - The agent: a first tutor on LiveKit Agents with the camera as an image on each turn, connected to the platform for the plan, the turn reports and the guidance.
+- Visuals: the tutor can show an exercise or a simple diagram on the student's screen. It sends a small description that follows a shared contract, and the screen draws it in black on white; no image is generated. What is written on the screen passes the same gate as what is spoken.
 - The two safety gates in the agent: content moderation on what is heard and on what is about to be spoken, and the physical-safety check on what is heard. Both fail closed, a child's session does not start unless both are configured, and what they stop is reported as fixed categories.
 - The playground, which can create its sessions through the platform and shows the supervisor's plan and guidance.
 - A compose file for all of it, next to an existing LiveKit server.
@@ -132,6 +133,7 @@ Built:
 Not built yet:
 
 - The inbox for incoming events, and with it entitlements from a store (`order.paid`).
+- Drawing visuals on the device's e-ink screen. Only the playground draws them today.
 - The device side of `/ota/session`: the firmware does not have its LiveKit transport yet.
 - Firmware signatures. The platform records a SHA-256 per version; verifying the image is left to the device's secure boot.
 

@@ -6,6 +6,7 @@ The events Capricorn's components send each other, as JSON Schema. This folder i
 envelope.schema.json   the envelope every event uses (CloudEvents 1.0, structured JSON)
 events/                one schema per event type and version, for the envelope's `data`
 examples/              one valid example per event type, used by the tests of both sides
+visuals/               what the tutor shows on a screen: one schema and an example per kind
 ```
 
 ## Rules
@@ -23,3 +24,8 @@ pnpm install
 pnpm test                               # Node: schemas compile, examples validate
 cd apps/agent && uv run pytest          # Python: same examples, plus the agent's event builder
 ```
+
+
+## Visuals
+
+`visuals/visual.v1.schema.json` describes what the tutor can put on the student's screen: the statement of an exercise, fraction bars, a number line, an array of dots, a table, a bar chart or a rectangle with its sides. It is a description, not a picture. The agent's `show` tool takes exactly this shape, checks it and sends it to the room on the text-stream topic `capricorn.visual`; each screen draws it itself, in black on white, so it costs nothing to render and works on e-ink. A new kind needs its example here, a drawing in every screen that shows visuals, and a line in the tool's description.

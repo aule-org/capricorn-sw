@@ -1,0 +1,121 @@
+import json
+
+import pytest
+
+from capricorn_agent import visuals
+from capricorn_agent.events import contracts_dir
+from capricorn_agent.moderation import Action, Decision
+from capricorn_agent.tutor import SCREEN, SHOWN, Tutor, present
+
+EXAMPLES = sorted((contracts_dir() / "visuals" / "examples").glob("*.json"))
+
+
+def example(name: str) -> dict:
+    return json.loads((contracts_dir() / "visuals" / "examples" / f"{name}.json").read_text())
+
+
+class Gate:
+    """Stands in for the gates: says yes or no and keeps what it was asked."""
+
+    def __init__(self, allowed: bool = True) -> None:
+        self.allowed = allowed
+        self.asked: list[str] = []
+
+    async def spoken(self, text: str) -> Decision:
+        self.asked.append(text)
+        return Decision(Action.ALLOW) if self.allowed else Decision(Action.REDIRECT, "redirect")
+
+
+class Screen:
+    def __init__(self) -> None:
+        self.shown: list[dict] = []
+
+    async def __call__(self, visual: dict) -> None:
+        self.shown.append(visual)
+
+
+@pytest.mark.parametrize("path", EXAMPLES, ids=lambda path: path.stem)
+def test_every_example_of_the_contract_is_a_visual(path):
+    assert visuals.problems(json.loads(path.read_text(encoding="utf-8"))) == []
+
+
+def test_there_is_an_example_of_every_kind():
+    assert {path.stem for path in EXAMPLES} == set(visuals.schema()["properties"]["kind"]["enum"])
+
+
+@pytest.mark.parametrize(
+    "visual",
+    [
+        {"kind": "hologram"},
+        {"kind": "fraction_bars"},
+        {"kind": "fraction_bars", "fractions": [{"numerator": 1, "denominator": 0}]},
+        {"kind": "dot_array", "rows": 3, "columns": 40},
+        {"kind": "exercise", "lines": ["2 + 2 = ?"], "html": "<b>x</b>"},
+        {"kind": "number_line", "from": 10, "to": 0, "step": 1},
+        "fraction bars please",
+        None,
+    ],
+)
+def test_what_a_screen_cannot_draw_is_refused(visual):
+    assert visuals.problems(visual)
+
+
+def test_the_tool_is_the_contract():
+    tool = visuals.tool_schema()
+
+    assert tool["name"] == "show"
+    assert tool["parameters"]["properties"] == visuals.schema()["properties"]
+    assert tool["parameters"]["required"] == ["kind"]
+    # The model's API refuses these at the top of a tool's schema.
+    assert not any(key.startswith("$") for key in tool["parameters"])
+    assert not {"allOf", "anyOf", "oneOf"} & set(tool["parameters"])
+    for kind in visuals.schema()["properties"]["kind"]["enum"]:
+        assert kind in tool["description"], f"the description must say what {kind} needs"
+
+
+def test_the_words_on_the_screen_are_all_collected():
+    text = visuals.text_of(example("table"))
+
+    assert "Balones" in text and "Precio (S/)" in text and "24" in text
+    assert "table" not in text, "the kind is not something the student reads"
+    assert visuals.text_of({"kind": "dot_array", "rows": 3, "columns": 4}) == ""
+
+
+async def test_a_good_visual_is_shown_and_the_tutor_is_asked_to_say_what_it_is():
+    gate, screen = Gate(), Screen()
+
+    assert await present(example("fraction_bars"), gate, screen) == SHOWN
+
+    assert screen.shown == [example("fraction_bars")]
+    assert gate.asked == ["¿Cuál es mayor? 2/4"]
+
+
+async def test_a_visual_that_cannot_be_drawn_is_not_shown_and_the_model_is_told_why():
+    gate, screen = Gate(), Screen()
+
+    answer = await present({"kind": "dot_array", "rows": 3}, gate, screen)
+
+    assert answer.startswith("Not shown: ")
+    assert "columns" in answer
+    assert screen.shown == [] and gate.asked == [], "nothing is checked or sent"
+
+
+async def test_text_the_gate_stops_never_reaches_the_screen():
+    gate, screen = Gate(allowed=False), Screen()
+
+    answer = await present({"kind": "exercise", "lines": ["something unkind"]}, gate, screen)
+
+    assert answer == "Not shown: that text cannot be put on the screen."
+    assert screen.shown == []
+
+
+def test_the_tutor_only_talks_about_a_screen_when_there_is_one():
+    without = Tutor(language="es", gates=Gate())
+    with_screen = Tutor(language="es", gates=Gate(), show=Screen(), context="Plan: fracciones")
+
+    assert without.tools == []
+    assert SCREEN["es"] not in without.instructions
+    assert [tool.info.name for tool in with_screen.tools] == ["show"]
+    assert SCREEN["es"] in with_screen.instructions
+    assert with_screen.instructions.endswith("Plan: fracciones"), "the plan still comes last"
+    assert set(SCREEN) == {"es", "en"}
