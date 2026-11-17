@@ -5,6 +5,13 @@
 #   CAPRICORN_ENV_FILE=/etc/capricorn/capricorn.env docker compose up -d --build
 #   docker compose exec embeddings ollama pull bge-m3      # once
 #
+# These are read from the shell (or a file given with --env-file), not from
+# the env file above:
+#
+#   CAPRICORN_DB_PORT, CAPRICORN_EMBEDDINGS_PORT   loopback ports, if 5433 or 11435 are taken
+#   CAPRICORN_FCM_KEY_FILE                         the Firebase service account key, for pushes
+#   CAPRICORN_UID, CAPRICORN_GID                   who the platform runs as, to read that key
+#
 # The services of this repository use the host network (Linux) and listen on
 # loopback only: put your reverse proxy in front of the playground. The
 # database and the embedding model are published on loopback ports.
@@ -26,6 +33,14 @@ x-service: &service
       max-size: "10m"
       max-file: "3"
 
+# The platform and its worker read the Firebase key for push notifications
+# from CAPRICORN_FCM_KEY_FILE on this machine, and run as CAPRICORN_UID so they
+# can read it when it belongs to the account that runs the server.
+x-platform: &platform
+  user: "${CAPRICORN_UID:-10001}:${CAPRICORN_GID:-10001}"
+  volumes:
+    - ${CAPRICORN_FCM_KEY_FILE:-/dev/null}:/run/secrets/firebase.json:ro
+
 services:
   agent:
     <<: *service
@@ -39,7 +54,7 @@ services:
     env_file:
       - ${CAPRICORN_ENV_FILE:-.env}
     ports:
-      - "127.0.0.1:5433:5432"
+      - "127.0.0.1:${CAPRICORN_DB_PORT:-5433}:5432"
     volumes:
       - capricorn-db:/var/lib/postgresql/data
     restart: unless-stopped
@@ -53,14 +68,14 @@ services:
   embeddings:
     image: ollama/ollama:latest
     ports:
-      - "127.0.0.1:11435:11434"
+      - "127.0.0.1:${CAPRICORN_EMBEDDINGS_PORT:-11435}:11434"
     volumes:
       - capricorn-models:/root/.ollama
     restart: unless-stopped
     mem_limit: 3g
 
   platform:
-    <<: *service
+    <<: [*service, *platform]
     build:
       context: .
       dockerfile: apps/platform/Dockerfile
@@ -71,7 +86,7 @@ services:
     mem_limit: 512m
 
   worker:
-    <<: *service
+    <<: [*service, *platform]
     build:
       context: .
       dockerfile: apps/platform/Dockerfile
