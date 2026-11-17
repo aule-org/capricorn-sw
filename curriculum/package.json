@@ -1,0 +1,10 @@
+{
+  "name": "@capricorn/curriculum",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Skill catalogs for Capricorn's learner model, loaded with PUT /v1/skills",
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\""
+  }
+}
