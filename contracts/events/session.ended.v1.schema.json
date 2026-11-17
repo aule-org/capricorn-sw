@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/aule-org/capricorn-sw/contracts/events/session.ended.v1.schema.json",
+  "title": "session.ended.v1",
+  "description": "A tutoring session finished. Produced by the agent. Carries no transcript or audio.",
+  "type": "object",
+  "required": [
+    "session_id",
+    "device_id",
+    "child_id",
+    "started_at",
+    "ended_at",
+    "duration_seconds",
+    "end_reason"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "session_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "device_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "child_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "ended_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "duration_seconds": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "end_reason": {
+      "enum": [
+        "child_ended",
+        "idle",
+        "budget_reached",
+        "parent_ended",
+        "device_offline",
+        "error"
+      ]
+    },
+    "turns": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

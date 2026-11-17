@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/aule-org/capricorn-sw/contracts/envelope.schema.json",
+  "title": "Event envelope",
+  "description": "CloudEvents 1.0 in structured JSON mode. Every Capricorn event uses this envelope; `data` is validated against the schema named by `type`.",
+  "type": "object",
+  "required": [
+    "specversion",
+    "id",
+    "source",
+    "type",
+    "time",
+    "datacontenttype",
+    "data"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "specversion": {
+      "const": "1.0"
+    },
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique per event. Consumers use it to process each event once."
+    },
+    "source": {
+      "type": "string",
+      "pattern": "^capricorn/(platform|worker|agent|store)$",
+      "description": "The component that produced the event."
+    },
+    "type": {
+      "type": "string",
+      "pattern": "^[a-z]+(\\.[a-z_]+)+\\.v[1-9][0-9]*$",
+      "description": "Event name and version, for example session.ended.v1."
+    },
+    "time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "datacontenttype": {
+      "const": "application/json"
+    },
+    "subject": {
+      "type": "string",
+      "description": "ID of the thing the event is about (a session, device or family)."
+    },
+    "data": {
+      "type": "object"
+    }
+  }
+}

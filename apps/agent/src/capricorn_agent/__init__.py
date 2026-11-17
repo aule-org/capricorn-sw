@@ -1,0 +1,1 @@
+"""Capricorn's voice tutor."""
