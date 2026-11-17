@@ -1,0 +1,88 @@
+// Settings for the playground, read from the environment once at start. Every
+// problem is reported together, and the server does not start with one.
+
+export const LANGUAGES = ["es", "en"] as const;
+export type Language = (typeof LANGUAGES)[number];
+
+export type Settings = {
+  host: string;
+  port: number;
+  /** Path the page is served under, without a trailing slash ("" for the root). */
+  basePath: string;
+  /** LiveKit URL the browser connects to. */
+  livekitUrl: string;
+  livekitApiKey: string;
+  livekitApiSecret: string;
+  accessCode: string;
+  agentName: string;
+  sessionMinutes: number;
+  /** With a platform, sessions are created there and the supervisor takes part. */
+  platform: { url: string; adminToken: string; childId: string | null } | null;
+};
+
+export class ConfigError extends Error {}
+
+const MIN_ACCESS_CODE_LENGTH = 16;
+
+export function readSettings(env: Record<string, string | undefined>): Settings {
+  const get = (name: string, fallback = "") => env[name]?.trim() || fallback;
+  const problems: string[] = [];
+
+  // PLAYGROUND_LIVEKIT_URL is the earlier name of CAPRICORN_LIVEKIT_PUBLIC_URL.
+  const livekitUrl =
+    get("CAPRICORN_LIVEKIT_PUBLIC_URL") || get("PLAYGROUND_LIVEKIT_URL") || get("LIVEKIT_URL");
+  if (!/^wss?:\/\/[^\s/]+/.test(livekitUrl)) {
+    problems.push("CAPRICORN_LIVEKIT_PUBLIC_URL (or LIVEKIT_URL) must be a ws:// or wss:// URL");
+  }
+  for (const name of ["LIVEKIT_API_KEY", "LIVEKIT_API_SECRET"]) {
+    if (!get(name)) problems.push(`${name} is not set`);
+  }
+
+  const accessCode = get("PLAYGROUND_ACCESS_CODE");
+  if (accessCode.length < MIN_ACCESS_CODE_LENGTH) {
+    problems.push(`PLAYGROUND_ACCESS_CODE must have at least ${MIN_ACCESS_CODE_LENGTH} characters`);
+  }
+
+  const basePath = get("PLAYGROUND_BASE_PATH", "/playground").replace(/\/+$/, "");
+  if (basePath && !/^(\/[A-Za-z0-9_-]+)+$/.test(basePath)) {
+    problems.push("PLAYGROUND_BASE_PATH must look like /playground");
+  }
+
+  const port = Number(get("PLAYGROUND_PORT", "8090"));
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    problems.push("PLAYGROUND_PORT must be a port number");
+  }
+
+  const sessionMinutes = Number(get("PLAYGROUND_SESSION_MINUTES", "20"));
+  if (!Number.isInteger(sessionMinutes) || sessionMinutes < 1 || sessionMinutes > 120) {
+    problems.push("PLAYGROUND_SESSION_MINUTES must be a whole number from 1 to 120");
+  }
+
+  const platformUrl = get("CAPRICORN_PLATFORM_URL").replace(/\/+$/, "");
+  const adminToken = get("CAPRICORN_ADMIN_TOKEN");
+  const childId = get("PLAYGROUND_CHILD_ID");
+  if (platformUrl && !/^https?:\/\/[^\s/]+/.test(platformUrl)) {
+    problems.push("CAPRICORN_PLATFORM_URL must be an http:// or https:// URL");
+  }
+  if (platformUrl && !adminToken) {
+    problems.push("CAPRICORN_ADMIN_TOKEN is needed with CAPRICORN_PLATFORM_URL");
+  }
+  if (childId && !/^[0-9a-f-]{36}$/i.test(childId)) {
+    problems.push("PLAYGROUND_CHILD_ID must be a child's id");
+  }
+
+  if (problems.length > 0) throw new ConfigError(problems.join("; "));
+
+  return {
+    host: get("PLAYGROUND_HOST", "127.0.0.1"),
+    port,
+    basePath,
+    livekitUrl,
+    livekitApiKey: get("LIVEKIT_API_KEY"),
+    livekitApiSecret: get("LIVEKIT_API_SECRET"),
+    accessCode,
+    agentName: get("CAPRICORN_AGENT_NAME", "capricorn-tutor"),
+    sessionMinutes,
+    platform: platformUrl ? { url: platformUrl, adminToken, childId: childId || null } : null,
+  };
+}

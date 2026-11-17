@@ -17,7 +17,9 @@ A tutor for children should not stop working when a company changes its plans. S
 - **The voice tutor.** A [LiveKit Agents](https://github.com/livekit/agents) worker joins the device's room, listens, thinks and answers out loud. It keeps turns short and patient, asks before it explains, and does not hand out answers.
 - **Devices.** Links a new device to its family, issues per-device credentials and room tokens, and serves firmware updates over the air, speaking the bootstrap protocol of [xiaozhi-esp32](https://github.com/78/xiaozhi-esp32) that the [firmware](https://github.com/meet-aule/capricorn-fw) is built on.
 - **Families.** The API behind the [app](https://github.com/meet-aule/capricorn-app): setup, progress, invitations, consent, privacy settings and deleting a child's data.
-- **A pluggable learning engine.** The server works on its own with a built-in tutor. It can also connect to Aule's hosted engine, which adds a model of what each child has mastered, a curriculum and learning materials.
+- **A model of what each child knows.** An open learner model estimates, skill by skill, what a child has mastered and what they are forgetting, and picks what to work on next. It needs no language model and can be corrected by a parent or a teacher.
+- **A supervisor.** A second model plans each session, follows it without slowing the conversation down, and afterwards turns it into progress, memories and a note for the family.
+- **Memory.** The tutor remembers what matters about a child between sessions, with embeddings computed on your own server.
 
 ## Running it yourself
 
@@ -34,22 +36,26 @@ These are requirements for the code that lands here:
 
 ## Status
 
-Early. The repository has the event contracts, the start of the agent and CI; the platform, the worker and the tutor are not written yet. [ARCHITECTURE.md](ARCHITECTURE.md) describes the design and what is built.
+Early. The repository has the platform (children, consent, sessions, the learner model, memory and the supervisor), a first voice tutor and a [playground](apps/playground/README.md) to talk to it from a browser. The tutor only accepts sessions from the people running the server: the safety gates are not written yet, and it refuses a child's session without them. Family sign-in, devices and notices are not written yet. [ARCHITECTURE.md](ARCHITECTURE.md) describes the design, what is built and what has not been validated.
 
 ## Repository layout
 
 ```text
 apps/
-  platform/   API for families, consent, devices and sessions (Node, TypeScript)
-  worker/     event consumers and scheduled jobs (Node, TypeScript)
+  platform/   the API and the worker: children, consent, sessions, learning, memory, supervisor (Rust)
   agent/      the voice tutor on LiveKit Agents (Python)
+  playground/ a web page to talk to the tutor with a microphone and a camera (Node, TypeScript)
 contracts/    the events they exchange, as JSON Schema
+compose.yaml  everything above with its database, next to your LiveKit server
 ```
 
 ```bash
-pnpm install && pnpm test          # contracts
+pnpm install && pnpm test          # contracts and playground
 cd apps/agent && uv run pytest     # agent
+cd apps/platform && cargo test     # platform (needs DATABASE_URL to a Postgres with pgvector)
 ```
+
+To run it, copy `.env.example` to `.env`, fill it in, run `docker compose up -d --build` and, once, `docker compose exec embeddings ollama pull bge-m3`.
 
 ## How the pieces fit
 

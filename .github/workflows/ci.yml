@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   contracts:
-    name: Contracts (Node)
+    name: Contracts and playground (Node)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -22,9 +22,10 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @capricorn/playground typecheck
       - run: pnpm test
 
   agent:
@@ -43,3 +44,48 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run pytest
+
+  platform:
+    name: Platform (Rust)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/platform
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Each test creates and drops its own database on this server.
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/platform
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      - run: cargo test --locked
+
+  images:
+    name: Images (${{ matrix.app }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      matrix:
+        app: [agent, playground, platform]
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker build --file apps/${{ matrix.app }}/Dockerfile --tag capricorn-${{ matrix.app }}:ci .
