@@ -82,6 +82,10 @@ These are requirements, not goals. Code that breaks one does not get merged.
 
 - Contracts for three events, validated by tests in Node and in Python.
 - The agent's event builder.
+- A first tutor in the agent: speech to text, Claude and text to speech on LiveKit Agents, with the person's camera as an image on each turn.
+- The place of the two safety gates in a turn, with their fail-closed rule, but no gate behind it. Until both exist the agent refuses every session that is not marked as an operator's (an adult on the team), so no child can reach the tutor.
+- The playground: a page behind an access code that opens an operator session.
+- A compose file for the agent and the playground.
 - CI for both languages.
 
-Not built yet: the platform, the worker, the tutor, the outbox and inbox, and the compose file to run everything.
+Not built yet: the platform, the worker, the two gates, the events a session should publish, the outbox and inbox, and LiveKit and the database in the compose file.

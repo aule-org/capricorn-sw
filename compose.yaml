@@ -1,0 +1,46 @@
+# The voice tutor and its playground, next to a LiveKit server you already run.
+# Settings come from one env file (see .env.example):
+#
+#   CAPRICORN_ENV_FILE=/etc/capricorn/capricorn.env docker compose up -d --build
+#
+# Both services use the host network (Linux): the agent only makes outgoing
+# connections, and the playground listens on loopback for your reverse proxy.
+x-service: &service
+  env_file:
+    - ${CAPRICORN_ENV_FILE:-.env}
+  network_mode: host
+  restart: unless-stopped
+  read_only: true
+  tmpfs:
+    - /tmp:size=64m,mode=1777
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  agent:
+    <<: *service
+    build:
+      context: .
+      dockerfile: apps/agent/Dockerfile
+    mem_limit: 2g
+
+  playground:
+    <<: *service
+    build:
+      context: .
+      dockerfile: apps/playground/Dockerfile
+    mem_limit: 256m
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -qO /dev/null "http://127.0.0.1:$${PLAYGROUND_PORT:-8090}$${PLAYGROUND_BASE_PATH-/playground}/healthz"
+      interval: 30s
+      timeout: 5s
+      retries: 3

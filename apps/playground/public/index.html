@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Capricorn playground</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Capricorn playground</h1>
+        <p>Talk to the tutor with your microphone and show it your work with the camera.</p>
+      </header>
+
+      <form id="entry" autocomplete="off">
+        <label>
+          Access code
+          <input id="code" type="password" required autocomplete="off" spellcheck="false" />
+        </label>
+        <label>
+          Language
+          <select id="language">
+            <option value="es">Español</option>
+            <option value="en">English</option>
+          </select>
+        </label>
+        <button type="submit" id="start">Start session</button>
+        <p class="note">
+          For adults on the team only. Audio and video are processed to answer and are not stored.
+        </p>
+      </form>
+
+      <section id="stage" hidden>
+        <div class="tiles">
+          <div class="tile">
+            <video id="camera" autoplay muted playsinline></video>
+            <span class="tile-label">You</span>
+            <p id="camera-off" class="tile-empty" hidden>Camera off</p>
+          </div>
+          <div class="tile tutor" id="tutor" data-state="waiting">
+            <div class="orb" aria-hidden="true"></div>
+            <span class="tile-label">Capri</span>
+            <p id="tutor-state" class="tile-state" role="status">Waiting for the tutor…</p>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button type="button" id="mic" aria-pressed="true">Microphone on</button>
+          <button type="button" id="cam" aria-pressed="true">Camera on</button>
+          <span id="clock" class="clock" aria-label="Time left"></span>
+          <button type="button" id="end" class="danger">End session</button>
+        </div>
+
+        <ol id="transcript" aria-label="Conversation" aria-live="polite"></ol>
+      </section>
+
+      <p id="message" class="message" role="alert" hidden></p>
+      <div id="audio"></div>
+    </main>
+    <script src="livekit-client.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
