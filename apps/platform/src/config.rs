@@ -20,6 +20,8 @@ pub struct Config {
     pub embeddings: Option<Embeddings>,
     pub mail: Option<Mail>,
     pub events_webhook: Option<EventsWebhook>,
+    /// Path of the Firebase service account key, for push notifications.
+    pub fcm_service_account: Option<String>,
     /// Minutes east of UTC that devices are told, for their clock.
     pub timezone_offset_minutes: i32,
 }
@@ -215,6 +217,7 @@ impl Config {
             embeddings,
             mail,
             events_webhook,
+            fcm_service_account: get("CAPRICORN_FCM_SERVICE_ACCOUNT").map(str::to_string),
             timezone_offset_minutes,
         })
     }

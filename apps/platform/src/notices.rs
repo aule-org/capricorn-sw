@@ -1,4 +1,4 @@
-//! What a family is told, in the app and by email: a summary after each
+//! What a family is told, in the app, by email and with a push to their phone: a summary after each
 //! session, and a short note when a safety gate saw something a guardian
 //! should know about. Notices are made from events, so they survive a crash
 //! and are never sent twice for the same session.
@@ -115,6 +115,14 @@ pub async fn on_event(state: &AppState, event: &Value) -> Result<(), sqlx::Error
     .fetch_optional(&state.pool)
     .await?;
 
+    if let (Some(notice_id), Some(pusher)) = (created, &state.pusher) {
+        if crate::push::announce(&state.pool, pusher.as_ref(), family_id, notice_id, kind).await? {
+            sqlx::query("update notices set pushed_at = now() where id = $1")
+                .bind(notice_id)
+                .execute(&state.pool)
+                .await?;
+        }
+    }
     if let (Some(notice_id), Some(mailer)) = (created, &state.mailer) {
         let recipients: Vec<String> =
             sqlx::query_scalar("select email::text from guardians where family_id = $1 and notices_by_email")

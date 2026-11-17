@@ -24,7 +24,7 @@ base64 = "0.22"
 hex = "0.4"
 hmac = "0.12"
 rand = "0.9"
-reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "form", "rustls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
@@ -37,6 +37,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 uuid = { version = "1", features = ["v4", "v7", "serde"] }
 lettre = { version = "0.11", default-features = false, features = ["tokio1-rustls-tls", "smtp-transport", "builder"] }
 semver = "1"
+jsonwebtoken = "9"
 
 [dev-dependencies]
 jsonschema = "0.61.2"

@@ -15,6 +15,7 @@ pub mod llm;
 pub mod mail;
 pub mod memory;
 pub mod notices;
+pub mod push;
 pub mod sessions;
 pub mod signin;
 pub mod state;

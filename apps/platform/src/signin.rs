@@ -215,8 +215,9 @@ pub async fn sign_out(_: Guardian, State(state): State<AppState>, parts: Parts) 
 }
 
 pub async fn me(guardian: Guardian, State(state): State<AppState>) -> ApiResult<Json<Value>> {
-    let (email, name, language, notices_by_email): (String, String, String, bool) =
-        sqlx::query_as("select email::text, name, language, notices_by_email from guardians where id = $1")
+    let (email, name, language, notices_by_email, notices_by_push): (String, String, String, bool, bool) = sqlx::query_as(
+        "select email::text, name, language, notices_by_email, notices_by_push from guardians where id = $1",
+    )
             .bind(guardian.id)
             .fetch_one(&state.pool)
             .await?;
@@ -231,7 +232,7 @@ pub async fn me(guardian: Guardian, State(state): State<AppState>) -> ApiResult<
             .fetch_one(&state.pool)
             .await?;
     Ok(Json(json!({
-        "guardian": { "id": guardian.id, "email": email, "name": name, "language": language, "notices_by_email": notices_by_email },
+        "guardian": { "id": guardian.id, "email": email, "name": name, "language": language, "notices_by_email": notices_by_email, "notices_by_push": notices_by_push },
         "family_id": guardian.family_id,
         "children": children.into_iter().map(|(id, nickname)| json!({ "id": id, "nickname": nickname })).collect::<Vec<_>>(),
         "unread_notices": unread,
@@ -244,6 +245,8 @@ pub struct SettingsInput {
     language: Option<String>,
     #[serde(default)]
     notices_by_email: Option<bool>,
+    #[serde(default)]
+    notices_by_push: Option<bool>,
 }
 
 pub async fn update_me(
@@ -255,12 +258,14 @@ pub async fn update_me(
         return Err(ApiError::bad_request("language must be es or en"));
     }
     sqlx::query(
-        "update guardians set language = coalesce($2, language), notices_by_email = coalesce($3, notices_by_email)
+        "update guardians set language = coalesce($2, language),
+           notices_by_email = coalesce($3, notices_by_email), notices_by_push = coalesce($4, notices_by_push)
          where id = $1",
     )
     .bind(guardian.id)
     .bind(body.language)
     .bind(body.notices_by_email)
+    .bind(body.notices_by_push)
     .execute(&state.pool)
     .await?;
     Ok(StatusCode::NO_CONTENT)

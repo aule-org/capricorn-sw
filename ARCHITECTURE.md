@@ -122,7 +122,7 @@ Built:
   - the supervisor (before, during, after);
   - devices: registration with a per-device key, linking by claim code plus a signed challenge, signed session requests that cannot be replayed, and firmware offered only when newer, over the xiaozhi-esp32 check-in protocol;
   - the outbox, with delivery to the platform's own consumers and to a signed webhook;
-  - notices to guardians, in the app and by email;
+  - notices to guardians, in the app, by email and with a push to their phone (Firebase Cloud Messaging) that says only that there is something to read;
   - a Postgres job queue and the housekeeping that deletes transcripts on time and closes abandoned sessions.
 - The agent: a first tutor on LiveKit Agents with the camera as an image on each turn, connected to the platform for the plan, the turn reports and the guidance.
 - The two safety gates in the agent: content moderation on what is heard and on what is about to be spoken, and the physical-safety check on what is heard. Both fail closed, a child's session does not start unless both are configured, and what they stop is reported as fixed categories.
@@ -134,7 +134,6 @@ Not built yet:
 - The inbox for incoming events, and with it entitlements from a store (`order.paid`).
 - The device side of `/ota/session`: the firmware does not have its LiveKit transport yet.
 - Firmware signatures. The platform records a SHA-256 per version; verifying the image is left to the device's secure boot.
-- Push notifications. Notices reach a guardian in the app and by email.
 
 Not validated:
 
@@ -142,5 +141,6 @@ Not validated:
 - The supervisor has only run against scripted answers in tests. How good its plans, guidance and reviews are with real conversations has not been measured.
 - The device routes have only been exercised by tests that play the device. No board has talked to them.
 - Sign-in and notices have only sent mail to a stand-in; no SMTP server has been used.
+- No push has been sent through Firebase: the sender was written from its documentation and tested against a stand-in.
 - The safety gates have only run against stand-ins for their providers here. Requirement 4 is not met by code: the physical-safety provider needs an agreement covering minors' data, and the moderation provider's terms need checking, before a real child uses the tutor. "Configured and working" is enforced as "configured": nothing probes the providers when a session starts.
 - The curriculum in `curriculum/` is a draft that no teacher has reviewed.

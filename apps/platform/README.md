@@ -20,7 +20,7 @@ capricorn-platform import-skills curriculum/math-primaria.json
 | `supervisor` | The brief before a session, guidance during it, the review after it |
 | `families`, `signin` | Families, guardians, children, append-only consent; sign-in by emailed code |
 | `devices` | Registration, claim codes, signed check-in and sessions, firmware |
-| `events`, `notices` | The outbox and its delivery; what families are told |
+| `events`, `notices`, `push` | The outbox and its delivery; what families are told; pushes through Firebase Cloud Messaging |
 | `sessions` | Room tokens, the agent's API for one session, the review job |
 | `jobs` | The Postgres job queue and the housekeeping |
 | `llm`, `livekit`, `mail`, `auth`, `config`, `error` | Claude with a forced structured answer, room tokens, the two kinds of caller, settings, the error shape |
@@ -42,9 +42,10 @@ Devices do not use a bearer token: they sign with the key burned into them.
 | `POST /v1/auth/start` | Sends a six-digit code to an email address. Answers the same whether or not the address has an account |
 | `POST /v1/auth/verify` | Trades the code for a token. A new address becomes a new family and must send `name` |
 | `POST /v1/auth/signout` | Ends this session |
-| `GET`, `PUT /v1/me` | The guardian, their children, unread notices; language and whether notices are emailed |
+| `GET`, `PUT /v1/me` | The guardian, their children, unread notices; language and whether notices are emailed or pushed |
 | `DELETE /v1/me` | Erases the family and everything derived from it. Needs the email typed again |
 | `GET /v1/notices`, `POST /v1/notices/{id}/read` | What the family has been told |
+| `PUT`, `DELETE /v1/push/tokens` | The app registers this phone for pushes each time it starts, and forgets it on sign-out. Body: `{"token", "platform"}` with `android`, `ios` or `web` |
 
 ### Children and learning (guardian for their family, or operator)
 
@@ -107,11 +108,13 @@ Events are written to an outbox in the same transaction as the change they descr
 | `safety.flagged.v1` | A safety gate stopped a turn in a child's session |
 | `session.reviewed.v1` | The supervisor finished reviewing a child's session |
 
-The platform consumes its own events to write notices: a summary after each reviewed session, and one short, fixed-text note per session when a gate that listens to the child answered with support or asked for an adult. With `CAPRICORN_EVENTS_WEBHOOK_URL` set, each event is also posted there as a CloudEvent with `X-Capricorn-Signature: sha256=<HMAC of the body>`.
+The platform consumes its own events to write notices: a summary after each reviewed session, and one short, fixed-text note per session when a gate that listens to the child answered with support or asked for an adult. A new notice is also emailed and announced with a push. The push carries fixed text and the notice's id, never the child's name or what happened, because a locked phone shows it to whoever holds it.
+
+With `CAPRICORN_EVENTS_WEBHOOK_URL` set, each event is also posted there as a CloudEvent with `X-Capricorn-Signature: sha256=<HMAC of the body>`.
 
 ## Settings
 
-`.env.example` at the repository root lists them. Only `DATABASE_URL` and `CAPRICORN_ADMIN_TOKEN` are required: without LiveKit keys no session can be created, without mail settings nobody can sign in and notices stay in the app, without `ANTHROPIC_API_KEY` plans come from the learner model alone and there is no guidance or review, and without `CAPRICORN_EMBEDDINGS_URL` memories are recalled by date.
+`.env.example` at the repository root lists them. Only `DATABASE_URL` and `CAPRICORN_ADMIN_TOKEN` are required: without LiveKit keys no session can be created, without mail settings nobody can sign in and notices stay in the app, without a Firebase service account there are no pushes, without `ANTHROPIC_API_KEY` plans come from the learner model alone and there is no guidance or review, and without `CAPRICORN_EMBEDDINGS_URL` memories are recalled by date.
 
 The embedding model must return 1024 dimensions (`bge-m3` does). Another size needs a migration.
 
