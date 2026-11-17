@@ -3,15 +3,20 @@
 
 pub mod auth;
 pub mod config;
+pub mod devices;
 pub mod error;
+pub mod events;
 pub mod families;
 pub mod http;
 pub mod jobs;
 pub mod learning;
 pub mod livekit;
 pub mod llm;
+pub mod mail;
 pub mod memory;
+pub mod notices;
 pub mod sessions;
+pub mod signin;
 pub mod state;
 pub mod supervisor;
 

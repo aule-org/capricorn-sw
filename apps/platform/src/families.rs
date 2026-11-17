@@ -11,7 +11,7 @@ use serde_json::{Value, json};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::auth::{Input, Operator};
+use crate::auth::{Caller, Input, Operator};
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
 use crate::supervisor::ChildContext;
@@ -114,6 +114,13 @@ pub async fn find_child(pool: &PgPool, child_id: Uuid) -> ApiResult<Child> {
         .ok_or(ApiError::NotFound("child"))
 }
 
+/// The child, if the caller may see them. A child of another family does not
+/// exist as far as a guardian can tell.
+pub async fn child_for(pool: &PgPool, caller: &Caller, child_id: Uuid) -> ApiResult<Child> {
+    let child = find_child(pool, child_id).await?;
+    if caller.may_access(child.family_id) { Ok(child) } else { Err(ApiError::NotFound("child")) }
+}
+
 #[derive(Deserialize)]
 pub struct ChildInput {
     nickname: String,
@@ -151,13 +158,17 @@ impl ChildInput {
         if !["es", "en"].contains(&language.as_str()) {
             return Err(ApiError::bad_request("language must be es or en"));
         }
+        let grade = self.grade.map(|grade| grade.trim().to_uppercase()).filter(|grade| !grade.is_empty());
+        if grade.as_deref().is_some_and(|grade| !crate::learning::is_grade(grade)) {
+            return Err(ApiError::bad_request("grade must be P1 to P6 (primary) or S1 to S5 (secondary)"));
+        }
         if self.interests.len() > 10 {
             return Err(ApiError::bad_request("at most 10 interests"));
         }
         Ok(CheckedChild {
             nickname: text(&self.nickname, "nickname", 40)?,
             birth_year: self.birth_year,
-            grade: optional(self.grade, "grade", 60)?,
+            grade,
             language,
             interests: self
                 .interests
@@ -170,11 +181,14 @@ impl ChildInput {
 }
 
 pub async fn create_child(
-    _: Operator,
+    caller: Caller,
     State(state): State<AppState>,
     Path(family_id): Path<Uuid>,
     Input(body): Input<ChildInput>,
 ) -> ApiResult<(StatusCode, Json<Child>)> {
+    if !caller.may_access(family_id) {
+        return Err(ApiError::NotFound("family"));
+    }
     let child = body.checked(Utc::now())?;
     let family: Option<Uuid> = sqlx::query_scalar("select id from families where id = $1")
         .bind(family_id)
@@ -199,11 +213,12 @@ pub async fn create_child(
 }
 
 pub async fn update_child(
-    _: Operator,
+    caller: Caller,
     State(state): State<AppState>,
     Path(child_id): Path<Uuid>,
     Input(body): Input<ChildInput>,
 ) -> ApiResult<Json<Child>> {
+    child_for(&state.pool, &caller, child_id).await?;
     let child = body.checked(Utc::now())?;
     let updated: Option<Child> = sqlx::query_as(&format!(
         "update children set nickname = $2, birth_year = $3, grade = $4, language = $5, interests = $6, notes = $7
@@ -222,11 +237,11 @@ pub async fn update_child(
 }
 
 pub async fn get_child(
-    _: Operator,
+    caller: Caller,
     State(state): State<AppState>,
     Path(child_id): Path<Uuid>,
 ) -> ApiResult<Json<Value>> {
-    let child = find_child(&state.pool, child_id).await?;
+    let child = child_for(&state.pool, &caller, child_id).await?;
     let consent = current_consent(&state.pool, child_id).await?;
     Ok(Json(json!({ "child": child, "consent": consent })))
 }
@@ -235,10 +250,11 @@ pub async fn get_child(
 /// answers, memories and reviews go with the row. The consent records stay,
 /// as the proof of what was agreed while the data existed.
 pub async fn delete_child(
-    _: Operator,
+    caller: Caller,
     State(state): State<AppState>,
     Path(child_id): Path<Uuid>,
 ) -> ApiResult<StatusCode> {
+    child_for(&state.pool, &caller, child_id).await?;
     let deleted =
         sqlx::query("delete from children where id = $1").bind(child_id).execute(&state.pool).await?;
     if deleted.rows_affected() == 0 {
@@ -271,12 +287,14 @@ pub struct ConsentInput {
     guardian_id: Option<Uuid>,
     #[serde(default)]
     locale: Option<String>,
-    /// Where the guardian answered, such as "app" or "paper-form".
-    source: String,
+    /// Where the guardian answered, such as "paper-form". A signed-in
+    /// guardian's answer is always recorded as "app".
+    #[serde(default)]
+    source: Option<String>,
 }
 
 pub async fn record_consent(
-    _: Operator,
+    caller: Caller,
     State(state): State<AppState>,
     Path(child_id): Path<Uuid>,
     Input(body): Input<ConsentInput>,
@@ -284,8 +302,17 @@ pub async fn record_consent(
     if !PURPOSES.contains(&body.purpose.as_str()) {
         return Err(ApiError::bad_request(format!("purpose must be one of: {}", PURPOSES.join(", "))));
     }
-    let child = find_child(&state.pool, child_id).await?;
-    if let Some(guardian_id) = body.guardian_id {
+    let child = child_for(&state.pool, &caller, child_id).await?;
+    // A guardian answers for themselves; only the operator records an answer
+    // given some other way, and must say how.
+    let (guardian_id, source) = match caller.guardian_id() {
+        Some(guardian_id) => (Some(guardian_id), "app".to_string()),
+        None => {
+            let source = body.source.as_deref().ok_or_else(|| ApiError::bad_request("source is required"))?;
+            (body.guardian_id, text(source, "source", 40)?)
+        }
+    };
+    if let Some(guardian_id) = guardian_id {
         let belongs: Option<Uuid> =
             sqlx::query_scalar("select id from guardians where id = $1 and family_id = $2")
                 .bind(guardian_id)
@@ -301,12 +328,12 @@ pub async fn record_consent(
     .bind(Uuid::now_v7())
     .bind(child.family_id)
     .bind(child_id)
-    .bind(body.guardian_id)
+    .bind(guardian_id)
     .bind(&body.purpose)
     .bind(body.granted)
     .bind(text(&body.policy_version, "policy_version", 40)?)
     .bind(body.locale.as_deref().map(|locale| text(locale, "locale", 20)).transpose()?.unwrap_or_else(|| "es-PE".into()))
-    .bind(text(&body.source, "source", 40)?)
+    .bind(source)
     .execute(&state.pool)
     .await?;
 

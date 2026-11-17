@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/meet-aule/capricorn-sw/contracts/events/session.reviewed.v1.schema.json",
+  "title": "session.reviewed.v1",
+  "description": "The supervisor finished reviewing a session: its evidence is in the learner model and its note for the guardian is stored. Produced by the platform. Carries no summary text, only fixed flags.",
+  "type": "object",
+  "required": [
+    "session_id",
+    "child_id",
+    "flags"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "session_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "child_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "flags": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "distress",
+          "safety_concern",
+          "struggling",
+          "disengaged"
+        ]
+      }
+    }
+  }
+}

@@ -74,8 +74,9 @@ Defined today:
 | Event | Produced by | Meaning |
 |---|---|---|
 | `device.claimed.v1` | platform | A family linked a device by proving it has it |
-| `session.ended.v1` | agent | A tutoring session finished |
-| `safety.flagged.v1` | agent | A safety gate stopped a turn (categories only) |
+| `session.ended.v1` | platform, from the agent's report | A tutoring session on a device finished |
+| `session.reviewed.v1` | platform | The supervisor finished reviewing a session |
+| `safety.flagged.v1` | platform, from the agent's report | A safety gate stopped a turn (categories only) |
 
 Planned: `family.registered`, `consent.granted`, `consent.revoked`, `device.online`, `device.offline`, `session.started`, `transcript.ready`, `skill.updated`, `entitlement.granted`, `entitlement.ended`.
 
@@ -111,23 +112,35 @@ These are requirements, not goals. Code that breaks one does not get merged.
 
 Built:
 
-- Contracts for three events, validated by tests in Node and in Python.
-- The platform in Rust: families, children, append-only consent, sessions created at token issue with a per-session agent token, the learner model with calibrated difficulty, vector memory, the supervisor (before, during, after), a Postgres job queue, and the housekeeping that deletes transcripts on time and closes abandoned sessions.
+- Contracts for four events, validated by tests in Node, Python and Rust.
+- The platform in Rust:
+  - families, children and append-only consent;
+  - sign-in for guardians by a code sent to their email, with each guardian limited to their own family;
+  - sessions created at token issue with a per-session agent token;
+  - the learner model with calibrated difficulty, which starts a child at their own grade;
+  - vector memory;
+  - the supervisor (before, during, after);
+  - devices: registration with a per-device key, linking by claim code plus a signed challenge, signed session requests that cannot be replayed, and firmware offered only when newer, over the xiaozhi-esp32 check-in protocol;
+  - the outbox, with delivery to the platform's own consumers and to a signed webhook;
+  - notices to guardians, in the app and by email;
+  - a Postgres job queue and the housekeeping that deletes transcripts on time and closes abandoned sessions.
 - The agent: a first tutor on LiveKit Agents with the camera as an image on each turn, connected to the platform for the plan, the turn reports and the guidance.
-- The place of the two safety gates in a turn, with their fail-closed rule, but no gate behind it. Until both exist the agent refuses every session that is not marked as an operator's (an adult on the team), so no child can reach the tutor.
+- The two safety gates in the agent: content moderation on what is heard and on what is about to be spoken, and the physical-safety check on what is heard. Both fail closed, a child's session does not start unless both are configured, and what they stop is reported as fixed categories.
 - The playground, which can create its sessions through the platform and shows the supervisor's plan and guidance.
 - A compose file for all of it, next to an existing LiveKit server.
 
 Not built yet:
 
-- The two safety gates.
-- Sign-in for families. The operator API uses one admin token in its place.
-- Devices: claim codes, per-device credentials, firmware updates.
-- Notices to guardians. Reviews and their flags are stored and can be read, but nothing is sent.
-- The outbox and inbox, and with them the events of the catalog: the platform does not publish or consume any yet.
-- A curriculum. The skill catalog is empty until one is loaded; until then skills are named by the review.
+- The inbox for incoming events, and with it entitlements from a store (`order.paid`).
+- The device side of `/ota/session`: the firmware does not have its LiveKit transport yet.
+- Firmware signatures. The platform records a SHA-256 per version; verifying the image is left to the device's secure boot.
+- Push notifications. Notices reach a guardian in the app and by email.
 
 Not validated:
 
 - The learner model's parameters come from public datasets (ASSISTments 2009 and 2017), not from Capricorn's children. Its forgetting term showed no measurable effect there. `apps/platform/examples/skill_model_eval.rs` refits them from a log of answers.
 - The supervisor has only run against scripted answers in tests. How good its plans, guidance and reviews are with real conversations has not been measured.
+- The device routes have only been exercised by tests that play the device. No board has talked to them.
+- Sign-in and notices have only sent mail to a stand-in; no SMTP server has been used.
+- The safety gates have only run against stand-ins for their providers here. Requirement 4 is not met by code: the physical-safety provider needs an agreement covering minors' data, and the moderation provider's terms need checking, before a real child uses the tutor. "Configured and working" is enforced as "configured": nothing probes the providers when a session starts.
+- The curriculum in `curriculum/` is a draft that no teacher has reviewed.

@@ -18,6 +18,24 @@ pub struct Config {
     pub transcript_hours: u32,
     pub supervisor: Option<Supervisor>,
     pub embeddings: Option<Embeddings>,
+    pub mail: Option<Mail>,
+    pub events_webhook: Option<EventsWebhook>,
+    /// Minutes east of UTC that devices are told, for their clock.
+    pub timezone_offset_minutes: i32,
+}
+
+#[derive(Clone, Debug)]
+pub struct Mail {
+    /// For example `smtps://user:password@smtp.example.org:465`.
+    pub smtp_url: String,
+    pub from: String,
+}
+
+/// Where events are delivered outside the platform, signed with the secret.
+#[derive(Clone, Debug)]
+pub struct EventsWebhook {
+    pub url: String,
+    pub secret: String,
 }
 
 #[derive(Clone, Debug)]
@@ -130,6 +148,58 @@ impl Config {
             }
         }
 
+        let mail = match (get("CAPRICORN_SMTP_URL"), get("CAPRICORN_MAIL_FROM")) {
+            (Some(smtp_url), Some(from)) => {
+                if !smtp_url.starts_with("smtp://") && !smtp_url.starts_with("smtps://") {
+                    problems.push("CAPRICORN_SMTP_URL must be an smtp:// or smtps:// URL".into());
+                }
+                if !from.contains('@') {
+                    problems.push("CAPRICORN_MAIL_FROM must be an email address".into());
+                }
+                Some(Mail { smtp_url: smtp_url.to_string(), from: from.to_string() })
+            }
+            (None, None) => None,
+            _ => {
+                problems.push("CAPRICORN_SMTP_URL and CAPRICORN_MAIL_FROM must be set together".into());
+                None
+            }
+        };
+
+        let events_webhook =
+            match (get("CAPRICORN_EVENTS_WEBHOOK_URL"), get("CAPRICORN_EVENTS_WEBHOOK_SECRET")) {
+                (Some(url), Some(secret)) => {
+                    if !url.starts_with("https://") && !url.starts_with("http://127.0.0.1") {
+                        problems.push(
+                            "CAPRICORN_EVENTS_WEBHOOK_URL must be https:// (or http://127.0.0.1)".into(),
+                        );
+                    }
+                    if secret.len() < 32 {
+                        problems
+                            .push("CAPRICORN_EVENTS_WEBHOOK_SECRET must have at least 32 characters".into());
+                    }
+                    Some(EventsWebhook { url: url.to_string(), secret: secret.to_string() })
+                }
+                (None, None) => None,
+                _ => {
+                    problems.push(
+                    "CAPRICORN_EVENTS_WEBHOOK_URL and CAPRICORN_EVENTS_WEBHOOK_SECRET must be set together"
+                        .into(),
+                );
+                    None
+                }
+            };
+
+        // Lima, where Capricorn is made, unless told otherwise.
+        let timezone_offset_minutes = match get("CAPRICORN_TIMEZONE_OFFSET_MINUTES").map(str::parse::<i32>) {
+            None => -300,
+            Some(Ok(minutes)) if (-720..=840).contains(&minutes) => minutes,
+            Some(_) => {
+                problems
+                    .push("CAPRICORN_TIMEZONE_OFFSET_MINUTES must be a whole number from -720 to 840".into());
+                -300
+            }
+        };
+
         if !problems.is_empty() {
             return Err(ConfigError(problems.join("; ")));
         }
@@ -143,6 +213,9 @@ impl Config {
             transcript_hours,
             supervisor,
             embeddings,
+            mail,
+            events_webhook,
+            timezone_offset_minutes,
         })
     }
 }
@@ -169,6 +242,8 @@ mod tests {
         assert_eq!(config.agent_name, "capricorn-tutor");
         assert_eq!((config.session_minutes, config.transcript_hours), (20, 24));
         assert!(config.livekit.is_none() && config.supervisor.is_none() && config.embeddings.is_none());
+        assert!(config.mail.is_none() && config.events_webhook.is_none());
+        assert_eq!(config.timezone_offset_minutes, -300);
     }
 
     #[test]
@@ -177,6 +252,9 @@ mod tests {
             ("CAPRICORN_ADMIN_TOKEN", "short"),
             ("LIVEKIT_API_KEY", "key"),
             ("CAPRICORN_TRANSCRIPT_HOURS", "72"),
+            ("CAPRICORN_SMTP_URL", "smtps://mail.example.org"),
+            ("CAPRICORN_EVENTS_WEBHOOK_URL", "http://example.org/hook"),
+            ("CAPRICORN_EVENTS_WEBHOOK_SECRET", "short"),
         ]
         .into_iter()
         .map(|(name, value)| (name.to_string(), value.to_string()))
@@ -189,6 +267,9 @@ mod tests {
             "CAPRICORN_ADMIN_TOKEN must have at least 32",
             "must be set together",
             "CAPRICORN_TRANSCRIPT_HOURS must be a whole number from 1 to 24",
+            "CAPRICORN_SMTP_URL and CAPRICORN_MAIL_FROM must be set together",
+            "CAPRICORN_EVENTS_WEBHOOK_URL must be https://",
+            "CAPRICORN_EVENTS_WEBHOOK_SECRET must have at least 32",
         ] {
             assert!(message.contains(expected), "{expected} not in {message}");
         }

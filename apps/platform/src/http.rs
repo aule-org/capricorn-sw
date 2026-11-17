@@ -9,12 +9,12 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::auth::{Input, Operator};
+use crate::auth::{Caller, Input, Operator};
 use crate::error::{ApiError, ApiResult};
-use crate::families::{self, find_child};
+use crate::families::{self, child_for};
 use crate::learning::{self, NewAttempt, Skill, is_slug};
 use crate::state::AppState;
-use crate::{memory, sessions};
+use crate::{devices, memory, notices, sessions, signin};
 
 pub fn router(state: AppState) -> Router {
     Router::new()
@@ -36,7 +36,24 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/skills", put(put_skills).get(get_skills))
         .route("/v1/sessions", post(sessions::create_session))
         .route("/v1/sessions/{session_id}/supervisor", get(sessions::supervisor_view))
+        // Guardians: sign-in, their account, their notices
+        .route("/v1/auth/start", post(signin::start))
+        .route("/v1/auth/verify", post(signin::verify))
+        .route("/v1/auth/signout", post(signin::sign_out))
+        .route("/v1/me", get(signin::me).put(signin::update_me).delete(signin::erase_family))
+        .route("/v1/notices", get(notices::list))
+        .route("/v1/notices/{notice_id}/read", post(notices::mark_read))
+        // Devices: made by the operator, claimed by a guardian
+        .route("/v1/devices", post(devices::register).get(devices::list))
+        .route("/v1/devices/claim", post(devices::claim))
+        .route("/v1/devices/{device_id}", put(devices::assign).delete(devices::release))
+        .route("/v1/firmware", post(devices::publish_firmware))
+        // What a device itself calls: it proves who it is by signing
+        .route("/ota/", post(devices::check_in))
+        .route("/ota/activate", post(devices::activate))
+        .route("/ota/session", post(devices::start_session))
         // Agent API, one session per token
+        .route("/v1/agent/session/flags", post(sessions::agent_flag))
         .route("/v1/agent/session", get(sessions::agent_start))
         .route("/v1/agent/session/turns", post(sessions::agent_turns))
         .route("/v1/agent/session/end", post(sessions::agent_end))
@@ -55,11 +72,11 @@ async fn health(State(state): State<AppState>) -> ApiResult<Json<Value>> {
 
 /// What the child knows now and what the learner model would work on next.
 async fn child_skills(
-    _: Operator,
+    caller: Caller,
     State(state): State<AppState>,
     Path(child_id): Path<Uuid>,
 ) -> ApiResult<Json<Value>> {
-    let child = find_child(&state.pool, child_id).await?;
+    let child = child_for(&state.pool, &caller, child_id).await?;
     let now = Utc::now();
     let trace = learning::trace_child(&state.pool, child_id, now).await?;
     let catalog = learning::catalog(&state.pool).await?;
@@ -75,20 +92,21 @@ struct AttemptsInput {
 }
 
 async fn record_attempts(
-    _: Operator,
+    caller: Caller,
     State(state): State<AppState>,
     Path(child_id): Path<Uuid>,
     Input(body): Input<AttemptsInput>,
 ) -> ApiResult<(StatusCode, Json<Value>)> {
-    if !["guardian", "import"].contains(&body.source.as_str()) {
+    // Only the operator can import past records.
+    let source = if caller.guardian_id().is_some() { "guardian" } else { body.source.as_str() };
+    if !["guardian", "import"].contains(&source) {
         return Err(ApiError::bad_request("source must be guardian or import"));
     }
     if body.attempts.is_empty() || body.attempts.len() > 500 {
         return Err(ApiError::bad_request("send 1 to 500 attempts"));
     }
-    find_child(&state.pool, child_id).await?;
-    let recorded =
-        learning::record(&state.pool, child_id, None, &body.source, &body.attempts, Utc::now()).await?;
+    child_for(&state.pool, &caller, child_id).await?;
+    let recorded = learning::record(&state.pool, child_id, None, source, &body.attempts, Utc::now()).await?;
     Ok((StatusCode::CREATED, Json(json!({ "recorded": recorded }))))
 }
 
@@ -101,7 +119,7 @@ struct CorrectionInput {
 
 /// A guardian or teacher overrides the model: "they already know this".
 async fn record_correction(
-    _: Operator,
+    caller: Caller,
     State(state): State<AppState>,
     Path(child_id): Path<Uuid>,
     Input(body): Input<CorrectionInput>,
@@ -109,7 +127,7 @@ async fn record_correction(
     if !is_slug(&body.skill_id) || !(0.0..=1.0).contains(&body.level) {
         return Err(ApiError::bad_request("skill_id must be a valid id and level a number from 0 to 1"));
     }
-    find_child(&state.pool, child_id).await?;
+    child_for(&state.pool, &caller, child_id).await?;
     sqlx::query("insert into corrections (id, child_id, skill_id, level, at) values ($1, $2, $3, $4, now())")
         .bind(Uuid::now_v7())
         .bind(child_id)
@@ -130,12 +148,12 @@ struct MemoryQuery {
 
 /// What is remembered about the child: the closest to `query`, or the latest.
 async fn child_memories(
-    _: Operator,
+    caller: Caller,
     State(state): State<AppState>,
     Path(child_id): Path<Uuid>,
     Query(params): Query<MemoryQuery>,
 ) -> ApiResult<Json<Value>> {
-    find_child(&state.pool, child_id).await?;
+    child_for(&state.pool, &caller, child_id).await?;
     let limit = params.limit.unwrap_or(20).clamp(1, 100);
     let memories =
         memory::recall(&state.pool, state.embedder.as_deref(), child_id, &params.query, limit).await?;
@@ -143,10 +161,11 @@ async fn child_memories(
 }
 
 async fn forget_memory(
-    _: Operator,
+    caller: Caller,
     State(state): State<AppState>,
     Path((child_id, memory_id)): Path<(Uuid, Uuid)>,
 ) -> ApiResult<StatusCode> {
+    child_for(&state.pool, &caller, child_id).await?;
     if memory::forget(&state.pool, child_id, memory_id).await? {
         Ok(StatusCode::NO_CONTENT)
     } else {
@@ -165,11 +184,11 @@ struct ReviewRow {
 }
 
 async fn child_reviews(
-    _: Operator,
+    caller: Caller,
     State(state): State<AppState>,
     Path(child_id): Path<Uuid>,
 ) -> ApiResult<Json<Value>> {
-    find_child(&state.pool, child_id).await?;
+    child_for(&state.pool, &caller, child_id).await?;
     let reviews: Vec<ReviewRow> = sqlx::query_as(
         "select session_id, guardian_summary, next_step, flags, created_at from session_reviews
          where child_id = $1 order by created_at desc limit 20",
@@ -196,6 +215,6 @@ async fn put_skills(
     Ok(Json(json!({ "stored": learning::upsert_skills(&state.pool, &body.skills).await? })))
 }
 
-async fn get_skills(_: Operator, State(state): State<AppState>) -> ApiResult<Json<Value>> {
+async fn get_skills(_: Caller, State(state): State<AppState>) -> ApiResult<Json<Value>> {
     Ok(Json(json!({ "skills": learning::catalog(&state.pool).await? })))
 }

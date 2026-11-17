@@ -1,11 +1,17 @@
-//! `capricorn-platform serve` runs the API, `worker` runs the jobs, and
-//! `migrate` only brings the database up to date. `serve` and `worker` also
-//! migrate first, so one of them is enough to start from an empty database.
+//! `capricorn-platform serve` runs the API, `worker` runs the jobs, `migrate`
+//! only brings the database up to date, and `import-skills <file>` loads a
+//! skill catalog such as `curriculum/math-primaria.json`. `serve` and `worker`
+//! also migrate first, so one of them is enough to start from an empty database.
 
 use capricorn_platform::config::Config;
 use capricorn_platform::state::AppState;
-use capricorn_platform::{http, jobs};
+use capricorn_platform::{http, jobs, learning};
 use sqlx::postgres::PgPoolOptions;
+
+#[derive(serde::Deserialize)]
+struct SkillFile {
+    skills: Vec<learning::Skill>,
+}
 
 #[tokio::main]
 async fn main() {
@@ -17,8 +23,8 @@ async fn main() {
         .init();
 
     let command = std::env::args().nth(1).unwrap_or_else(|| "serve".to_string());
-    if !["serve", "worker", "migrate"].contains(&command.as_str()) {
-        eprintln!("usage: capricorn-platform [serve|worker|migrate]");
+    if !["serve", "worker", "migrate", "import-skills"].contains(&command.as_str()) {
+        eprintln!("usage: capricorn-platform [serve|worker|migrate|import-skills <file>]");
         std::process::exit(2);
     }
     let config = Config::from_env().unwrap_or_else(|error| {
@@ -35,6 +41,17 @@ async fn main() {
     let state = AppState::new(pool, config);
     match command.as_str() {
         "migrate" => {}
+        "import-skills" => {
+            let path = std::env::args().nth(2).unwrap_or_else(|| fail("import-skills", "a file is needed"));
+            let text = std::fs::read_to_string(&path)
+                .unwrap_or_else(|error| fail("the file could not be read", error));
+            let catalog: SkillFile = serde_json::from_str(&text)
+                .unwrap_or_else(|error| fail("the file is not a skill catalog", error));
+            let stored = learning::upsert_skills(&state.pool, &catalog.skills)
+                .await
+                .unwrap_or_else(|error| fail("the skills could not be stored", error));
+            println!("{stored} skills stored from {path}");
+        }
         "worker" => {
             tracing::info!("worker started");
             tokio::select! {
