@@ -1,5 +1,5 @@
 # Build from the repository root: docker build -f apps/agent/Dockerfile .
-FROM python:3.13-slim AS build
+FROM python:3.14-slim AS build
 COPY --from=ghcr.io/astral-sh/uv:0.13.6 /uv /usr/local/bin/uv
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
 WORKDIR /app
@@ -8,7 +8,7 @@ RUN uv sync --locked --no-dev --no-install-project
 COPY apps/agent/src ./src
 RUN uv sync --locked --no-dev --no-editable
 
-FROM python:3.13-slim
+FROM python:3.14-slim
 RUN useradd --system --uid 10001 --home-dir /tmp capricorn
 COPY --from=build /app/.venv /app/.venv
 COPY contracts /app/contracts
