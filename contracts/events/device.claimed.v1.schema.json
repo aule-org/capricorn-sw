@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/aule-org/capricorn-sw/contracts/events/device.claimed.v1.schema.json",
+  "$id": "https://github.com/meet-aule/capricorn-sw/contracts/events/device.claimed.v1.schema.json",
   "title": "device.claimed.v1",
   "description": "A family linked a device to its account by proving possession with the device's claim code. Produced by the platform.",
   "type": "object",
