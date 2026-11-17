@@ -160,13 +160,16 @@ pub fn fallback_brief(candidates: &[Candidate]) -> Brief {
 fn brief_schema() -> Value {
     json!({
         "type": "object",
+        "additionalProperties": false,
         "required": ["goal", "skills", "approach", "remember"],
         "properties": {
             "goal": { "type": "string", "description": "One sentence: what a good session achieves today." },
             "skills": {
-                "type": "array", "maxItems": 3,
+                "type": "array",
+                "description": "At most three.",
                 "items": {
                     "type": "object",
+                    "additionalProperties": false,
                     "required": ["skill_id", "why", "start_with"],
                     "properties": {
                         "skill_id": { "type": "string", "description": "An id from the candidates, unchanged." },
@@ -175,8 +178,8 @@ fn brief_schema() -> Value {
                     }
                 }
             },
-            "approach": { "type": "array", "maxItems": 4, "items": { "type": "string" }, "description": "How to teach this student today." },
-            "remember": { "type": "array", "maxItems": 4, "items": { "type": "string" }, "description": "Things about the student worth using in this session." }
+            "approach": { "type": "array", "items": { "type": "string" }, "description": "How to teach this student today. At most four." },
+            "remember": { "type": "array", "items": { "type": "string" }, "description": "Things about the student worth using in this session. At most four." }
         }
     })
 }
@@ -204,7 +207,7 @@ English, briefly and concretely. {UNTRUSTED}",
             user: &user,
             answer: "session_brief",
             schema: &brief_schema(),
-            max_tokens: 900,
+            max_tokens: 4000,
         })
         .await?;
     let brief: Brief = serde_json::from_value(answer).map_err(|_| LlmError::NoAnswer)?;
@@ -260,11 +263,14 @@ pub const WATCH_TURNS: usize = 12;
 fn guidance_schema() -> Value {
     json!({
         "type": "object",
+        "additionalProperties": false,
         "required": ["text", "signals"],
         "properties": {
             "text": { "type": "string", "description": "At most two short sentences for the tutor, or an empty string when nothing should change." },
             "signals": {
                 "type": "object",
+                "additionalProperties": false,
+                "required": ["frustrated", "off_task", "answer_given", "ready_for_more"],
                 "properties": {
                     "frustrated": { "type": "boolean" },
                     "off_task": { "type": "boolean" },
@@ -308,7 +314,7 @@ Say what to do next, not what went wrong. Write in English, for the tutor only. 
             user: &user,
             answer: "guidance",
             schema: &guidance_schema(),
-            max_tokens: 300,
+            max_tokens: 1500,
         })
         .await?;
     let guidance: Guidance = serde_json::from_value(answer).map_err(|_| LlmError::NoAnswer)?;
@@ -367,28 +373,31 @@ impl Review {
 fn review_schema() -> Value {
     json!({
         "type": "object",
-        "required": ["guardian_summary", "evidence", "memories", "flags"],
+        "additionalProperties": false,
+        "required": ["guardian_summary", "next_step", "evidence", "memories", "flags"],
         "properties": {
             "guardian_summary": { "type": "string", "description": "Three or four sentences for the parent, in the student's language: what was worked on, what went well, what was hard. No quotes of the student." },
-            "next_step": { "type": "string", "description": "One sentence for the planner of the next session." },
+            "next_step": { "type": "string", "description": "One sentence for the planner of the next session, or an empty string." },
             "evidence": {
                 "type": "array",
                 "description": "One item per question the student actually answered. Skip questions the tutor answered itself.",
                 "items": {
                     "type": "object",
-                    "required": ["skill_id", "correct"],
+                    "additionalProperties": false,
+                    "required": ["skill_id", "correct", "credit"],
                     "properties": {
                         "skill_id": { "type": "string", "description": "An id from known_skills when one fits; otherwise a new lowercase id such as fractions.add-like-denominators." },
                         "correct": { "type": "boolean" },
-                        "credit": { "type": "number", "minimum": 0, "maximum": 1, "description": "1 unaided, about 0.5 after a hint, 0 when wrong." }
+                        "credit": { "type": "number", "description": "From 0 to 1: 1 unaided, about 0.5 after a hint, 0 when wrong." }
                     }
                 }
             },
             "memories": {
-                "type": "array", "maxItems": 6,
-                "description": "Lasting things worth knowing next time, each one sentence in English. Nothing about family, health, address or other people; nothing that was only true today.",
+                "type": "array",
+                "description": "At most six lasting things worth knowing next time, each one sentence in English. Nothing about family, health, address or other people; nothing that was only true today.",
                 "items": {
                     "type": "object",
+                    "additionalProperties": false,
                     "required": ["kind", "content"],
                     "properties": {
                         "kind": { "enum": ["fact", "preference", "struggle", "success", "summary"] },
@@ -428,11 +437,38 @@ clearly shows it. {UNTRUSTED}"
             user: &user,
             answer: "session_review",
             schema: &review_schema(),
-            max_tokens: 2000,
+            max_tokens: 8000,
         })
         .await?;
     let review: Review = serde_json::from_value(answer).map_err(|_| LlmError::NoAnswer)?;
     Ok(review.checked())
+}
+
+/// Structured outputs refuse a schema with an open object or with numeric or
+/// length limits, so the schemas above must never grow one.
+#[cfg(test)]
+fn unsupported_in(schema: &Value, path: &str, found: &mut Vec<String>) {
+    match schema {
+        Value::Object(map) => {
+            if map.get("type") == Some(&json!("object"))
+                && map.get("additionalProperties") != Some(&json!(false))
+            {
+                found.push(format!("{path}: object without additionalProperties: false"));
+            }
+            for keyword in
+                ["minimum", "maximum", "multipleOf", "minLength", "maxLength", "minItems", "maxItems"]
+            {
+                if map.contains_key(keyword) {
+                    found.push(format!("{path}: {keyword}"));
+                }
+            }
+            for (name, value) in map {
+                unsupported_in(value, &format!("{path}/{name}"), found);
+            }
+        }
+        Value::Array(items) => items.iter().for_each(|item| unsupported_in(item, path, found)),
+        _ => {}
+    }
 }
 
 #[cfg(test)]
@@ -588,6 +624,17 @@ pub mod tests {
         );
         assert_eq!(review.memories.len(), 1);
         assert_eq!(review.flags, ["struggling"]);
+    }
+
+    #[test]
+    fn the_schemas_only_use_what_structured_outputs_support() {
+        for (name, schema) in
+            [("brief", brief_schema()), ("guidance", guidance_schema()), ("review", review_schema())]
+        {
+            let mut found = Vec::new();
+            unsupported_in(&schema, name, &mut found);
+            assert!(found.is_empty(), "{found:?}");
+        }
     }
 
     #[tokio::test]
