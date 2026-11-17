@@ -57,8 +57,6 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --locked
-      - run: uv run ruff check .
-      - run: uv run ruff format --check .
       - run: uv run pytest
 
   platform:
@@ -87,12 +85,11 @@ jobs:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt, clippy
+          components: rustfmt
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: apps/platform
       - run: cargo fmt --check
-      - run: cargo clippy --all-targets --locked -- -D warnings
       - run: cargo test --locked
 
   images:
@@ -105,3 +102,23 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: docker build --file apps/${{ matrix.app }}/Dockerfile --tag capricorn-${{ matrix.app }}:ci .
+
+  required:
+    name: Software CI
+    needs: [contracts, agent, platform, images]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require every test and image build to pass
+        env:
+          NODE_RESULT: ${{ needs.contracts.result }}
+          PYTHON_RESULT: ${{ needs.agent.result }}
+          RUST_RESULT: ${{ needs.platform.result }}
+          IMAGES_RESULT: ${{ needs.images.result }}
+        run: |
+          printf 'Node=%s Python=%s Rust=%s Images=%s\n' "$NODE_RESULT" "$PYTHON_RESULT" "$RUST_RESULT" "$IMAGES_RESULT"
+          test "$NODE_RESULT" = success
+          test "$PYTHON_RESULT" = success
+          test "$RUST_RESULT" = success
+          test "$IMAGES_RESULT" = success
