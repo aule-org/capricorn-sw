@@ -37,6 +37,12 @@ def build_tts(settings: Settings, language: str) -> tts.TTS:
         from livekit.plugins import elevenlabs
 
         return elevenlabs.TTS(language=language, **({"voice_id": voice} if voice else {}))
+    if settings.tts == "inworld":
+        from livekit.plugins import inworld
+
+        # Inworld wants a BCP-47 tag; the app's language is a bare code.
+        bcp47 = {"es": "es-ES", "en": "en-US"}.get(language, language)
+        return inworld.TTS(language=bcp47, **({"voice": voice} if voice else {}))
     from livekit.plugins import openai
 
     return openai.TTS(**({"voice": voice} if voice else {}))

@@ -223,7 +223,7 @@ source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
     { name = "jsonschema", extra = ["format"] },
-    { name = "livekit-agents", extra = ["anthropic", "assemblyai", "cartesia", "deepgram", "elevenlabs", "openai", "silero"] },
+    { name = "livekit-agents", extra = ["anthropic", "assemblyai", "cartesia", "deepgram", "elevenlabs", "inworld", "openai", "silero"] },
 ]
 
 [package.dev-dependencies]
@@ -237,7 +237,7 @@ dev = [
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.10" },
     { name = "jsonschema", extras = ["format"], specifier = ">=4.23" },
-    { name = "livekit-agents", extras = ["anthropic", "assemblyai", "cartesia", "deepgram", "elevenlabs", "openai", "silero"], specifier = "~=1.8.12" },
+    { name = "livekit-agents", extras = ["anthropic", "assemblyai", "cartesia", "deepgram", "elevenlabs", "inworld", "openai", "silero"], specifier = "~=1.8.12" },
 ]
 
 [package.metadata.requires-dev]
@@ -829,6 +829,9 @@ elevenlabs = [
 images = [
     { name = "pillow" },
 ]
+inworld = [
+    { name = "livekit-plugins-inworld" },
+]
 openai = [
     { name = "livekit-plugins-openai" },
 ]
@@ -949,6 +952,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/4b/ef/19d91b5bfe6ee556ff05e5c262811ab36ee23faf4f6e3bbc9aa89fc241ec/livekit_plugins_elevenlabs-1.8.12.tar.gz", hash = "sha256:384d85badbae3ede2dded6fbbadd12d1cd3450cc98f651828ad3ed22ef4105f6", size = 27135, upload-time = "2026-11-13T16:34:28.56Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/21/97/1f37819780382b5e37f676fc9fba35b2510852e91ce8a787d4dc453fae21/livekit_plugins_elevenlabs-1.8.12-py3-none-any.whl", hash = "sha256:cfb41590a286f56b3b2f63a73ea76875056ad1a6fd3893e61f81da58ab82f593", size = 28978, upload-time = "2026-11-13T16:34:27.258Z" },
+]
+
+[[package]]
+name = "livekit-plugins-inworld"
+version = "1.8.12"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "livekit-agents" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/2e/09/7c1761bc048aff9f5ae093a6141136955d160080b149da76cf972e8af72f/livekit_plugins_inworld-1.8.12.tar.gz", hash = "sha256:b39aa73107874d64b6dd8afe0b7abe12b25a9737fb4283d66c3d55a15dd79ba2", size = 20347, upload-time = "2026-11-13T16:34:56.627Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ac/c7/0b04e73bd4b94c46ac8dbc16db9663bd0e9bc0ef6dbc0e27c3116d79a93b/livekit_plugins_inworld-1.8.12-py3-none-any.whl", hash = "sha256:45d01ac2cc2852d0fe0270a4e186347174b0b61d125f015b9d292bc8b834abe5", size = 22330, upload-time = "2026-11-13T16:34:55.396Z" },
 ]
 
 [[package]]

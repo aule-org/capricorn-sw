@@ -49,9 +49,9 @@ Environment variables; `.env.example` at the repository root lists them all.
 |---|---|
 | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | The LiveKit server |
 | `CAPRICORN_STT` | `assemblyai`, `deepgram` or `openai` |
-| `CAPRICORN_TTS` | `cartesia`, `elevenlabs` or `openai` |
+| `CAPRICORN_TTS` | `cartesia`, `elevenlabs`, `inworld` or `openai` |
 | `ANTHROPIC_API_KEY` | The language model is Claude |
-| `ASSEMBLYAI_API_KEY`, `DEEPGRAM_API_KEY`, `CARTESIA_API_KEY`, `ELEVEN_API_KEY`, `OPENAI_API_KEY` | Only for the providers chosen above |
+| `ASSEMBLYAI_API_KEY`, `DEEPGRAM_API_KEY`, `CARTESIA_API_KEY`, `ELEVEN_API_KEY`, `INWORLD_API_KEY`, `OPENAI_API_KEY` | Only for the providers chosen above |
 | `OPENAI_API_KEY` | Also turns on the content-moderation gate, whichever speech providers are chosen |
 | `TYPESAFE_API_KEY` | Turns on the physical-safety gate |
 | `CAPRICORN_TTS_VOICE` | Optional voice id |

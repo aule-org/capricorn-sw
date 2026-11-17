@@ -18,6 +18,7 @@ STT_KEYS = {
 TTS_KEYS = {
     "cartesia": "CARTESIA_API_KEY",
     "elevenlabs": "ELEVEN_API_KEY",
+    "inworld": "INWORLD_API_KEY",
     "openai": "OPENAI_API_KEY",
 }
 LLM_KEY = "ANTHROPIC_API_KEY"

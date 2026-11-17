@@ -7,7 +7,7 @@ license = "Apache-2.0"
 dependencies = [
     "aiohttp>=3.10",
     "jsonschema[format]>=4.23",
-    "livekit-agents[anthropic,assemblyai,cartesia,deepgram,elevenlabs,openai,silero]~=1.8.12",
+    "livekit-agents[anthropic,assemblyai,cartesia,deepgram,elevenlabs,inworld,openai,silero]~=1.8.12",
 ]
 
 [dependency-groups]
