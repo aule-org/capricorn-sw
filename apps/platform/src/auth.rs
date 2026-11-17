@@ -132,9 +132,6 @@ pub struct Session {
     pub ended_at: Option<DateTime<Utc>>,
 }
 
-pub const SESSION_COLUMNS: &str =
-    "id, child_id, audience, room, language, status, keep_transcript, use_memory, created_at, ended_at";
-
 /// How long after it was created a session's token still works.
 pub const SESSION_TOKEN_HOURS: i32 = 3;
 
@@ -146,10 +143,10 @@ impl FromRequestParts<AppState> for Agent {
 
     async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
         let hash = token_hash(bearer(parts)?);
-        let session: Option<Session> = sqlx::query_as(&format!(
-            "select {SESSION_COLUMNS} from sessions
+        let session: Option<Session> = sqlx::query_as(
+            "select id, child_id, audience, room, language, status, keep_transcript, use_memory, created_at, ended_at from sessions
              where agent_token_hash = $1 and created_at > now() - make_interval(hours => $2)"
-        ))
+        )
         .bind(hash)
         .bind(SESSION_TOKEN_HOURS)
         .fetch_optional(&state.pool)

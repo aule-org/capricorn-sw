@@ -120,6 +120,8 @@ The embedding model must return 1024 dimensions (`bge-m3` does). Another size ne
 
 ## Develop
 
+Use Rust 1.94 or newer (required by SQLx 0.9) and PostgreSQL 17 with pgvector.
+
 ```bash
 cargo fmt --check && cargo clippy --all-targets -- -D warnings
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres cargo test

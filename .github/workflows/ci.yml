@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -13,6 +14,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  runner-smoke:
+    name: Aule runner smoke test
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: aule-quality
+    timeout-minutes: 3
+    steps:
+      - name: Verify the runner environment
+        run: |
+          test "$(id -u)" = 1001
+          test ! -S /var/run/docker.sock
+          git --version
+          cmake --version
+          python --version
+          printf 'Executed on **%s** in an unprivileged container.\n' "$RUNNER_NAME" >> "$GITHUB_STEP_SUMMARY"
+
   contracts:
     name: Contracts and playground (Node)
     runs-on: ubuntu-latest

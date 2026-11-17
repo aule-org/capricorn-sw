@@ -20,8 +20,8 @@ use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, StatusCode};
 use chrono::Utc;
-use hmac::{Hmac, Mac};
-use rand::Rng;
+use hmac::{Hmac, KeyInit, Mac};
+use rand::RngExt;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::Sha256;
@@ -129,26 +129,24 @@ struct DeviceView {
     last_seen_at: Option<chrono::DateTime<Utc>>,
 }
 
-const DEVICE_VIEW: &str =
-    "id, serial, model, family_id, child_id, claimed_at, firmware_version, last_seen_at";
-
 /// A guardian sees their family's devices; the operator sees the latest 200.
 pub async fn list(caller: Caller, State(state): State<AppState>) -> ApiResult<Json<Value>> {
-    let devices: Vec<DeviceView> = match caller {
-        Caller::Guardian { family_id, .. } => {
-            sqlx::query_as(&format!(
-                "select {DEVICE_VIEW} from devices where family_id = $1 order by claimed_at"
-            ))
+    let devices: Vec<DeviceView> =
+        match caller {
+            Caller::Guardian { family_id, .. } => sqlx::query_as(
+                "select id, serial, model, family_id, child_id, claimed_at, firmware_version, last_seen_at
+                 from devices where family_id = $1 order by claimed_at",
+            )
             .bind(family_id)
             .fetch_all(&state.pool)
-            .await?
-        }
-        Caller::Operator => {
-            sqlx::query_as(&format!("select {DEVICE_VIEW} from devices order by created_at desc limit 200"))
-                .fetch_all(&state.pool)
-                .await?
-        }
-    };
+            .await?,
+            Caller::Operator => sqlx::query_as(
+                "select id, serial, model, family_id, child_id, claimed_at, firmware_version, last_seen_at
+                 from devices order by created_at desc limit 200",
+            )
+            .fetch_all(&state.pool)
+            .await?,
+        };
     Ok(Json(json!({ "devices": devices })))
 }
 

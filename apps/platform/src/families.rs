@@ -86,9 +86,6 @@ pub struct Child {
     pub created_at: DateTime<Utc>,
 }
 
-const CHILD_COLUMNS: &str =
-    "id, family_id, nickname, birth_year, grade, language, interests, notes, created_at";
-
 impl Child {
     pub fn age(&self, now: DateTime<Utc>) -> Option<i32> {
         self.birth_year.map(|year| now.year() - year)
@@ -107,11 +104,14 @@ impl Child {
 }
 
 pub async fn find_child(pool: &PgPool, child_id: Uuid) -> ApiResult<Child> {
-    sqlx::query_as(&format!("select {CHILD_COLUMNS} from children where id = $1"))
-        .bind(child_id)
-        .fetch_optional(pool)
-        .await?
-        .ok_or(ApiError::NotFound("child"))
+    sqlx::query_as(
+        "select id, family_id, nickname, birth_year, grade, language, interests, notes, created_at
+         from children where id = $1",
+    )
+    .bind(child_id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or(ApiError::NotFound("child"))
 }
 
 /// The child, if the caller may see them. A child of another family does not
@@ -195,10 +195,11 @@ pub async fn create_child(
         .fetch_optional(&state.pool)
         .await?;
     family.ok_or(ApiError::NotFound("family"))?;
-    let created: Child = sqlx::query_as(&format!(
+    let created: Child = sqlx::query_as(
         "insert into children (id, family_id, nickname, birth_year, grade, language, interests, notes)
-         values ($1, $2, $3, $4, $5, $6, $7, $8) returning {CHILD_COLUMNS}"
-    ))
+         values ($1, $2, $3, $4, $5, $6, $7, $8)
+         returning id, family_id, nickname, birth_year, grade, language, interests, notes, created_at",
+    )
     .bind(Uuid::now_v7())
     .bind(family_id)
     .bind(child.nickname)
@@ -220,10 +221,10 @@ pub async fn update_child(
 ) -> ApiResult<Json<Child>> {
     child_for(&state.pool, &caller, child_id).await?;
     let child = body.checked(Utc::now())?;
-    let updated: Option<Child> = sqlx::query_as(&format!(
+    let updated: Option<Child> = sqlx::query_as(
         "update children set nickname = $2, birth_year = $3, grade = $4, language = $5, interests = $6, notes = $7
-         where id = $1 returning {CHILD_COLUMNS}"
-    ))
+         where id = $1 returning id, family_id, nickname, birth_year, grade, language, interests, notes, created_at"
+    )
     .bind(child_id)
     .bind(child.nickname)
     .bind(child.birth_year)

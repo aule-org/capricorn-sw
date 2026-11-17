@@ -9,7 +9,7 @@ use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::http::request::Parts;
-use rand::{Rng, RngCore};
+use rand::{Rng, RngExt};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};

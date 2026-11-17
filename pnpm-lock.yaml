@@ -185,7 +185,7 @@ importers:
         version: 2.20.0
     devDependencies:
       '@types/node':
-        specifier: ^24.0.0
+        specifier: ^24.19.2
         version: 24.19.2
       typescript:
         specifier: ^5.9.0
@@ -194,7 +194,7 @@ importers:
   contracts:
     devDependencies:
       ajv:
-        specifier: ^8.17.1
+        specifier: ^8.20.0
         version: 8.20.0
       ajv-formats:
         specifier: ^3.0.1
