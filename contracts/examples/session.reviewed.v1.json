@@ -1,0 +1,16 @@
+{
+  "specversion": "1.0",
+  "id": "3e1c9a52-7b4d-4f0e-9a6b-2d8c5e7f1a90",
+  "source": "capricorn/platform",
+  "type": "session.reviewed.v1",
+  "time": "2026-11-17T15:41:02Z",
+  "datacontenttype": "application/json",
+  "subject": "5d2a7c34-91be-4f6a-b0c3-7e1f2a9d4c55",
+  "data": {
+    "session_id": "5d2a7c34-91be-4f6a-b0c3-7e1f2a9d4c55",
+    "child_id": "c0ffee00-1234-4abc-9def-001122334455",
+    "flags": [
+      "struggling"
+    ]
+  }
+}

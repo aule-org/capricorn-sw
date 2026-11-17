@@ -1,9 +1,13 @@
-//! Who is calling. Two kinds of caller exist today:
+//! Who is calling:
 //!
-//! - an **operator**, with the server's admin token. It stands in for family
-//!   sign-in, which is not built yet;
+//! - an **operator**, with the server's admin token, for running the server;
+//! - a **guardian**, signed in with a code sent to their email, who can only
+//!   reach their own family;
 //! - the **agent**, with a token that was created for one session and is
 //!   useless for any other.
+//!
+//! Devices prove themselves differently, by signing with their key: see
+//! `devices`.
 
 use axum::extract::rejection::JsonRejection;
 use axum::extract::{FromRequest, FromRequestParts, Request};
@@ -18,7 +22,7 @@ use uuid::Uuid;
 use crate::error::ApiError;
 use crate::state::AppState;
 
-fn bearer(parts: &Parts) -> Result<&str, ApiError> {
+pub fn bearer(parts: &Parts) -> Result<&str, ApiError> {
     parts
         .headers
         .get(AUTHORIZATION)
@@ -48,6 +52,68 @@ impl FromRequestParts<AppState> for Operator {
             Ok(Self)
         } else {
             Err(ApiError::Unauthorized)
+        }
+    }
+}
+
+/// Whoever may act on a family's data: the operator on any family, a signed-in
+/// guardian on their own.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Caller {
+    Operator,
+    Guardian { id: Uuid, family_id: Uuid },
+}
+
+impl Caller {
+    /// Whether this caller may touch the data of `family_id`.
+    pub fn may_access(&self, family_id: Uuid) -> bool {
+        match self {
+            Self::Operator => true,
+            Self::Guardian { family_id: own, .. } => *own == family_id,
+        }
+    }
+
+    pub fn guardian_id(&self) -> Option<Uuid> {
+        match self {
+            Self::Operator => None,
+            Self::Guardian { id, .. } => Some(*id),
+        }
+    }
+}
+
+impl FromRequestParts<AppState> for Caller {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
+        let token = bearer(parts)?;
+        if same_token(token, &state.config.admin_token) {
+            return Ok(Self::Operator);
+        }
+        let guardian: Option<(Uuid, Uuid)> = sqlx::query_as(
+            "select guardians.id, guardians.family_id from guardian_sessions
+             join guardians on guardians.id = guardian_sessions.guardian_id
+             where guardian_sessions.token_hash = $1 and guardian_sessions.expires_at > now()",
+        )
+        .bind(token_hash(token))
+        .fetch_optional(&state.pool)
+        .await?;
+        guardian.map(|(id, family_id)| Self::Guardian { id, family_id }).ok_or(ApiError::Unauthorized)
+    }
+}
+
+/// A signed-in guardian, for the routes that only make sense for one.
+pub struct Guardian {
+    pub id: Uuid,
+    pub family_id: Uuid,
+}
+
+impl FromRequestParts<AppState> for Guardian {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
+        match Caller::from_request_parts(parts, state).await? {
+            Caller::Guardian { id, family_id } => Ok(Self { id, family_id }),
+            Caller::Operator => Err(ApiError::Forbidden("this route is for a signed-in guardian")),
         }
     }
 }

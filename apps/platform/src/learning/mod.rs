@@ -302,6 +302,12 @@ pub async fn upsert_skills(pool: &PgPool, skills: &[Skill]) -> ApiResult<usize> 
     Ok(skills.len())
 }
 
+/// School grades are codes that sort in school order: `P1` to `P6` for
+/// primary, `S1` to `S5` for secondary.
+pub fn is_grade(grade: &str) -> bool {
+    matches!(grade.as_bytes(), [b'P', b'1'..=b'6'] | [b'S', b'1'..=b'5'])
+}
+
 /// Why a skill is worth working on in the next session.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -361,11 +367,31 @@ pub fn candidates(
         trace.iter().filter(|skill| !skill.mastered && !due_ids.contains(skill.skill_id.as_str())).collect();
     in_progress.sort_by(|a, b| b.p_now.total_cmp(&a.p_now));
 
-    // The child's own grade first, then catalog order.
+    // A skill is ready when what it builds on is mastered. With no evidence
+    // either way, a child is assumed to know what earlier grades taught: a
+    // fourth grader starts with fourth-grade work, and the first wrong answers
+    // on a prerequisite put it back on the list as a skill in progress.
+    let assumed = |id: &str| {
+        let earlier = names.get(id).and_then(|skill| skill.grade.as_deref()).zip(grade).is_some_and(
+            |(skill_grade, child_grade)| {
+                is_grade(skill_grade) && is_grade(child_grade) && skill_grade < child_grade
+            },
+        );
+        earlier && !traced.contains_key(id)
+    };
+    // The child's own grade first, then catalog order. Skills of later grades wait.
     let mut ready: Vec<&Skill> = catalog
         .iter()
-        .filter(|skill| !traced.contains_key(skill.id.as_str()))
-        .filter(|skill| skill.prerequisites.iter().all(|id| mastered.contains(id.as_str())))
+        .filter(|skill| !traced.contains_key(skill.id.as_str()) && !assumed(&skill.id))
+        .filter(|skill| skill.prerequisites.iter().all(|id| mastered.contains(id.as_str()) || assumed(id)))
+        .filter(|skill| match (skill.grade.as_deref(), grade) {
+            (Some(skill_grade), Some(child_grade)) if is_grade(skill_grade) && is_grade(child_grade) => {
+                skill_grade <= child_grade
+                    || (!skill.prerequisites.is_empty()
+                        && skill.prerequisites.iter().all(|id| mastered.contains(id.as_str())))
+            }
+            _ => true,
+        })
         .collect();
     ready.sort_by_key(|skill| grade.is_none() || skill.grade.as_deref() != grade);
 
@@ -465,12 +491,12 @@ mod tests {
 
     #[test]
     fn a_new_child_is_offered_skills_with_no_prerequisites_from_their_grade_first() {
-        let catalog = [skill("add", "2", &[]), skill("count", "1", &[]), skill("mult", "3", &["add"])];
+        let catalog = [skill("add", "P2", &[]), skill("count", "P1", &[]), skill("mult", "P3", &["add"])];
 
-        let offered = candidates(&[], &catalog, Some("1"), day(1));
+        let offered = candidates(&[], &catalog, Some("P1"), day(1));
 
         let ids: Vec<&str> = offered.iter().map(|candidate| candidate.skill_id.as_str()).collect();
-        assert_eq!(ids, ["count", "add"]);
+        assert_eq!(ids, ["count"], "add is second-grade work and has to wait");
         assert!(
             offered.iter().all(|candidate| candidate.reason == Reason::Ready && candidate.p_now.is_none())
         );
@@ -478,7 +504,7 @@ mod tests {
 
     #[test]
     fn mastering_a_skill_unlocks_what_builds_on_it_and_later_makes_it_due() {
-        let catalog = [skill("add", "2", &[]), skill("mult", "3", &["add"])];
+        let catalog = [skill("add", "P2", &[]), skill("mult", "P3", &["add"])];
         let attempts = answers("add", &[true; 8], 1);
 
         let soon = candidates(&traced(attempts.clone(), day(1)), &catalog, None, day(1));
@@ -488,6 +514,35 @@ mod tests {
         let later = candidates(&traced(attempts, day(25)), &catalog, None, day(25));
         assert_eq!((later[0].skill_id.as_str(), later[0].reason), ("add", Reason::ReviewDue));
         assert_eq!(later[0].name.as_deref(), Some("Skill add"));
+    }
+
+    #[test]
+    fn a_child_starts_at_their_grade_until_an_answer_says_otherwise() {
+        let catalog = [
+            skill("count", "P1", &[]),
+            skill("add", "P2", &["count"]),
+            skill("mult", "P3", &["add"]),
+            skill("div", "P3", &["mult"]),
+            skill("fractions", "P4", &["div"]),
+        ];
+        let ids = |offered: &[Candidate]| offered.iter().map(|c| c.skill_id.clone()).collect::<Vec<_>>();
+
+        // A third grader with no history: third-grade work whose earlier
+        // prerequisites are taken as known. Not first grade, not fourth.
+        let offered = candidates(&[], &catalog, Some("P3"), day(1));
+        assert_eq!(ids(&offered), ["mult"]);
+
+        // Wrong answers on an assumed prerequisite bring it back, and block what builds on it.
+        let struggling = traced(answers("add", &[false, false, false], 1), day(1));
+        let offered = candidates(&struggling, &catalog, Some("P3"), day(1));
+        assert_eq!(ids(&offered), ["add"]);
+        assert_eq!(offered[0].reason, Reason::InProgress);
+
+        // Without a grade nothing is assumed.
+        assert_eq!(ids(&candidates(&[], &catalog, None, day(1))), ["count"]);
+        assert!(
+            is_grade("P6") && is_grade("S1") && !is_grade("P7") && !is_grade("4 primaria") && !is_grade("")
+        );
     }
 
     #[test]

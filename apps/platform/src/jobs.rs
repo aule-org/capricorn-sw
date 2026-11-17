@@ -9,8 +9,8 @@ use serde_json::Value;
 use sqlx::{PgExecutor, PgPool};
 use uuid::Uuid;
 
-use crate::sessions;
 use crate::state::AppState;
+use crate::{events, sessions};
 
 pub const REVIEW_SESSION: &str = "review_session";
 const MAX_ATTEMPTS: i32 = 5;
@@ -105,7 +105,7 @@ pub async fn housekeeping(state: &AppState) -> Result<(), sqlx::Error> {
     .fetch_all(pool)
     .await?;
     for session_id in stale {
-        sessions::end_session(pool, session_id, None).await?;
+        sessions::end_session(pool, session_id, None, "device_offline").await?;
     }
 
     let transcripts = sqlx::query(
@@ -127,7 +127,15 @@ pub async fn housekeeping(state: &AppState) -> Result<(), sqlx::Error> {
                  where session_guidance.session_id = sessions.id and sessions.reviewed_at < now() - interval '1 day'")
         .execute(pool)
         .await?;
-    sqlx::query("delete from jobs where done_at < now() - interval '7 days'").execute(pool).await?;
+    for expired in [
+        "delete from jobs where done_at < now() - interval '7 days'",
+        "delete from outbox where delivered_at < now() - interval '30 days'",
+        "delete from login_codes where expires_at < now() - interval '1 hour'",
+        "delete from guardian_sessions where expires_at < now()",
+        "delete from device_claims where expires_at < now()",
+    ] {
+        sqlx::query(expired).execute(pool).await?;
+    }
     Ok(())
 }
 
@@ -140,7 +148,11 @@ pub async fn run_worker(state: AppState) {
             }
             last_housekeeping = tokio::time::Instant::now();
         }
-        match work_once(&state).await {
+        let worked = match (work_once(&state).await, events::deliver_once(&state).await) {
+            (Ok(job), Ok(event)) => Ok(job || event),
+            (Err(error), _) | (_, Err(error)) => Err(error),
+        };
+        match worked {
             Ok(true) => {}
             Ok(false) => tokio::time::sleep(Duration::from_secs(2)).await,
             Err(error) => {

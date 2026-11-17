@@ -14,13 +14,13 @@ use serde_json::{Value, json};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::auth::{Agent, Input, Operator, SESSION_COLUMNS, Session, token_hash};
+use crate::auth::{Agent, Caller, Input, Operator, SESSION_COLUMNS, Session, token_hash};
 use crate::error::{ApiError, ApiResult};
-use crate::families::{Child, current_consent, find_child};
+use crate::families::{Child, child_for, current_consent, find_child};
 use crate::livekit::{RoomToken, room_token};
 use crate::state::AppState;
 use crate::supervisor::{self, Brief, PlanInputs, Turn};
-use crate::{jobs, learning, memory};
+use crate::{events, jobs, learning, memory};
 
 pub const AUDIENCES: [&str; 2] = ["child", "operator"];
 /// How long the agent waits for the supervisor's plan before starting with
@@ -40,38 +40,56 @@ pub struct NewSession {
 }
 
 pub async fn create_session(
-    _: Operator,
+    caller: Caller,
     State(state): State<AppState>,
     Input(body): Input<NewSession>,
 ) -> ApiResult<(StatusCode, Json<Value>)> {
-    let livekit = state.config.livekit.as_ref().ok_or(ApiError::Unavailable("LiveKit is not configured"))?;
     if !AUDIENCES.contains(&body.audience.as_str()) {
         return Err(ApiError::bad_request("audience must be child or operator"));
     }
     if body.language.as_deref().is_some_and(|language| !["es", "en"].contains(&language)) {
         return Err(ApiError::bad_request("language must be es or en"));
     }
-
-    // A child's profile is only used with the guardian's consent, whoever is
-    // at the microphone. Without consent for voice there is no session.
-    let (child, keep_transcript, use_memory) = match body.child_id {
-        Some(child_id) => {
-            let child = find_child(&state.pool, child_id).await?;
-            let consent = current_consent(&state.pool, child_id).await?;
-            if !consent["voice"] {
-                return Err(ApiError::Forbidden("the guardian has not consented to voice sessions"));
-            }
-            (Some(child), consent["transcripts"], consent["memory"])
-        }
+    // Only the people running the server can open an operator's session.
+    if caller != Caller::Operator && body.audience != "child" {
+        return Err(ApiError::Forbidden("a guardian can only start a child's session"));
+    }
+    let child = match body.child_id {
+        Some(child_id) => Some(child_for(&state.pool, &caller, child_id).await?),
         None if body.audience == "child" => {
             return Err(ApiError::bad_request("a child's session needs child_id"));
         }
-        None => (None, false, false),
+        None => None,
     };
-    let language = body
-        .language
-        .or(child.as_ref().map(|child| child.language.clone()))
-        .unwrap_or_else(|| "es".to_string());
+    let session = open_session(&state, child, &body.audience, body.language, None).await?;
+    Ok((StatusCode::CREATED, Json(session)))
+}
+
+/// Creates a session and its room token. Every way of starting one comes
+/// through here, so the consent rule is in one place.
+pub async fn open_session(
+    state: &AppState,
+    child: Option<Child>,
+    audience: &str,
+    language: Option<String>,
+    device_id: Option<Uuid>,
+) -> ApiResult<Value> {
+    let livekit = state.config.livekit.as_ref().ok_or(ApiError::Unavailable("LiveKit is not configured"))?;
+
+    // A child's profile is only used with the guardian's consent, whoever is
+    // at the microphone. Without consent for voice there is no session.
+    let (keep_transcript, use_memory) = match &child {
+        Some(child) => {
+            let consent = current_consent(&state.pool, child.id).await?;
+            if !consent["voice"] {
+                return Err(ApiError::Forbidden("the guardian has not consented to voice sessions"));
+            }
+            (consent["transcripts"], consent["memory"])
+        }
+        None => (false, false),
+    };
+    let language =
+        language.or(child.as_ref().map(|child| child.language.clone())).unwrap_or_else(|| "es".to_string());
 
     let session_id = Uuid::now_v7();
     let mut secret = [0u8; 32];
@@ -79,17 +97,19 @@ pub async fn create_session(
     let agent_token = hex::encode(secret);
     let room = format!("session-{}", session_id.simple());
     sqlx::query(
-        "insert into sessions (id, child_id, audience, room, language, agent_token_hash, keep_transcript, use_memory)
-         values ($1, $2, $3, $4, $5, $6, $7, $8)",
+        "insert into sessions
+           (id, child_id, audience, room, language, agent_token_hash, keep_transcript, use_memory, device_id)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
     )
     .bind(session_id)
-    .bind(body.child_id)
-    .bind(&body.audience)
+    .bind(child.as_ref().map(|child| child.id))
+    .bind(audience)
     .bind(&room)
     .bind(&language)
     .bind(token_hash(&agent_token))
     .bind(keep_transcript)
     .bind(use_memory)
+    .bind(device_id)
     .execute(&state.pool)
     .await?;
 
@@ -105,7 +125,7 @@ pub async fn create_session(
 
     let ttl_seconds = i64::from(state.config.session_minutes) * 60;
     let dispatch_metadata = json!({
-        "audience": body.audience,
+        "audience": audience,
         "language": language,
         "session_id": session_id,
         "platform_token": agent_token,
@@ -114,25 +134,22 @@ pub async fn create_session(
         livekit,
         &RoomToken {
             room: &room,
-            identity: &format!("{}-{}", body.audience, session_id.simple()),
-            name: if body.audience == "child" { "Student" } else { "Operator" },
+            identity: &format!("{audience}-{}", session_id.simple()),
+            name: if audience == "child" { "Student" } else { "Operator" },
             ttl_seconds,
             agent_name: &state.config.agent_name,
             dispatch_metadata: &dispatch_metadata,
         },
         Utc::now().timestamp(),
     );
-    Ok((
-        StatusCode::CREATED,
-        Json(json!({
-            "session_id": session_id,
-            "serverUrl": livekit.public_url,
-            "token": token,
-            "room": room,
-            "agentName": state.config.agent_name,
-            "expiresInSeconds": ttl_seconds,
-        })),
-    ))
+    Ok(json!({
+        "session_id": session_id,
+        "serverUrl": livekit.public_url,
+        "token": token,
+        "room": room,
+        "agentName": state.config.agent_name,
+        "expiresInSeconds": ttl_seconds,
+    }))
 }
 
 async fn prepare_brief(state: &AppState, session_id: Uuid, child: &Child, use_memory: bool) -> ApiResult<()> {
@@ -351,10 +368,15 @@ async fn watch(state: &AppState, session: &Session) -> ApiResult<()> {
     Ok(())
 }
 
+pub const END_REASONS: [&str; 6] =
+    ["child_ended", "idle", "budget_reached", "parent_ended", "device_offline", "error"];
+
 #[derive(Deserialize)]
 pub struct EndInput {
     #[serde(default)]
     speaking_seconds: Option<i32>,
+    #[serde(default)]
+    end_reason: Option<String>,
 }
 
 /// Closes the session and queues its review. Ending twice changes nothing.
@@ -363,36 +385,112 @@ pub async fn agent_end(
     State(state): State<AppState>,
     Input(body): Input<EndInput>,
 ) -> ApiResult<StatusCode> {
-    end_session(
-        &state.pool,
-        session.id,
-        body.speaking_seconds.filter(|seconds| (0..=86_400).contains(seconds)),
-    )
-    .await?;
+    let reason = body.end_reason.as_deref().unwrap_or("child_ended");
+    if !END_REASONS.contains(&reason) {
+        return Err(ApiError::bad_request(format!("end_reason must be one of: {}", END_REASONS.join(", "))));
+    }
+    let speaking_seconds = body.speaking_seconds.filter(|seconds| (0..=86_400).contains(seconds));
+    end_session(&state.pool, session.id, speaking_seconds, reason).await?;
     Ok(StatusCode::NO_CONTENT)
 }
+
+type Ended = (Option<Uuid>, Option<Uuid>, chrono::DateTime<Utc>, chrono::DateTime<Utc>);
 
 pub async fn end_session(
     pool: &PgPool,
     session_id: Uuid,
     speaking_seconds: Option<i32>,
+    end_reason: &str,
 ) -> Result<bool, sqlx::Error> {
     let mut tx = pool.begin().await?;
-    let ended = sqlx::query(
+    let ended: Option<Ended> = sqlx::query_as(
         "update sessions set status = 'ended', ended_at = now(), speaking_seconds = $2
-         where id = $1 and status <> 'ended'",
+         where id = $1 and status <> 'ended'
+         returning child_id, device_id, coalesce(started_at, created_at), ended_at",
     )
     .bind(session_id)
     .bind(speaking_seconds)
-    .execute(&mut *tx)
-    .await?
-    .rows_affected()
-        > 0;
-    if ended {
+    .fetch_optional(&mut *tx)
+    .await?;
+    if let Some((child_id, device_id, started_at, ended_at)) = ended {
         jobs::enqueue(&mut *tx, jobs::REVIEW_SESSION, &json!({ "session_id": session_id })).await?;
+        // The event is about a child's session on a device; a session from the
+        // playground has neither.
+        if let (Some(child_id), Some(device_id)) = (child_id, device_id) {
+            let turns: i64 = sqlx::query_scalar("select count(*) from session_turns where session_id = $1")
+                .bind(session_id)
+                .fetch_one(&mut *tx)
+                .await?;
+            let data = json!({
+                "session_id": session_id,
+                "device_id": device_id,
+                "child_id": child_id,
+                "started_at": started_at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+                "ended_at": ended_at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+                "duration_seconds": (ended_at - started_at).num_seconds().max(0),
+                "end_reason": end_reason,
+                "turns": turns,
+            });
+            events::publish(&mut *tx, events::SESSION_ENDED, session_id, data).await?;
+        }
     }
     tx.commit().await?;
-    Ok(ended)
+    Ok(ended.is_some())
+}
+
+pub const FLAG_GATES: [&str; 3] = ["moderation_input", "moderation_output", "physical_safety"];
+pub const FLAG_ACTIONS: [&str; 5] = ["redirect", "adult_help", "clarify", "support", "unavailable"];
+
+#[derive(Deserialize)]
+pub struct FlagInput {
+    gate: String,
+    action: String,
+    categories: Vec<String>,
+}
+
+/// The agent reports that a safety gate stopped a turn: which gate, what it
+/// did, and fixed categories. Never what was said.
+pub async fn agent_flag(
+    Agent(session): Agent,
+    State(state): State<AppState>,
+    Input(body): Input<FlagInput>,
+) -> ApiResult<StatusCode> {
+    let is_category = |category: &String| {
+        !category.is_empty()
+            && category.len() <= 40
+            && category.chars().all(|c| c.is_ascii_lowercase() || c == '_' || c == '/')
+    };
+    let mut categories = body.categories;
+    categories.sort();
+    categories.dedup();
+    if !FLAG_GATES.contains(&body.gate.as_str())
+        || !FLAG_ACTIONS.contains(&body.action.as_str())
+        || categories.is_empty()
+        || categories.len() > 10
+        || !categories.iter().all(is_category)
+    {
+        return Err(ApiError::bad_request("a flag needs a known gate and action and 1 to 10 categories"));
+    }
+    let mut tx = state.pool.begin().await?;
+    sqlx::query("insert into session_flags (session_id, gate, action, categories) values ($1, $2, $3, $4)")
+        .bind(session.id)
+        .bind(&body.gate)
+        .bind(&body.action)
+        .bind(&categories)
+        .execute(&mut *tx)
+        .await?;
+    if let Some(child_id) = session.child_id {
+        let data = json!({
+            "session_id": session.id,
+            "child_id": child_id,
+            "gate": body.gate,
+            "action": body.action,
+            "categories": categories,
+        });
+        events::publish(&mut *tx, events::SAFETY_FLAGGED, session.id, data).await?;
+    }
+    tx.commit().await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// The work after a session: evidence for the learner model, memories, and a
@@ -477,6 +575,8 @@ pub async fn review_session(state: &AppState, session_id: Uuid) -> ApiResult<()>
         .bind(&review.flags)
         .execute(&state.pool)
         .await?;
+        let data = json!({ "session_id": session.id, "child_id": child_id, "flags": review.flags });
+        events::publish(&state.pool, events::SESSION_REVIEWED, session.id, data).await?;
     }
 
     if !session.keep_transcript {

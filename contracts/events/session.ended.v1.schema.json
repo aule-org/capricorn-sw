@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/meet-aule/capricorn-sw/contracts/events/session.ended.v1.schema.json",
   "title": "session.ended.v1",
-  "description": "A tutoring session finished. Produced by the agent. Carries no transcript or audio.",
+  "description": "A tutoring session on a device finished. Produced by the platform when the agent reports the end. Carries no transcript or audio.",
   "type": "object",
   "required": [
     "session_id",
