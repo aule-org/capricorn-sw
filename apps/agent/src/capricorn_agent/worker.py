@@ -17,7 +17,7 @@ from .camera import Camera
 from .config import LANGUAGES, ConfigError, Settings
 from .platform import Platform, platform_session
 from .providers import build_llm, build_stt, build_tts
-from .safety import Gates, audience_of
+from .safety import audience_of, build_gates
 from .tutor import Tutor
 
 logger = logging.getLogger("capricorn.agent")
@@ -60,21 +60,22 @@ async def entrypoint(ctx: JobContext) -> None:
     audience = audience_of(ctx.job.metadata)
     language = language_of(ctx.job.metadata, settings.language)
 
-    # No gate is implemented yet (see safety.py), so this refuses every session
-    # that is not an operator's.
-    gates = Gates()
+    # With a platform, the tutor starts from what is known about the student
+    # and reports the conversation; without one it is a tutor with no memory.
+    linked = platform_session(ctx.job.metadata)
+    platform = Platform(linked) if linked else None
+
+    # A child's session needs both gates (see safety.py); an operator's runs
+    # the ones that are configured.
+    gates = build_gates(settings, report=platform.flag if platform else None)
     if not gates.may_start(audience):
         logger.warning("session refused: the safety gates are not configured")
+        await gates.close()
         ctx.shutdown(reason="safety gates not configured")
         return
 
     await ctx.connect()
     camera = Camera(ctx.room)
-
-    # With a platform, the tutor starts from what is known about the student
-    # and reports the conversation; without one it is a tutor with no memory.
-    linked = platform_session(ctx.job.metadata)
-    platform = Platform(linked) if linked else None
     context = await platform.start() if platform else ""
     tutor = Tutor(language=language, gates=gates, camera=camera, context=context)
     session = AgentSession(
@@ -103,6 +104,7 @@ async def entrypoint(ctx: JobContext) -> None:
         for task in tasks:
             task.cancel()
         camera.stop()
+        await gates.close()
         if platform:
             await platform.end()
 
@@ -125,9 +127,14 @@ def main() -> None:
     # instead of registering and failing on its first session.
     if len(sys.argv) > 1 and sys.argv[1] in {"start", "dev"}:
         try:
-            Settings.from_env()
+            settings = Settings.from_env()
         except ConfigError as error:
             sys.exit(f"capricorn-agent: {error}")
+        if not settings.gates_complete:
+            logger.warning(
+                "OPENAI_API_KEY and TYPESAFE_API_KEY are not both set: "
+                "only operator sessions will be accepted"
+            )
     cli.run_app(server)
 
 
