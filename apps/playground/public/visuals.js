@@ -5,8 +5,11 @@
 
 export const TOPIC = "capricorn.visual";
 
-const W = 640;
-const H = 360;
+// The capri-slate e-ink panel is 800x480 (Good Display GDEY075T7); drawing at
+// that aspect so a layout here translates one-to-one to the device. W and H are
+// the single source: fitted(), positions and the viewBox all follow them.
+const W = 800;
+const H = 480;
 const INK = "#111";
 // The 7.5" panel shows four greys, so a second group of things can be a real
 // grey — clearer than an outline, and it still tells apart from the black ones.
