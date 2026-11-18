@@ -1323,6 +1323,7 @@ async fn a_family_names_its_tutor_and_the_agent_is_told(pool: PgPool) {
     assert_eq!(kept["tutor_persona_note"], "Le gusta que le hablen de dinosaurios");
 
     // The agent is told twice: when it is dispatched and when it asks.
+    app.consent(&child, "voice", true).await;
     let (status, session) = app
         .admin(Method::POST, "/v1/sessions", Some(json!({ "child_id": child, "audience": "operator" })))
         .await;
