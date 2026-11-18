@@ -103,3 +103,25 @@ def test_a_blank_gate_key_means_no_gate_and_a_broken_one_is_a_problem():
     assert "OPENAI_API_KEY must not contain" in str(error.value)
     assert "TYPESAFE_API_KEY must not contain" in str(error.value)
     assert "sk test" not in str(error.value)
+
+
+def test_the_tutor_model_answers_with_text_not_only_thinking(monkeypatch):
+    # On a model that thinks by default, the thinking counts against the reply
+    # ceiling and can leave no text: every call must limit it to between tools.
+    from livekit.plugins import anthropic
+
+    from capricorn_agent import providers
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    seen = {}
+    monkeypatch.setattr(anthropic.LLM, "chat", lambda self, **kwargs: seen.update(kwargs))
+
+    providers.build_llm(Settings.from_env(COMPLETE)).chat(chat_ctx=None)
+    assert seen["extra_kwargs"]["thinking"] == {"type": "between_tools"}
+
+    seen.clear()
+    other = Settings.from_env({**COMPLETE, "CAPRICORN_LLM_MODEL": "claude-opus-5-5"})
+    built = providers.build_llm(other)
+    built.chat(chat_ctx=None)
+    assert "extra_kwargs" not in seen
+    assert built._opts.max_tokens == providers.MAX_TOKENS_WITH_THINKING

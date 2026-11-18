@@ -5,14 +5,26 @@ it is configured for. Each plugin reads its own key from the environment;
 ``config`` has already checked that it is there.
 """
 
+from typing import Any
+
 from livekit.agents import llm, stt, tts
 
 from .config import Settings
 
 # Replies are spoken, so a long one is a bug: keep the model from producing it.
-# This also caps latency: the whole reply is generated before any of it is spoken
-# (the output gate buffers it), so a shorter ceiling is a shorter wait to first word.
-MAX_REPLY_TOKENS = 160
+# The whole reply is generated before any of it is spoken (the output gate
+# buffers it), so the ceiling also bounds the wait to the first word. It has to
+# leave room for a full two-sentence reply: a reply cut by the ceiling is spoken
+# cut.
+MAX_REPLY_TOKENS = 300
+
+# Models whose thinking is on by default and counts against ``max_tokens``. With
+# a ceiling this low the thinking alone can use all of it and the reply comes
+# back with no text at all, so the tutor says nothing. On these models thinking
+# is limited to between tool calls, which also halves the time to the reply.
+THINKS_BETWEEN_TOOLS = ("claude-sonnet-5-5",)
+# Any other model keeps its own thinking and gets room for it.
+MAX_TOKENS_WITH_THINKING = 1024
 
 
 def build_stt(settings: Settings, language: str) -> stt.STT:
@@ -62,9 +74,24 @@ def build_tts(settings: Settings, language: str) -> tts.TTS:
 def build_llm(settings: Settings) -> llm.LLM:
     from livekit.plugins import anthropic
 
+    spoken = settings.llm_model.startswith(THINKS_BETWEEN_TOOLS)
+
+    class TutorLLM(anthropic.LLM):
+        def chat(self, **kwargs: Any) -> llm.LLMStream:
+            if spoken:
+                given = kwargs.get("extra_kwargs")
+                extra = dict(given) if isinstance(given, dict) else {}
+                extra.setdefault("thinking", {"type": "between_tools"})
+                kwargs["extra_kwargs"] = extra
+            return super().chat(**kwargs)
+
     # Cache the stable prefix of each turn (the tutor's instructions and the
     # session context, which repeat every turn) so most input tokens are billed
     # once, not per turn. A guidance update rewrites the instructions and simply
     # re-primes the cache; the per-turn camera frame rides in the last user
     # message, so it never invalidates it.
-    return anthropic.LLM(model=settings.llm_model, max_tokens=MAX_REPLY_TOKENS, caching="ephemeral")
+    return TutorLLM(
+        model=settings.llm_model,
+        max_tokens=MAX_REPLY_TOKENS if spoken else MAX_TOKENS_WITH_THINKING,
+        caching="ephemeral",
+    )
