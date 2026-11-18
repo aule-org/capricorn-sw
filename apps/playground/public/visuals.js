@@ -8,6 +8,9 @@ export const TOPIC = "capricorn.visual";
 const W = 640;
 const H = 360;
 const INK = "#111";
+// The 7.5" panel shows four greys, so a second group of things can be a real
+// grey — clearer than an outline, and it still tells apart from the black ones.
+const GREY = "#8a8a8a";
 const FONT = "system-ui, -apple-system, 'Segoe UI', sans-serif";
 
 const escape = (value) =>
@@ -225,11 +228,11 @@ function counters(v, top) {
     for (let i = 0; i < block.count; i += 1) {
       const cx = left + (i % block.columns) * cell + cell / 2;
       const cy = firstRow + Math.floor(i / block.columns) * cell + cell / 2;
-      // "open" counters are hatched (they read as grey), solid ones are filled:
-      // two groups tell apart on a black-on-white e-ink screen, without colour.
+      // "open" counters are grey, solid ones are black: two groups tell apart
+      // on the four-grey e-ink screen without colour.
       out +=
         block.fill === "open"
-          ? `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="url(#hatch)" stroke="${INK}" stroke-width="2"/>`
+          ? `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="${GREY}" stroke="${INK}" stroke-width="2"/>`
           : `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="${INK}"/>`;
     }
     if (block.label) {
@@ -323,18 +326,9 @@ export function renderVisual(visual) {
   if (!draw) throw new Error(`unknown kind of visual: ${visual?.kind}`);
   const top = visual.title ? 58 : 20;
   const title = visual.title ? text(W / 2, 38, visual.title, { size: 22, weight: 600 }) : "";
-  // Only the kind that uses the hatch carries its pattern, so every other
-  // kind's element counts stay the same. Diagonal black lines on the white
-  // page read as grey on a 1-bit e-ink screen, telling a second group apart
-  // from the solid one without colour. Drawn with a path, not a line/rect, so
-  // it does not disturb those counts either.
-  const hatch =
-    visual.kind === "counters"
-      ? `<pattern id="hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M 0 0 V 7" stroke="${INK}" stroke-width="2.5"/></pattern>`
-      : "";
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escape(visual.title ?? visual.kind)}" font-family="${FONT}" fill="${INK}">` +
-    `<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="${INK}"/></marker>${hatch}</defs>` +
+    `<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="${INK}"/></marker></defs>` +
     `<rect width="${W}" height="${H}" fill="#fff"/>` +
     title +
     draw(visual, top) +

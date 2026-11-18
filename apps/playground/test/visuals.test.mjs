@@ -20,7 +20,7 @@ test("every example in the contract can be drawn", () => {
 });
 
 test("the drawing uses black on white only", () => {
-  for (const name of ["fraction_bars", "fraction_circle", "bar_chart", "number_line", "counters"]) {
+  for (const name of ["fraction_bars", "fraction_circle", "bar_chart", "number_line"]) {
     const colours = new Set(renderVisual(example(name)).match(/#[0-9a-f]{3,6}\b/gi));
     assert.deepEqual([...colours].sort(), ["#111", "#fff"], name);
   }
@@ -78,7 +78,12 @@ test("counters draw each group with its own fill and label", () => {
   assert.equal(count(svg, "circle"), 6, "one circle per counter");
   assert.equal((svg.match(/<circle[^>]*fill="#111"\/>/g) || []).length, 5, "five solid");
   assert.equal((svg.match(/<circle[^>]*stroke="#111"[^>]*\/>/g) || []).length, 1, "one open outline");
-  assert.ok(svg.includes('fill="url(#hatch)"'), "the open group is hatched (reads as grey on e-ink)");
+  assert.ok(svg.includes('fill="#8a8a8a"'), "the open group is a real grey (the panel shows four greys)");
+  assert.deepEqual(
+    [...new Set(svg.match(/#[0-9a-f]{3,6}/gi))].sort(),
+    ["#111", "#8a8a8a", "#fff"],
+    "black, grey and white only",
+  );
   assert.ok(svg.includes(">rojas<") && svg.includes(">azul<"), "each group is named");
 });
 
