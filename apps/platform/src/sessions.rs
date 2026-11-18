@@ -78,9 +78,15 @@ pub async fn open_session(
 
     // A child's profile is only used with the guardian's consent, whoever is
     // at the microphone. Without consent for voice there is no session.
+    let mut tx = state.pool.begin().await?;
     let (keep_transcript, use_memory) = match &child {
         Some(child) => {
-            let consent = current_consent(&state.pool, child.id).await?;
+            sqlx::query_scalar::<_, Uuid>("select id from children where id = $1 for update")
+                .bind(child.id)
+                .fetch_optional(&mut *tx)
+                .await?
+                .ok_or(ApiError::NotFound("child"))?;
+            let consent = current_consent(&mut *tx, child.id).await?;
             if !consent["voice"] {
                 return Err(ApiError::Forbidden("the guardian has not consented to voice sessions"));
             }
@@ -110,8 +116,9 @@ pub async fn open_session(
     .bind(keep_transcript)
     .bind(use_memory)
     .bind(device_id)
-    .execute(&state.pool)
+    .execute(&mut *tx)
     .await?;
+    tx.commit().await?;
 
     let tutor = crate::families::tutor(child.as_ref());
     // The plan is written while the person connects, so nobody waits for it.
@@ -591,12 +598,14 @@ pub async fn review_session(state: &AppState, session_id: Uuid) -> ApiResult<()>
         events::publish(&state.pool, events::SESSION_REVIEWED, session.id, data).await?;
     }
 
-    if !session.keep_transcript {
-        sqlx::query("delete from session_turns where session_id = $1")
-            .bind(session.id)
-            .execute(&state.pool)
-            .await?;
-    }
+    // Consent may have changed while the external review was running.
+    sqlx::query(
+        "delete from session_turns using sessions
+         where session_turns.session_id = sessions.id and sessions.id = $1 and not sessions.keep_transcript",
+    )
+    .bind(session.id)
+    .execute(&state.pool)
+    .await?;
     sqlx::query("update sessions set reviewed_at = now() where id = $1")
         .bind(session.id)
         .execute(&state.pool)

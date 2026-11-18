@@ -98,7 +98,9 @@ async def test_turns_survive_a_failed_report_up_to_a_limit():
     for n in range(MAX_PENDING_TURNS + 10):
         platform.heard("user", str(n))
     await platform.report_once()
-    assert len(send.calls[2][2]["turns"]) == MAX_PENDING_TURNS
+    batches = [body["turns"] for _, _, body in send.calls[2:]]
+    assert all(len(batch) <= 20 for batch in batches)
+    assert sum(len(batch) for batch in batches) == MAX_PENDING_TURNS
 
 
 async def test_ending_sends_what_is_left_and_then_closes_the_session():
@@ -109,6 +111,109 @@ async def test_ending_sends_what_is_left_and_then_closes_the_session():
     await platform.end()
 
     assert [call[1] for call in send.calls] == ["/v1/agent/session/turns", "/v1/agent/session/end"]
+
+
+async def test_backlogged_turns_fit_the_api_limit_before_ending():
+    send = Recorder()
+    platform = Platform(SESSION, send)
+    for n in range(45):
+        platform.heard("user", str(n))
+
+    await platform.end()
+
+    batches = [body["turns"] for _, path, body in send.calls if path.endswith("/turns")]
+    assert [len(batch) for batch in batches] == [20, 20, 5]
+    assert [turn["seq"] for batch in batches for turn in batch] == list(range(45))
+    assert send.calls[-1][1] == "/v1/agent/session/end"
+
+
+async def test_a_failed_report_is_retried_without_waiting_for_another_turn(monkeypatch):
+    monkeypatch.setattr("capricorn_agent.platform.REPORT_RETRY_SECONDS", 0.01, raising=False)
+    delivered = asyncio.Event()
+    calls = []
+
+    async def send(method, path, body, timeout):
+        calls.append(body)
+        if len(calls) == 1:
+            raise RuntimeError("temporary outage")
+        delivered.set()
+        return {}
+
+    async def advise(_):
+        pass
+
+    platform = Platform(SESSION, send)
+    platform.heard("user", "retry this turn")
+    worker = asyncio.create_task(platform.run(advise))
+    try:
+        await asyncio.wait_for(delivered.wait(), timeout=0.5)
+        assert calls[1]["turns"] == calls[0]["turns"]
+    finally:
+        worker.cancel()
+        await asyncio.gather(worker, return_exceptions=True)
+
+
+async def test_cancelling_an_inflight_report_keeps_its_turn_for_shutdown():
+    started = asyncio.Event()
+    calls = []
+
+    async def send(method, path, body, timeout):
+        calls.append((path, body))
+        if len(calls) == 1:
+            started.set()
+            await asyncio.Event().wait()
+        return {}
+
+    platform = Platform(SESSION, send)
+    platform.heard("user", "last turn")
+    reporting = asyncio.create_task(platform.report_once())
+    await started.wait()
+    reporting.cancel()
+    await asyncio.gather(reporting, return_exceptions=True)
+    await platform.end()
+
+    assert [path for path, _ in calls] == [
+        "/v1/agent/session/turns",
+        "/v1/agent/session/turns",
+        "/v1/agent/session/end",
+    ]
+    assert calls[1][1]["turns"] == calls[0][1]["turns"]
+
+
+async def test_shutdown_retries_a_failed_flush_before_ending(monkeypatch):
+    monkeypatch.setattr("capricorn_agent.platform.REPORT_RETRY_SECONDS", 0.01)
+    send = Recorder(RuntimeError("temporary outage"), {}, {})
+    platform = Platform(SESSION, send)
+    platform.heard("user", "last turn")
+
+    await platform.end()
+
+    assert [call[1] for call in send.calls] == [
+        "/v1/agent/session/turns",
+        "/v1/agent/session/turns",
+        "/v1/agent/session/end",
+    ]
+    assert send.calls[-1][2] == {}
+
+
+async def test_shutdown_bounds_an_outage_and_reports_the_loss(monkeypatch, caplog):
+    monkeypatch.setattr("capricorn_agent.platform.REPORT_RETRY_SECONDS", 0.01)
+    monkeypatch.setattr("capricorn_agent.platform.END_FLUSH_TIMEOUT_SECONDS", 0.03)
+    calls = []
+
+    async def send(method, path, body, timeout):
+        calls.append((path, body))
+        if path.endswith("/turns"):
+            raise RuntimeError("outage")
+        return {}
+
+    platform = Platform(SESSION, send)
+    platform.heard("user", "private text that must not be logged")
+    await asyncio.wait_for(platform.end(), timeout=0.5)
+
+    assert calls[-1] == ("/v1/agent/session/end", {"end_reason": "error"})
+    assert "session ended with unreported turns" in caplog.text
+    assert "private text" not in caplog.text
 
 
 FLAGS = "/v1/agent/session/flags"
