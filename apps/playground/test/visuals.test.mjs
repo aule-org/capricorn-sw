@@ -20,7 +20,7 @@ test("every example in the contract can be drawn", () => {
 });
 
 test("the drawing uses black on white only", () => {
-  for (const name of ["fraction_bars", "bar_chart", "number_line", "counters"]) {
+  for (const name of ["fraction_bars", "fraction_circle", "bar_chart", "number_line", "counters"]) {
     const colours = new Set(renderVisual(example(name)).match(/#[0-9a-f]{3,6}\b/gi));
     assert.deepEqual([...colours].sort(), ["#111", "#fff"], name);
   }
@@ -34,6 +34,19 @@ test("a fraction bar has one part per denominator and shades the numerator", () 
   assert.equal(count(svg, "line"), 7, "a divider between every two parts");
   assert.equal(svg.split('stroke="#fff"').length - 1, 2, "white dividers between shaded parts");
   assert.match(svg, />3\/8</);
+});
+
+test("a fraction circle cuts the denominator into slices and shades the numerator", () => {
+  const svg = renderVisual({ kind: "fraction_circle", fractions: [{ numerator: 3, denominator: 4 }] });
+
+  assert.equal(count(svg, "path") - 1, 4, "four slices, plus the arrow head's own path");
+  assert.equal((svg.match(/<path [^>]*fill="#111" stroke="#111"/g) || []).length, 3, "three shaded slices");
+  assert.ok(svg.includes('fill="#fff" stroke="#111"'), "an unshaded slice");
+  assert.match(svg, />3\/4</);
+
+  // A whole (denominator 1) is a single circle, filled when the numerator is 1.
+  const whole = renderVisual({ kind: "fraction_circle", fractions: [{ numerator: 1, denominator: 1 }] });
+  assert.equal(count(whole, "circle"), 1);
 });
 
 test("an array draws rows times columns dots", () => {

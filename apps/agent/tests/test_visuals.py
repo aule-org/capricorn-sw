@@ -50,6 +50,7 @@ def test_there_is_an_example_of_every_kind():
         {"kind": "fraction_bars"},
         {"kind": "fraction_bars", "fractions": [{"numerator": 1, "denominator": 0}]},
         {"kind": "dot_array", "rows": 3, "columns": 40},
+        {"kind": "fraction_circle"},
         {"kind": "counters"},
         {"kind": "counters", "groups": [{"count": 2, "fill": "striped"}]},
         {"kind": "exercise", "lines": ["2 + 2 = ?"], "html": "<b>x</b>"},
