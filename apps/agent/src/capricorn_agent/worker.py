@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import sys
+from dataclasses import replace
 from typing import Any
 
 from livekit.agents import AgentServer, AgentSession, JobContext, JobProcess, cli, room_io
@@ -20,7 +21,7 @@ from .config import LANGUAGES, ConfigError, Settings
 from .platform import Platform, platform_session
 from .providers import build_llm, build_stt, build_tts
 from .safety import audience_of, build_gates
-from .tutor import Tutor
+from .tutor import Persona, Tutor, persona_from
 
 logger = logging.getLogger("capricorn.agent")
 
@@ -40,6 +41,22 @@ def language_of(dispatch_metadata: str, default: str) -> str:
         return default
     language = metadata.get("language") if isinstance(metadata, dict) else None
     return language if language in LANGUAGES else default
+
+
+def persona_of(dispatch_metadata: str) -> Persona:
+    """The tutor's persona from the dispatch metadata. Always present (defaults
+    when there is no child); the platform's GET body overrides it when set."""
+    try:
+        metadata = json.loads(dispatch_metadata or "{}")
+    except ValueError:
+        metadata = {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+    return persona_from(
+        metadata.get("tutor_name"),
+        metadata.get("tutor_persona"),
+        metadata.get("tutor_persona_note"),
+    )
 
 
 def prewarm(proc: JobProcess) -> None:
@@ -87,7 +104,19 @@ async def entrypoint(ctx: JobContext) -> None:
             json.dumps(visual, ensure_ascii=False), topic=visuals.TOPIC
         )
 
-    tutor = Tutor(language=language, gates=gates, camera=camera, context=context, show=show)
+    # The persona: the dispatch metadata is always present; the platform's GET
+    # body wins when it set one (it is read from the database). The family note
+    # is moderated once here and dropped if it is unsafe or the gate is down, so
+    # it never reaches the model unchecked.
+    persona = persona_of(ctx.job.metadata)
+    if platform and platform.persona is not None:
+        persona = platform.persona
+    if persona.note and not (gates.checks_spoken and (await gates.spoken(persona.note)).allowed):
+        persona = replace(persona, note=None)
+
+    tutor = Tutor(
+        language=language, gates=gates, camera=camera, context=context, show=show, persona=persona
+    )
     session = AgentSession(
         stt=build_stt(settings, language),
         llm=build_llm(settings),

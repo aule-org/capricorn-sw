@@ -7,8 +7,16 @@ from livekit.agents import StopResponse, llm
 
 from capricorn_agent.moderation import Action, Decision
 from capricorn_agent.replies import REPLIES
-from capricorn_agent.tutor import INSTRUCTIONS, Tutor, checked, with_frame
-from capricorn_agent.worker import GOODBYE, language_of
+from capricorn_agent.tutor import (
+    INSTRUCTIONS,
+    Persona,
+    Tutor,
+    checked,
+    persona_from,
+    persona_notes,
+    with_frame,
+)
+from capricorn_agent.worker import GOODBYE, language_of, persona_of
 
 
 def frame():
@@ -196,3 +204,38 @@ async def test_a_reply_that_does_not_pass_is_replaced_whole(key):
     spoken = [chunk async for chunk in checked(stream("algo ", "indebido"), gates, "en")]
 
     assert spoken == [REPLIES[key]["en"]]
+
+
+def test_persona_falls_back_to_the_defaults():
+    assert persona_from("Luna", "jugueton", " sé breve ") == Persona("Luna", "jugueton", "sé breve")
+    # An unknown preset becomes calido, a blank name becomes Capri, a blank note None.
+    assert persona_from("  ", "unknown", "   ") == Persona("Capri", "calido", None)
+    assert persona_from(None, None, None) == Persona()
+
+
+def test_persona_of_reads_the_dispatch_metadata():
+    meta = '{"tutor_name": "Río", "tutor_persona": "aventurero", "tutor_persona_note": "fútbol"}'
+    assert persona_of(meta) == Persona("Río", "aventurero", "fútbol")
+    assert persona_of("") == Persona()
+    assert persona_of("not json") == Persona()
+
+
+def test_persona_notes_add_nothing_by_default_and_a_bounded_wish_with_a_note():
+    assert persona_notes("es", Persona()) == ""
+    assert "juguetón" in persona_notes("es", Persona(preset="jugueton"))
+    wish = persona_notes("es", Persona(note="habla despacio"))
+    assert "habla despacio" in wish and "seguridad" in wish
+
+
+def test_a_named_persona_renames_the_tutor_and_the_default_leaves_the_prompt_as_written():
+    default = Tutor(language="es", gates=ScriptedGates(ALLOW))
+    assert default._base == INSTRUCTIONS["es"]
+    assert "Capri" in default._greeting
+
+    named = Tutor(
+        language="es", gates=ScriptedGates(ALLOW), persona=Persona(name="Luna", preset="jugueton")
+    )
+    assert "Eres Luna" in named._base and "Capri" not in named._base
+    assert "Luna" in named._greeting and "Capri" not in named._greeting
+    # The tone line sits last, after the teaching, safety and context.
+    assert named._base.rstrip().endswith("divertido.")
