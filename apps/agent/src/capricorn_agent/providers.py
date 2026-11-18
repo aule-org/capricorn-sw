@@ -62,4 +62,9 @@ def build_tts(settings: Settings, language: str) -> tts.TTS:
 def build_llm(settings: Settings) -> llm.LLM:
     from livekit.plugins import anthropic
 
-    return anthropic.LLM(model=settings.llm_model, max_tokens=MAX_REPLY_TOKENS)
+    # Cache the stable prefix of each turn (the tutor's instructions and the
+    # session context, which repeat every turn) so most input tokens are billed
+    # once, not per turn. A guidance update rewrites the instructions and simply
+    # re-primes the cache; the per-turn camera frame rides in the last user
+    # message, so it never invalidates it.
+    return anthropic.LLM(model=settings.llm_model, max_tokens=MAX_REPLY_TOKENS, caching="ephemeral")
