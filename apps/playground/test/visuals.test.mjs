@@ -20,7 +20,7 @@ test("every example in the contract can be drawn", () => {
 });
 
 test("the drawing uses black on white only", () => {
-  for (const name of ["fraction_bars", "bar_chart", "number_line"]) {
+  for (const name of ["fraction_bars", "bar_chart", "number_line", "counters"]) {
     const colours = new Set(renderVisual(example(name)).match(/#[0-9a-f]{3,6}\b/gi));
     assert.deepEqual([...colours].sort(), ["#111", "#fff"], name);
   }
@@ -51,6 +51,21 @@ test("an exercise stacks a tight fraction and leaves a spaced division as text",
   const division = renderVisual({ kind: "exercise", lines: ["12 / 4 = ?"] });
   assert.ok(division.includes("12 / 4 = ?"), "a spaced division keeps its slash");
   assert.equal(count(division, "line"), 0, "and draws no fraction bar");
+});
+
+test("counters draw each group with its own fill and label", () => {
+  const svg = renderVisual({
+    kind: "counters",
+    groups: [
+      { count: 5, fill: "solid", label: "rojas" },
+      { count: 1, fill: "open", label: "azul" },
+    ],
+  });
+
+  assert.equal(count(svg, "circle"), 6, "one circle per counter");
+  assert.equal((svg.match(/<circle[^>]*fill="#111"\/>/g) || []).length, 5, "five solid");
+  assert.equal((svg.match(/<circle[^>]*stroke="#111"[^>]*\/>/g) || []).length, 1, "one open outline");
+  assert.ok(svg.includes(">rojas<") && svg.includes(">azul<"), "each group is named");
 });
 
 test("a number line labels its ticks, marks points and draws jumps", () => {

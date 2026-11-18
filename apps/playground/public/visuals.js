@@ -170,6 +170,46 @@ function dotArray(v, top) {
   return out;
 }
 
+function counters(v, top) {
+  const labelled = v.groups.some((group) => group.label);
+  const gap = 28; // blank space between one group and the next
+  const area = { width: W - 60, height: H - top - (labelled ? 52 : 24) };
+  // Each group is laid out as a near-square block of counters.
+  const blocks = v.groups.map((group) => {
+    const columns = Math.max(1, Math.round(Math.sqrt(group.count)));
+    return { ...group, columns, rows: Math.ceil(group.count / columns) };
+  });
+  const columns = blocks.reduce((sum, block) => sum + block.columns, 0);
+  const rows = Math.max(...blocks.map((block) => block.rows));
+  const cell = Math.min((area.width - gap * (blocks.length - 1)) / columns, area.height / rows, 64);
+  const radius = cell * 0.36;
+  const width = blocks.reduce((sum, block) => sum + block.columns * cell, 0) + gap * (blocks.length - 1);
+  const firstRow = top + (area.height - rows * cell) / 2 + 6;
+  let left = (W - width) / 2;
+  let out = "";
+  for (const block of blocks) {
+    for (let i = 0; i < block.count; i += 1) {
+      const cx = left + (i % block.columns) * cell + cell / 2;
+      const cy = firstRow + Math.floor(i / block.columns) * cell + cell / 2;
+      // Open counters are an outline, solid ones are filled: the same drawing
+      // tells two kinds apart on a black-on-white screen, without colour.
+      out +=
+        block.fill === "open"
+          ? `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="#fff" stroke="${INK}" stroke-width="2"/>`
+          : `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="${INK}"/>`;
+    }
+    if (block.label) {
+      out += text(left + (block.columns * cell) / 2, firstRow + rows * cell + 26, block.label, {
+        size: 18,
+        weight: 600,
+        room: block.columns * cell + gap,
+      });
+    }
+    left += block.columns * cell + gap;
+  }
+  return out;
+}
+
 function table(v, top) {
   const columns = v.headers.length;
   const rows = [v.headers, ...v.cells.map((row) => Array.from({ length: columns }, (_, i) => row[i] ?? ""))];
@@ -236,6 +276,7 @@ const KINDS = {
   fraction_bars: fractionBars,
   number_line: numberLine,
   dot_array: dotArray,
+  counters,
   table,
   bar_chart: barChart,
   rectangle,
