@@ -70,6 +70,14 @@ def test_each_gate_is_configured_by_its_key_and_no_key_is_shown():
     assert "secret" not in repr(settings)
 
 
+def test_assemblyai_speaks_with_the_key_it_also_hears_with():
+    # The STT key doubles as the TTS key, so choosing assemblyai for speech
+    # needs nothing beyond what hearing already required.
+    settings = Settings.from_env({**COMPLETE, "CAPRICORN_TTS": "assemblyai"})
+
+    assert settings.tts == "assemblyai"
+
+
 def test_the_moderation_key_is_also_the_speech_key_when_openai_speaks():
     settings = Settings.from_env({**COMPLETE, "CAPRICORN_TTS": "openai", "OPENAI_API_KEY": "sk"})
 
