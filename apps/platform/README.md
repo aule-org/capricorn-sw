@@ -41,6 +41,8 @@ Devices do not use a bearer token: they sign with the key burned into them.
 |---|---|
 | `POST /v1/auth/start` | Sends a six-digit code to an email address. Answers the same whether or not the address has an account |
 | `POST /v1/auth/verify` | Trades the code for a token. A new address becomes a new family and must send `name` |
+| `GET /v1/auth/google` | The Google client an app must ask credentials for. 503 when Google sign-in is not set up |
+| `POST /v1/auth/google` | Trades a Google ID token (`credential`) for a token. Same account as the emailed code for that address; a new address becomes a new family, named from the Google account unless `name` is sent |
 | `POST /v1/auth/signout` | Ends this session |
 | `GET`, `PUT /v1/me` | The guardian, their children, unread notices; language and whether notices are emailed or pushed |
 | `DELETE /v1/me` | Erases the family and everything derived from it. Needs the email typed again |
@@ -52,7 +54,7 @@ Devices do not use a bearer token: they sign with the key burned into them.
 | Route | What it does |
 |---|---|
 | `POST /v1/families/{id}/children` | A child's profile. `grade` is `P1` to `P6` or `S1` to `S5` |
-| `GET`, `PUT`, `DELETE /v1/children/{id}` | Read, replace or erase a child and everything derived from them |
+| `GET`, `PUT`, `DELETE /v1/children/{id}` | Read, replace or erase a child and everything derived from them. `tutor_name` (1 to 20 letters, default `Capri`), `tutor_persona` (`calido`, `jugueton`, `aventurero` or `tranquilo`) and `tutor_persona_note` (one line, up to 200 characters; empty removes it) say how the tutor presents itself, and keep their value when left out |
 | `POST /v1/children/{id}/consents` | Grant or take back `voice`, `transcripts` or `memory` |
 | `GET /v1/children/{id}/skills` | What the child knows now, and what the model would work on next |
 | `POST /v1/children/{id}/attempts` | Answers reported by a guardian (the operator can also import past records) |
@@ -90,7 +92,7 @@ Devices do not use a bearer token: they sign with the key burned into them.
 
 | Route | What it does |
 |---|---|
-| `GET /v1/agent/session` | Marks the session as running; returns the student's profile and the plan as instructions |
+| `GET /v1/agent/session` | Marks the session as running; returns the student's profile and the plan as `instructions`, and `tutor` (`name`, `persona`, `note`): how the tutor presents itself to this child. The same three travel in the dispatch metadata as `tutor_name`, `tutor_persona`, `tutor_persona_note` |
 | `POST /v1/agent/session/turns` | Reports turns; returns guidance written since the last call |
 | `POST /v1/agent/session/flags` | Reports that a safety gate stopped a turn: the gate, what it did, fixed categories |
 | `POST /v1/agent/session/end` | Closes the session and queues its review |

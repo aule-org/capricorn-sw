@@ -7,6 +7,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::config::Config;
+use crate::google::{Google, IdentityProvider};
 use crate::llm::{Anthropic, Llm};
 use crate::mail::{Mailer, SmtpMailer};
 use crate::memory::{Embedder, HttpEmbedder};
@@ -24,6 +25,8 @@ pub struct AppState {
     pub mailer: Option<Arc<dyn Mailer>>,
     /// Without one, notices reach a guardian in the app and by email only.
     pub pusher: Option<Arc<dyn Pusher>>,
+    /// Without one, guardians sign in with an emailed code only.
+    pub google: Option<Arc<dyn IdentityProvider>>,
     /// Sessions the supervisor is reading right now, so a burst of turns
     /// starts one reading, not one per turn.
     pub watching: Arc<Mutex<HashSet<Uuid>>>,
@@ -61,6 +64,8 @@ impl AppState {
                 }
             }
         });
+        let google =
+            config.google_client_id.clone().map(|id| Arc::new(Google::new(id)) as Arc<dyn IdentityProvider>);
         Self {
             pool,
             config: Arc::new(config),
@@ -68,6 +73,7 @@ impl AppState {
             embedder,
             mailer,
             pusher,
+            google,
             watching: Arc::default(),
             claim_attempts: Arc::default(),
         }

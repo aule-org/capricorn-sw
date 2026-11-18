@@ -1,5 +1,6 @@
-// The playground page: asks the server for a room token, joins the room with
-// the microphone and the camera, and shows what the tutor is doing.
+// The playground page: lets the person check their camera and microphone,
+// asks the server for a room token, joins the room, and shows what the tutor
+// is doing.
 
 import { TOPIC as VISUAL_TOPIC, renderVisual } from "./visuals.js";
 
@@ -29,8 +30,14 @@ const ERRORS = {
 
 const $ = (id) => document.getElementById(id);
 const entry = $("entry");
+const lobby = $("lobby");
 const stage = $("stage");
 const message = $("message");
+
+// What the person chose before joining. Both start on.
+const wanted = { mic: true, cam: true };
+let preview = null;
+let meter = null;
 
 let room = null;
 let clock = null;
@@ -178,21 +185,104 @@ async function join(session) {
   setTutorState("waiting");
   tutorTimer = setTimeout(() => setTutorState("missing"), TUTOR_WAIT_MS);
   startClock(session.expiresInSeconds);
-  if (session.session_id) {
+  // The supervisor's plan is for the team. It stays off the screen unless the
+  // person asked for it, so a child never reads what the tutor is aiming at.
+  if (session.session_id && $("operator").checked) {
     showSupervisor(session.session_id);
     supervisorTimer = setInterval(() => showSupervisor(session.session_id), SUPERVISOR_POLL_MS);
   }
-  entry.hidden = true;
+  lobby.hidden = true;
   stage.hidden = false;
 
-  await room.localParticipant.setMicrophoneEnabled(true);
-  setToggle($("mic"), "Microphone", true);
+  await room.localParticipant.setMicrophoneEnabled(wanted.mic);
+  setToggle($("mic"), "Microphone", wanted.mic);
   try {
-    await room.localParticipant.setCameraEnabled(true);
+    await room.localParticipant.setCameraEnabled(wanted.cam);
   } catch {
     // No camera, or the person said no: the tutor still works by voice.
   }
   showCamera();
+}
+
+function stopPreview() {
+  cancelAnimationFrame(meter?.frame);
+  meter?.context.close().catch(() => undefined);
+  meter = null;
+  preview?.getTracks().forEach((track) => track.stop());
+  preview = null;
+  $("preview").srcObject = null;
+}
+
+function showPreview() {
+  const video = preview?.getVideoTracks()[0];
+  const audio = preview?.getAudioTracks()[0];
+  if (video) video.enabled = wanted.cam;
+  if (audio) audio.enabled = wanted.mic;
+  const seen = Boolean(video) && wanted.cam;
+  $("preview").hidden = !seen;
+  $("preview-off").hidden = seen;
+  $("level").hidden = !(audio && wanted.mic);
+  setToggle($("lobby-mic"), "Microphone", wanted.mic);
+  setToggle($("lobby-cam"), "Camera", wanted.cam);
+}
+
+// Moves a bar with the loudness of the microphone, so the person can tell it
+// hears them before they join.
+function startMeter(stream) {
+  const context = new AudioContext();
+  const analyser = context.createAnalyser();
+  analyser.fftSize = 512;
+  context.createMediaStreamSource(stream).connect(analyser);
+  const samples = new Uint8Array(analyser.fftSize);
+  const bar = $("level").firstElementChild;
+  meter = { context, frame: 0 };
+  const draw = () => {
+    analyser.getByteTimeDomainData(samples);
+    let peak = 0;
+    for (const sample of samples) peak = Math.max(peak, Math.abs(sample - 128));
+    bar.style.width = `${Math.min(100, Math.round((peak / 128) * 250))}%`;
+    if (meter) meter.frame = requestAnimationFrame(draw);
+  };
+  draw();
+}
+
+async function openLobby() {
+  wanted.mic = true;
+  wanted.cam = true;
+  $("lobby-note").textContent = "";
+  entry.hidden = true;
+  lobby.hidden = false;
+  // Joining waits until the devices have answered, so only one thing holds them.
+  $("join").disabled = true;
+  let usable = true;
+  try {
+    preview = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+  } catch {
+    // No camera, or only the camera was refused: try the microphone alone.
+    wanted.cam = false;
+    try {
+      preview = await navigator.mediaDevices.getUserMedia({ audio: true });
+      $("lobby-note").textContent = "No camera was found or allowed. You can still join by voice.";
+    } catch {
+      wanted.mic = false;
+      $("lobby-note").textContent =
+        "The browser blocked the microphone. Allow it in the address bar and go back to try again.";
+      usable = false;
+    }
+  }
+  if (lobby.hidden) return stopPreview();
+  $("join").disabled = !usable;
+  if (preview) {
+    $("preview").srcObject = preview;
+    if (preview.getAudioTracks().length) startMeter(preview);
+  }
+  showPreview();
+}
+
+function closeLobby() {
+  stopPreview();
+  lobby.hidden = true;
+  entry.hidden = false;
 }
 
 function leave(reason) {
@@ -208,15 +298,32 @@ function leave(reason) {
   $("board").replaceChildren();
   $("board").hidden = true;
   stage.hidden = true;
+  lobby.hidden = true;
   entry.hidden = false;
-  $("start").disabled = false;
   showMessage(reason ?? "");
 }
 
-entry.addEventListener("submit", async (event) => {
+entry.addEventListener("submit", (event) => {
   event.preventDefault();
   showMessage("");
-  $("start").disabled = true;
+  openLobby();
+});
+
+$("lobby-mic").addEventListener("click", () => {
+  wanted.mic = !wanted.mic;
+  showPreview();
+});
+
+$("lobby-cam").addEventListener("click", () => {
+  if (!preview?.getVideoTracks().length) return;
+  wanted.cam = !wanted.cam;
+  showPreview();
+});
+
+$("back").addEventListener("click", closeLobby);
+
+$("join").addEventListener("click", async () => {
+  $("join").disabled = true;
   $("transcript").replaceChildren();
   lines.clear();
   try {
@@ -229,6 +336,8 @@ entry.addEventListener("submit", async (event) => {
     if (!response.ok) {
       throw new Error(ERRORS[body.error] ?? body.message ?? "The session could not be started.");
     }
+    // The room opens the devices itself, with what was chosen here.
+    stopPreview();
     await join(body);
   } catch (error) {
     const text =
@@ -236,8 +345,10 @@ entry.addEventListener("submit", async (event) => {
         ? "The browser blocked the microphone. Allow it and start again."
         : (error?.message ?? "The session could not be started.");
     if (room) leave(text);
-    else showMessage(text);
-    $("start").disabled = false;
+    else {
+      closeLobby();
+      showMessage(text);
+    }
   }
 });
 

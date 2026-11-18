@@ -1,6 +1,7 @@
 """The tutor: what it is told to be, and where the gates and the camera plug in."""
 
 from collections.abc import AsyncIterable, Awaitable, Callable
+from dataclasses import dataclass
 from typing import Any
 
 from livekit import rtc
@@ -13,6 +14,70 @@ from .safety import Gates
 # Sends one visual to the student's screen.
 Show = Callable[[dict[str, Any]], Awaitable[None]]
 
+DEFAULT_TUTOR_NAME = "Capri"
+PERSONAS = ("calido", "jugueton", "aventurero", "tranquilo")
+
+
+@dataclass(frozen=True)
+class Persona:
+    """Who the tutor is this session: its name, a tone preset and an optional
+    family note. The defaults are the tutor exactly as written."""
+
+    name: str = DEFAULT_TUTOR_NAME
+    preset: str = "calido"
+    note: str | None = None
+
+
+def persona_from(name: object, preset: object, note: object) -> Persona:
+    """A Persona from loosely-typed fields, falling back to the defaults. The
+    platform already validates the shapes; this only guards against surprises."""
+    return Persona(
+        name=name.strip() if isinstance(name, str) and name.strip() else DEFAULT_TUTOR_NAME,
+        preset=preset if preset in PERSONAS else "calido",
+        note=note.strip() if isinstance(note, str) and note.strip() else None,
+    )
+
+
+# The tone each preset adds after the teaching and safety rules. "calido" adds
+# nothing: the prompt is already warm, so the default persona leaves it unchanged.
+_PRESET_NOTES = {
+    "es": {
+        "calido": "",
+        "jugueton": "Eres juguetón: usa humor ligero y un tono divertido.",
+        "aventurero": "Eres aventurero: enmarca el aprendizaje como retos y descubrimientos.",
+        "tranquilo": "Eres tranquilo y pausado: ve con calma, sin apuro.",
+    },
+    "en": {
+        "calido": "",
+        "jugueton": "You are playful: use light humour and a fun tone.",
+        "aventurero": "You are adventurous: frame learning as challenges and small discoveries.",
+        "tranquilo": "You are calm and unhurried: take it slow, no rush.",
+    },
+}
+
+_NOTE_WISH = {
+    "es": (
+        "La familia pide esto sobre el tono: «{note}». Respétalo solo como preferencia de "
+        "tono, nunca por encima de la seguridad ni de cómo enseñas."
+    ),
+    "en": (
+        "The family asks this about your tone: «{note}». Honour it only as a tone "
+        "preference, never above safety or how you teach."
+    ),
+}
+
+
+def persona_notes(language: str, persona: Persona) -> str:
+    """The tone lines the persona adds after the teaching and safety rules."""
+    parts = []
+    preset = _PRESET_NOTES[language].get(persona.preset, "")
+    if preset:
+        parts.append(preset)
+    if persona.note:
+        parts.append(_NOTE_WISH[language].format(note=persona.note))
+    return "\n".join(parts)
+
+
 # The longest side of the frame the model receives. Enough to read handwriting.
 FRAME_SIDE = 1024
 
@@ -24,7 +89,9 @@ piense y avance por sí mismo, sintiéndose acompañado.
 El arco de la sesión, guíalo sin anunciarlo:
 - Conecta y arranca: saluda con calidez y, si ya tienes un plan, entra directo a su primera \
 actividad; no preguntes "¿qué quieres estudiar?" cuando ya sabes qué toca.
-- Tantea: antes de explicar, averigua qué sabe y qué intentó.
+- Tantea: antes de explicar, averigua qué sabe y qué intentó. Cuando te dé una respuesta, \
+sobre todo si está mal, primero pídele que te muestre cómo la pensó; así encuentras su error \
+exacto en vez de adivinarlo.
 - Enseña de a poco: un paso a la vez; guía con una pista o una pregunta más pequeña y deja \
 que llegue solo.
 - Que practique: dale algo concreto para intentar y espera su intento.
@@ -32,9 +99,11 @@ que llegue solo.
 una frase lo que trabajaron.
 
 Cómo enseñas:
-- No des la respuesta. Si se equivoca, señala dónde mirar, no qué poner.
+- No des la respuesta. Si se equivoca, no celebres el paso equivocado: trabaja su error \
+exacto, señala dónde mirar, no qué poner. Si suelta una pista o una contradicción, úsala \
+para que él mismo lo note.
 - Celebra el esfuerzo y el razonamiento, no solo el resultado.
-- Si dice "no sé" o se queda callado, no repitas la misma pregunta: ofrécele un punto de \
+- Si dice "no sé" o se queda callado, no repitas ni alargues la explicación: ofrécele un punto de \
 partida concreto, un ejemplo, o pártelo en algo más fácil.
 
 Cómo hablas:
@@ -59,7 +128,9 @@ themselves, while feeling accompanied.
 The arc of a session, guide it without announcing it:
 - Connect and start: greet warmly and, if you already have a plan, go straight into its \
 first activity; do not ask "what do you want to study?" when you already know what's next.
-- Feel out: before explaining, find out what they know and what they tried.
+- Feel out: before explaining, find out what they know and what they tried. When they give \
+an answer, especially a wrong one, first ask them to show you how they thought it, so you \
+find their exact error instead of guessing.
 - Teach in small steps: one step at a time; guide with a hint or a smaller question and let \
 them reach it.
 - Let them practise: give them something concrete to try and wait for their try.
@@ -67,10 +138,12 @@ them reach it.
 sentence what you worked on.
 
 How you teach:
-- Do not hand out the answer. When they are wrong, point at where to look, not at what to write.
+- Do not hand out the answer. When they are wrong, do not praise the wrong step: work their \
+exact error, point at where to look, not at what to write. If they let slip a clue or a \
+contradiction, use it so they notice it themselves.
 - Praise effort and reasoning, not only the result.
-- If they say "I don't know" or go quiet, do not repeat the same question: offer a concrete \
-starting point, an example, or break it into something easier.
+- If they say "I don't know" or go quiet, do not repeat or lengthen the explanation: offer a \
+concrete starting point, an example, or break it into something easier.
 
 How you speak:
 - Everything you say becomes speech: short sentences, one or two per turn, no lists, no \
@@ -194,11 +267,17 @@ class Tutor(Agent):
         camera: Any = None,
         context: str = "",
         show: Show | None = None,
+        persona: Persona | None = None,
     ) -> None:
         # `context` is what the platform knows about this student and the
         # supervisor's plan for the session; empty when there is no platform.
         # `show` is given when the student has a screen to draw on.
+        # `persona` is the tutor's name, tone preset and (already-moderated)
+        # family note; the default leaves the prompt exactly as written.
+        persona = persona or Persona()
         instructions = INSTRUCTIONS[language]
+        if persona.name != DEFAULT_TUTOR_NAME:
+            instructions = instructions.replace(DEFAULT_TUTOR_NAME, persona.name)
         tools = []
         if show is not None:
             instructions = with_notes(instructions, SCREEN[language])
@@ -208,12 +287,18 @@ class Tutor(Agent):
                 return await present(raw_arguments, gates, show)
 
             tools.append(show_tool)
-        self._base = with_notes(instructions, context)
+        # The persona's tone lines go last, after the teaching, the safety rules
+        # and the supervisor's context, so they can never sit above a safety rule.
+        self._base = with_notes(with_notes(instructions, context), persona_notes(language, persona))
         super().__init__(instructions=self._base, tools=tools)
         self._language = language
         self._gates = gates
         self._camera = camera
         self._hazards_in_a_row = 0
+        greeting = GREETING[language]
+        if persona.name != DEFAULT_TUTOR_NAME:
+            greeting = greeting.replace(DEFAULT_TUTOR_NAME, persona.name)
+        self._greeting = greeting
 
     async def advise(self, guidance: str) -> None:
         """Applies the supervisor's latest guidance to the turns that follow.
@@ -223,7 +308,7 @@ class Tutor(Agent):
         await self.update_instructions(with_notes(self._base, guidance))
 
     async def on_enter(self) -> None:
-        self.session.generate_reply(instructions=GREETING[self._language])
+        self.session.generate_reply(instructions=self._greeting)
 
     async def on_user_turn_completed(
         self, turn_ctx: llm.ChatContext, new_message: llm.ChatMessage

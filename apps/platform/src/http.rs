@@ -39,6 +39,7 @@ pub fn router(state: AppState) -> Router {
         // Guardians: sign-in, their account, their notices
         .route("/v1/auth/start", post(signin::start))
         .route("/v1/auth/verify", post(signin::verify))
+        .route("/v1/auth/google", get(signin::google_client).post(signin::google))
         .route("/v1/auth/signout", post(signin::sign_out))
         .route("/v1/me", get(signin::me).put(signin::update_me).delete(signin::erase_family))
         .route("/v1/notices", get(notices::list))

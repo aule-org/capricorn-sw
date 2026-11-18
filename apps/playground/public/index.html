@@ -26,11 +26,33 @@
             <option value="en">English</option>
           </select>
         </label>
-        <button type="submit" id="start">Start session</button>
+        <label class="check">
+          <input id="operator" type="checkbox" />
+          Show the supervisor's plan and notes (team only, not for a child's screen)
+        </label>
+        <button type="submit" id="start">Continue</button>
         <p class="note">
           For adults on the team only. Audio and video are processed to answer and are not stored.
         </p>
       </form>
+
+      <section id="lobby" hidden aria-labelledby="lobby-title">
+        <h2 id="lobby-title">Ready to join?</h2>
+        <div class="tile preview">
+          <video id="preview" autoplay muted playsinline></video>
+          <p id="preview-off" class="tile-empty" hidden>Camera off</p>
+          <div id="level" class="level" role="img" aria-label="Microphone level"><span></span></div>
+        </div>
+        <div class="controls big">
+          <button type="button" id="lobby-mic" aria-pressed="true">Microphone on</button>
+          <button type="button" id="lobby-cam" aria-pressed="true">Camera on</button>
+        </div>
+        <p id="lobby-note" class="note" role="status"></p>
+        <div class="controls">
+          <button type="button" id="join" class="primary">Join now</button>
+          <button type="button" id="back">Back</button>
+        </div>
+      </section>
 
       <section id="stage" hidden>
         <div class="tiles">

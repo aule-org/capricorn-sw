@@ -22,6 +22,9 @@ pub struct Config {
     pub events_webhook: Option<EventsWebhook>,
     /// Path of the Firebase service account key, for push notifications.
     pub fcm_service_account: Option<String>,
+    /// The Google client that guardians' sign-ins must have been issued for.
+    /// Without one, the emailed code is the only way in.
+    pub google_client_id: Option<String>,
     /// Minutes east of UTC that devices are told, for their clock.
     pub timezone_offset_minutes: i32,
 }
@@ -203,6 +206,11 @@ impl Config {
             }
         };
 
+        let google_client_id = get("CAPRICORN_GOOGLE_CLIENT_ID").map(str::to_string);
+        if google_client_id.as_deref().is_some_and(|id| !crate::google::is_client_id(id)) {
+            problems.push("CAPRICORN_GOOGLE_CLIENT_ID must end in .apps.googleusercontent.com".into());
+        }
+
         if !problems.is_empty() {
             return Err(ConfigError(problems.join("; ")));
         }
@@ -219,6 +227,7 @@ impl Config {
             mail,
             events_webhook,
             fcm_service_account: get("CAPRICORN_FCM_SERVICE_ACCOUNT").map(str::to_string),
+            google_client_id,
             timezone_offset_minutes,
         })
     }

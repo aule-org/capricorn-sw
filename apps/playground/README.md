@@ -17,7 +17,7 @@ When the tutor shows something (an exercise, fraction bars, a number line...), t
 | `PLAYGROUND_BASE_PATH` | Default `/playground` |
 | `PLAYGROUND_SESSION_MINUTES` | How long a token lasts. Default 20 |
 | `CAPRICORN_AGENT_NAME` | The agent to ask for. Default `capricorn-tutor` |
-| `CAPRICORN_PLATFORM_URL`, `CAPRICORN_ADMIN_TOKEN` | Optional. With them, sessions are created by the [platform](../platform/README.md): the supervisor plans and follows them, and the page shows its plan and guidance |
+| `CAPRICORN_PLATFORM_URL`, `CAPRICORN_ADMIN_TOKEN` | Optional. With them, sessions are created by the [platform](../platform/README.md): the supervisor plans and follows them. The page shows its plan and guidance only when the person ticks the box for it on the first screen, so it is never on a child's screen by default |
 | `PLAYGROUND_CHILD_ID` | Optional, with a platform: a child profile to try the tutor with. Its guardian must have consented to `voice` |
 
 Put it behind a reverse proxy with HTTPS: browsers only give the microphone and the camera to secure pages.

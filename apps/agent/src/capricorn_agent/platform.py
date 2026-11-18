@@ -21,6 +21,7 @@ from typing import Any
 import aiohttp
 
 from .safety import FLAG_ACTIONS, FLAG_CATEGORIES, FLAG_GATES
+from .tutor import Persona, persona_from
 
 logger = logging.getLogger("capricorn.agent.platform")
 
@@ -73,6 +74,8 @@ class Platform:
     ) -> None:
         self._session = session
         self._send = send or self._http
+        # Filled by ``start`` from the agent-session body; the tutor's persona.
+        self.persona: Persona | None = None
         self._clock = clock
         self._flagged_at: dict[tuple[str, str, str], float] = {}
         self._flags: set[asyncio.Task[None]] = set()
@@ -117,8 +120,11 @@ class Platform:
 
     async def start(self) -> str:
         """What the tutor should know before it says hello. Empty if unknown."""
-        answer = await self._call("GET", "/v1/agent/session", None, START_TIMEOUT_SECONDS)
-        instructions = (answer or {}).get("instructions")
+        answer = (await self._call("GET", "/v1/agent/session", None, START_TIMEOUT_SECONDS)) or {}
+        tutor = answer.get("tutor")
+        if isinstance(tutor, dict):
+            self.persona = persona_from(tutor.get("name"), tutor.get("persona"), tutor.get("note"))
+        instructions = answer.get("instructions")
         return instructions if isinstance(instructions, str) else ""
 
     def heard(self, role: str, text: str | None) -> None:

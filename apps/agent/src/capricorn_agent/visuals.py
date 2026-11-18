@@ -23,8 +23,10 @@ DESCRIPTION = (
     "was on the screen. Never show the answer to what you are asking, and do not draw the "
     "part of a diagram that gives it away (for 8 + 6 on a number line, mark 8 only). Choose a "
     "kind and give "
-    "what it needs: exercise needs lines; fraction_bars needs fractions; number_line needs "
+    "what it needs: exercise needs lines; fraction_bars and fraction_circle (a pie) need "
+    "fractions; number_line needs "
     "from, to and step (marks and jumps are optional); dot_array needs rows and columns; "
+    "counters needs groups (each a count and a fill, solid or open, for a bag of things); "
     "table needs headers and cells; bar_chart needs bars; rectangle needs width and height. "
     "title is optional for every kind."
 )

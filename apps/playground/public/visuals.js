@@ -32,13 +32,72 @@ const line = (x1, y1, x2, y2, width = 2) =>
 const rect = (x, y, w, h, fill = "none") =>
   `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" stroke="${INK}" stroke-width="2"/>`;
 
+// A tight a/b token like 3/4 is a fraction to stack. A division written with
+// spaces ("12 / 4") keeps its slash and stays plain text, so the two read apart.
+const FRACTION = /(\d+)\/(\d+)/g;
+
+// A line split into runs: plain text, and {num, den} fractions, left to right.
+function runs(raw) {
+  const parts = [];
+  let last = 0;
+  for (const match of raw.matchAll(FRACTION)) {
+    if (match.index > last) parts.push({ text: raw.slice(last, match.index) });
+    parts.push({ num: match[1], den: match[2] });
+    last = match.index + match[0].length;
+  }
+  if (last < raw.length) parts.push({ text: raw.slice(last) });
+  return parts.length ? parts : [{ text: raw }];
+}
+
+// Numerator and denominator are a little smaller than the surrounding text.
+const DIGIT = 0.78;
+
+// How wide a run is at a given size. A stacked fraction is as wide as its taller
+// column of digits plus a little air; it is also taller than a line of text,
+// which the caller leaves vertical room for.
+function runWidth(run, size) {
+  if (run.text !== undefined) return run.text.length * size * GLYPH;
+  return Math.max(run.num.length, run.den.length) * size * DIGIT * GLYPH + size * 0.5;
+}
+
+// Draws a line of text with any a/b written as a stacked fraction, the whole
+// line centred on x with its text baseline at y.
+function inlineMath(x, y, raw, size) {
+  const parts = runs(raw);
+  let left = x - parts.reduce((sum, run) => sum + runWidth(run, size), 0) / 2;
+  let out = "";
+  for (const run of parts) {
+    const w = runWidth(run, size);
+    if (run.text !== undefined) {
+      out += `<text x="${left}" y="${y}" font-size="${size}" font-weight="600" text-anchor="start">${escape(run.text)}</text>`;
+    } else {
+      const cx = left + w / 2;
+      const small = Math.round(size * DIGIT * 10) / 10;
+      const bar = y - size * 0.3;
+      const half = (w - size * 0.5) / 2;
+      out +=
+        `<text x="${cx}" y="${bar - size * 0.12}" font-size="${small}" font-weight="600" text-anchor="middle">${escape(run.num)}</text>` +
+        line(cx - half, bar, cx + half, bar, 2) +
+        `<text x="${cx}" y="${bar + small * 0.95}" font-size="${small}" font-weight="600" text-anchor="middle">${escape(run.den)}</text>`;
+    }
+    left += w;
+  }
+  return out;
+}
+
 function exercise(v, top) {
   const lines = v.lines;
-  const longest = lines.reduce((a, b) => (b.length > a.length ? b : a));
-  const size = fitted(longest, lines.length <= 2 ? 44 : lines.length <= 4 ? 32 : 26, W - 40);
-  const gap = size * 1.5;
+  const base = lines.length <= 2 ? 44 : lines.length <= 4 ? 32 : 26;
+  // One size for every line, shrunk until the widest fits — stacked fractions
+  // measured too — so the statement reads as one block and nothing is cut off.
+  const widest = Math.max(
+    ...lines.map((raw) => runs(raw).reduce((sum, run) => sum + runWidth(run, base), 0)),
+    1,
+  );
+  const size = Math.round(Math.min(base, (base * (W - 40)) / widest) * 10) / 10;
+  const gap = size * 1.6;
   const first = top + (H - top - gap * (lines.length - 1)) / 2;
-  return lines.map((value, i) => text(W / 2, first + i * gap, value, { size, weight: 600 })).join("");
+  return lines.map((raw, i) => inlineMath(W / 2, first + i * gap, raw, size)).join("");
 }
 
 function fractionBars(v, top) {
@@ -65,6 +124,40 @@ function fractionBars(v, top) {
       cells += rect(left, y, width, height);
       const label = fraction.label ?? `${fraction.numerator}/${fraction.denominator}`;
       return cells + text(left + width + 20, y + height / 2 + 8, label, { size: 24, anchor: "start", weight: 600, room: W - left - width - 30 });
+    })
+    .join("");
+}
+
+function fractionCircle(v, top) {
+  // Same fractions as fraction_bars, drawn as pie slices: a circle cut into the
+  // denominator, the numerator shaded solid and the rest left open. Black on
+  // white, so a shaded slice reads on the e-ink screen.
+  const items = v.fractions;
+  const slot = (W - 40) / items.length;
+  const radius = Math.min(slot * 0.34, (H - top - 56) * 0.46);
+  const cy = top + (H - top) / 2 - 8;
+  return items
+    .map((fraction, i) => {
+      const cx = 20 + slot * i + slot / 2;
+      const parts = fraction.denominator;
+      const shaded = Math.min(fraction.numerator, parts);
+      let out = "";
+      if (parts === 1) {
+        out += `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="${shaded >= 1 ? INK : "#fff"}" stroke="${INK}" stroke-width="2"/>`;
+      } else {
+        for (let k = 0; k < parts; k += 1) {
+          const a0 = -Math.PI / 2 + (k / parts) * 2 * Math.PI;
+          const a1 = -Math.PI / 2 + ((k + 1) / parts) * 2 * Math.PI;
+          const x0 = cx + radius * Math.cos(a0);
+          const y0 = cy + radius * Math.sin(a0);
+          const x1 = cx + radius * Math.cos(a1);
+          const y1 = cy + radius * Math.sin(a1);
+          const large = a1 - a0 > Math.PI ? 1 : 0;
+          out += `<path d="M ${cx} ${cy} L ${show(x0)} ${show(y0)} A ${radius} ${radius} 0 ${large} 1 ${show(x1)} ${show(y1)} Z" fill="${k < shaded ? INK : "#fff"}" stroke="${INK}" stroke-width="2"/>`;
+        }
+      }
+      const label = fraction.label ?? `${fraction.numerator}/${fraction.denominator}`;
+      return out + text(cx, cy + radius + 28, label, { size: 22, weight: 600, room: slot - 8 });
     })
     .join("");
 }
@@ -107,6 +200,46 @@ function dotArray(v, top) {
     for (let c = 0; c < v.columns; c += 1) {
       out += `<circle cx="${left + c * cell + cell / 2}" cy="${first + r * cell + cell / 2}" r="${cell * 0.32}" fill="${INK}"/>`;
     }
+  }
+  return out;
+}
+
+function counters(v, top) {
+  const labelled = v.groups.some((group) => group.label);
+  const gap = 28; // blank space between one group and the next
+  const area = { width: W - 60, height: H - top - (labelled ? 52 : 24) };
+  // Each group is laid out as a near-square block of counters.
+  const blocks = v.groups.map((group) => {
+    const columns = Math.max(1, Math.round(Math.sqrt(group.count)));
+    return { ...group, columns, rows: Math.ceil(group.count / columns) };
+  });
+  const columns = blocks.reduce((sum, block) => sum + block.columns, 0);
+  const rows = Math.max(...blocks.map((block) => block.rows));
+  const cell = Math.min((area.width - gap * (blocks.length - 1)) / columns, area.height / rows, 64);
+  const radius = cell * 0.36;
+  const width = blocks.reduce((sum, block) => sum + block.columns * cell, 0) + gap * (blocks.length - 1);
+  const firstRow = top + (area.height - rows * cell) / 2 + 6;
+  let left = (W - width) / 2;
+  let out = "";
+  for (const block of blocks) {
+    for (let i = 0; i < block.count; i += 1) {
+      const cx = left + (i % block.columns) * cell + cell / 2;
+      const cy = firstRow + Math.floor(i / block.columns) * cell + cell / 2;
+      // Open counters are an outline, solid ones are filled: the same drawing
+      // tells two kinds apart on a black-on-white screen, without colour.
+      out +=
+        block.fill === "open"
+          ? `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="#fff" stroke="${INK}" stroke-width="2"/>`
+          : `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="${INK}"/>`;
+    }
+    if (block.label) {
+      out += text(left + (block.columns * cell) / 2, firstRow + rows * cell + 26, block.label, {
+        size: 18,
+        weight: 600,
+        room: block.columns * cell + gap,
+      });
+    }
+    left += block.columns * cell + gap;
   }
   return out;
 }
@@ -175,8 +308,10 @@ function rectangle(v, top) {
 const KINDS = {
   exercise,
   fraction_bars: fractionBars,
+  fraction_circle: fractionCircle,
   number_line: numberLine,
   dot_array: dotArray,
+  counters,
   table,
   bar_chart: barChart,
   rectangle,

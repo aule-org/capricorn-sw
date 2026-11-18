@@ -20,7 +20,7 @@ test("every example in the contract can be drawn", () => {
 });
 
 test("the drawing uses black on white only", () => {
-  for (const name of ["fraction_bars", "bar_chart", "number_line"]) {
+  for (const name of ["fraction_bars", "fraction_circle", "bar_chart", "number_line", "counters"]) {
     const colours = new Set(renderVisual(example(name)).match(/#[0-9a-f]{3,6}\b/gi));
     assert.deepEqual([...colours].sort(), ["#111", "#fff"], name);
   }
@@ -36,9 +36,49 @@ test("a fraction bar has one part per denominator and shades the numerator", () 
   assert.match(svg, />3\/8</);
 });
 
+test("a fraction circle cuts the denominator into slices and shades the numerator", () => {
+  const svg = renderVisual({ kind: "fraction_circle", fractions: [{ numerator: 3, denominator: 4 }] });
+
+  assert.equal(count(svg, "path") - 1, 4, "four slices, plus the arrow head's own path");
+  assert.equal((svg.match(/<path [^>]*fill="#111" stroke="#111"/g) || []).length, 3, "three shaded slices");
+  assert.ok(svg.includes('fill="#fff" stroke="#111"'), "an unshaded slice");
+  assert.match(svg, />3\/4</);
+
+  // A whole (denominator 1) is a single circle, filled when the numerator is 1.
+  const whole = renderVisual({ kind: "fraction_circle", fractions: [{ numerator: 1, denominator: 1 }] });
+  assert.equal(count(whole, "circle"), 1);
+});
+
 test("an array draws rows times columns dots", () => {
   assert.equal(count(renderVisual({ kind: "dot_array", rows: 3, columns: 4 }), "circle"), 12);
   assert.equal(count(renderVisual({ kind: "dot_array", rows: 12, columns: 12 }), "circle"), 144);
+});
+
+test("an exercise stacks a tight fraction and leaves a spaced division as text", () => {
+  const stacked = renderVisual({ kind: "exercise", lines: ["3/4 + 1/4 = ?"] });
+  assert.ok(!stacked.includes("3/4"), "no literal slash fraction");
+  assert.ok(stacked.includes(">3<") && stacked.includes(">4<"), "numerator and denominator drawn apart");
+  assert.ok(count(stacked, "line") >= 2, "a dividing bar per fraction");
+  assert.ok(stacked.includes("> + <"), "the operators stay as text");
+
+  const division = renderVisual({ kind: "exercise", lines: ["12 / 4 = ?"] });
+  assert.ok(division.includes("12 / 4 = ?"), "a spaced division keeps its slash");
+  assert.equal(count(division, "line"), 0, "and draws no fraction bar");
+});
+
+test("counters draw each group with its own fill and label", () => {
+  const svg = renderVisual({
+    kind: "counters",
+    groups: [
+      { count: 5, fill: "solid", label: "rojas" },
+      { count: 1, fill: "open", label: "azul" },
+    ],
+  });
+
+  assert.equal(count(svg, "circle"), 6, "one circle per counter");
+  assert.equal((svg.match(/<circle[^>]*fill="#111"\/>/g) || []).length, 5, "five solid");
+  assert.equal((svg.match(/<circle[^>]*stroke="#111"[^>]*\/>/g) || []).length, 1, "one open outline");
+  assert.ok(svg.includes(">rojas<") && svg.includes(">azul<"), "each group is named");
 });
 
 test("a number line labels its ticks, marks points and draws jumps", () => {
