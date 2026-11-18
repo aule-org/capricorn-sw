@@ -78,6 +78,13 @@ def test_assemblyai_speaks_with_the_key_it_also_hears_with():
     assert settings.tts == "assemblyai"
 
 
+def test_push_to_talk_is_off_unless_turned_on():
+    assert Settings.from_env(COMPLETE).push_to_talk is False
+    assert Settings.from_env({**COMPLETE, "CAPRICORN_PUSH_TO_TALK": "1"}).push_to_talk is True
+    assert Settings.from_env({**COMPLETE, "CAPRICORN_PUSH_TO_TALK": "true"}).push_to_talk is True
+    assert Settings.from_env({**COMPLETE, "CAPRICORN_PUSH_TO_TALK": "no"}).push_to_talk is False
+
+
 def test_the_moderation_key_is_also_the_speech_key_when_openai_speaks():
     settings = Settings.from_env({**COMPLETE, "CAPRICORN_TTS": "openai", "OPENAI_API_KEY": "sk"})
 

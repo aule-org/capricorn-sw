@@ -45,6 +45,8 @@ class Settings:
     llm_model: str
     language: str
     session_max_minutes: int
+    # Device turn-taking: the talk button drives turns, the VAD does not.
+    push_to_talk: bool
     # Kept out of the repr so a logged Settings never shows a key.
     openai_api_key: str | None = field(default=None, repr=False)
     typesafe_api_key: str | None = field(default=None, repr=False)
@@ -94,6 +96,8 @@ class Settings:
         if not 1 <= minutes <= 120:
             problems.append("CAPRICORN_SESSION_MAX_MINUTES must be a whole number from 1 to 120")
 
+        push_to_talk = get("CAPRICORN_PUSH_TO_TALK").lower() in ("1", "true", "yes", "on")
+
         if problems:
             raise ConfigError("; ".join(problems))
 
@@ -105,6 +109,7 @@ class Settings:
             llm_model=get("CAPRICORN_LLM_MODEL", "claude-sonnet-5-5"),
             language=language,
             session_max_minutes=minutes,
+            push_to_talk=push_to_talk,
             openai_api_key=get(MODERATION_KEY) or None,
             typesafe_api_key=get(PHYSICAL_SAFETY_KEY) or None,
         )
