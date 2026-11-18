@@ -13,7 +13,7 @@ test("every example in the contract can be drawn", () => {
   assert.ok(names.length >= 7);
   for (const name of names) {
     const svg = renderVisual(example(name));
-    assert.match(svg, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 640 360"/, name);
+    assert.match(svg, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 800 480"/, name);
     assert.match(svg, /<\/svg>$/, name);
     assert.doesNotMatch(svg, /NaN|undefined|Infinity/, name);
   }
@@ -131,7 +131,7 @@ test("long text is made smaller until it fits, never cut", () => {
     { kind: "table", headers: ["h".repeat(24), "b"], cells: [["c".repeat(24), "1"]] },
     { kind: "bar_chart", bars: Array.from({ length: 8 }, (_, i) => ({ label: "l".repeat(16), value: i })) },
   ];
-  for (const visual of cases) assert.ok(widest(renderVisual(visual)) <= 640, visual.kind);
+  for (const visual of cases) assert.ok(widest(renderVisual(visual)) <= 800, visual.kind);
 
   // Lines of one exercise share a size, so the statement reads as one block.
   const sizes = [...renderVisual({ kind: "exercise", lines: [long, "Sacas una sin mirar."] }).matchAll(/font-size="([\d.]+)" font-weight="600"/g)].map((m) => m[1]);
