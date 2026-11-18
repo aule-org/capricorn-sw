@@ -14,10 +14,11 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use sqlx::PgPool;
+use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
 
 use crate::config::Embeddings;
+use crate::families::current_consent;
 
 /// The size of `memories.embedding`. Changing the model to one of another size
 /// needs a migration and re-embedding.
@@ -128,6 +129,27 @@ impl NewMemory {
     }
 }
 
+async fn storage_allowed(
+    connection: &mut PgConnection,
+    child_id: Uuid,
+    session_id: Option<Uuid>,
+) -> Result<bool, sqlx::Error> {
+    if !current_consent(&mut *connection, child_id).await?["memory"] {
+        return Ok(false);
+    }
+    match session_id {
+        Some(session_id) => Ok(sqlx::query_scalar::<_, bool>(
+            "select use_memory from sessions where id = $1 and child_id = $2",
+        )
+        .bind(session_id)
+        .bind(child_id)
+        .fetch_optional(connection)
+        .await?
+        .unwrap_or(false)),
+        None => Ok(true),
+    }
+}
+
 /// Stores the memories of a session and returns how many were new. A memory
 /// that repeats one the child already has is skipped.
 pub async fn remember(
@@ -138,6 +160,15 @@ pub async fn remember(
     memories: &[NewMemory],
 ) -> Result<usize, MemoryError> {
     let memories: Vec<NewMemory> = memories.iter().filter_map(NewMemory::cleaned).collect();
+    if memories.is_empty() {
+        return Ok(0);
+    }
+    {
+        let mut connection = pool.acquire().await?;
+        if !storage_allowed(&mut connection, child_id, session_id).await? {
+            return Ok(0);
+        }
+    }
     let embeddings = match embedder {
         Some(embedder) => {
             let texts: Vec<String> = memories.iter().map(|memory| memory.content.clone()).collect();
@@ -146,6 +177,16 @@ pub async fn remember(
         None => None,
     };
 
+    // Never hold the child lock while waiting for the embedding provider.
+    // Recheck after it returns, serialized with consent changes.
+    let mut tx = pool.begin().await?;
+    let child = sqlx::query_scalar::<_, Uuid>("select id from children where id = $1 for update")
+        .bind(child_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+    if child.is_none() || !storage_allowed(&mut tx, child_id, session_id).await? {
+        return Ok(0);
+    }
     let mut stored = 0;
     for (index, memory) in memories.iter().enumerate() {
         let vector = embeddings.as_ref().map(|all| vector_literal(&all[index]));
@@ -155,7 +196,7 @@ pub async fn remember(
             )
             .bind(child_id)
             .bind(vector)
-            .fetch_one(pool)
+            .fetch_one(&mut *tx)
             .await?;
             if nearest.is_some_and(|distance| distance < SAME_MEMORY_DISTANCE) {
                 continue;
@@ -171,10 +212,11 @@ pub async fn remember(
         .bind(&memory.kind)
         .bind(&memory.content)
         .bind(vector)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
         stored += 1;
     }
+    tx.commit().await?;
     Ok(stored)
 }
 

@@ -8,7 +8,7 @@ use axum::http::StatusCode;
 use chrono::{DateTime, Datelike, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use sqlx::PgPool;
+use sqlx::{PgExecutor, PgPool};
 use uuid::Uuid;
 
 use crate::auth::{Caller, Input, Operator};
@@ -265,13 +265,16 @@ pub async fn delete_child(
 }
 
 /// The latest answer for each purpose. A purpose never answered is not granted.
-pub async fn current_consent(pool: &PgPool, child_id: Uuid) -> Result<BTreeMap<String, bool>, sqlx::Error> {
+pub async fn current_consent<'a>(
+    executor: impl PgExecutor<'a>,
+    child_id: Uuid,
+) -> Result<BTreeMap<String, bool>, sqlx::Error> {
     let rows: Vec<(String, bool)> = sqlx::query_as(
         "select distinct on (purpose) purpose, granted from consent_records
          where child_id = $1 order by purpose, created_at desc, id desc",
     )
     .bind(child_id)
-    .fetch_all(pool)
+    .fetch_all(executor)
     .await?;
     let mut consent: BTreeMap<String, bool> =
         PURPOSES.iter().map(|purpose| (purpose.to_string(), false)).collect();
@@ -322,9 +325,17 @@ pub async fn record_consent(
                 .await?;
         belongs.ok_or(ApiError::Forbidden("that guardian is not in the child's family"))?;
     }
+    let mut tx = state.pool.begin().await?;
+    // Session creation and memory writes take the same lock. Revocation must
+    // either remove a completed write or prevent a later one.
+    sqlx::query_scalar::<_, Uuid>("select id from children where id = $1 for update")
+        .bind(child_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(ApiError::NotFound("child"))?;
     sqlx::query(
-        "insert into consent_records (id, family_id, child_id, guardian_id, purpose, granted, policy_version, locale, source)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+        "insert into consent_records (id, family_id, child_id, guardian_id, purpose, granted, policy_version, locale, source, created_at)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, clock_timestamp())",
     )
     .bind(Uuid::now_v7())
     .bind(child.family_id)
@@ -335,30 +346,39 @@ pub async fn record_consent(
     .bind(text(&body.policy_version, "policy_version", 40)?)
     .bind(body.locale.as_deref().map(|locale| text(locale, "locale", 20)).transpose()?.unwrap_or_else(|| "es-PE".into()))
     .bind(source)
-    .execute(&state.pool)
+    .execute(&mut *tx)
     .await?;
 
     // Taking consent back takes the data back too.
     if !body.granted {
         match body.purpose.as_str() {
             "memory" => {
+                sqlx::query("update sessions set use_memory = false where child_id = $1")
+                    .bind(child_id)
+                    .execute(&mut *tx)
+                    .await?;
                 sqlx::query("delete from memories where child_id = $1")
                     .bind(child_id)
-                    .execute(&state.pool)
+                    .execute(&mut *tx)
                     .await?;
             }
             "transcripts" => {
+                sqlx::query("update sessions set keep_transcript = false where child_id = $1")
+                    .bind(child_id)
+                    .execute(&mut *tx)
+                    .await?;
                 sqlx::query(
                     "delete from session_turns using sessions
                      where session_turns.session_id = sessions.id and sessions.child_id = $1 and sessions.status = 'ended'",
                 )
                 .bind(child_id)
-                .execute(&state.pool)
+                .execute(&mut *tx)
                 .await?;
             }
             _ => {}
         }
     }
-    let consent = current_consent(&state.pool, child_id).await?;
+    let consent = current_consent(&mut *tx, child_id).await?;
+    tx.commit().await?;
     Ok((StatusCode::CREATED, Json(json!({ "consent": consent }))))
 }

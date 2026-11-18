@@ -13,7 +13,7 @@ use base64::Engine;
 use capricorn_platform::config::{Config, EventsWebhook, LiveKit};
 use capricorn_platform::llm::{Llm, LlmError, Request as LlmRequest};
 use capricorn_platform::mail::{MailError, Mailer};
-use capricorn_platform::memory::{DIMENSIONS, Embedder, MemoryError};
+use capricorn_platform::memory::{DIMENSIONS, Embedder, MemoryError, NewMemory};
 use capricorn_platform::push::{Delivery, Push, PushError, Pusher};
 use capricorn_platform::state::AppState;
 use capricorn_platform::{events, http, jobs};
@@ -615,6 +615,105 @@ async fn taking_consent_back_and_erasing_a_child_remove_their_data(pool: PgPool)
 }
 
 type OutboxRow = (uuid::Uuid, String, Option<String>, Value, chrono::DateTime<chrono::Utc>);
+
+#[sqlx::test(migrator = "capricorn_platform::MIGRATOR")]
+async fn queued_review_does_not_restore_revoked_memories(pool: PgPool) {
+    let app = app(pool);
+    let child = app.child().await;
+    for purpose in ["voice", "memory"] {
+        app.consent(&child, purpose, true).await;
+    }
+    let (_, token) = app.session(&child).await;
+    app.call(
+        Method::POST,
+        "/v1/agent/session/turns",
+        Some(&token),
+        Some(json!({ "turns": [{ "seq": 0, "role": "child", "content": "Hola" }] })),
+    )
+    .await;
+    app.call(Method::POST, "/v1/agent/session/end", Some(&token), Some(json!({}))).await;
+    eventually("guidance settled", || async { app.state.watching.lock().unwrap().is_empty() }).await;
+
+    app.consent(&child, "memory", false).await;
+    app.consent(&child, "memory", true).await;
+    assert!(jobs::work_once(&app.state).await.unwrap());
+    assert_eq!(app.count("select count(*) from memories").await, 0);
+    assert_eq!(app.count("select count(*) from sessions where use_memory").await, 0);
+}
+
+/// Lets consent change while a memory is being embedded.
+struct BlockedEmbedder {
+    started: Arc<tokio::sync::Notify>,
+    release: Arc<tokio::sync::Notify>,
+}
+
+#[async_trait]
+impl Embedder for BlockedEmbedder {
+    async fn embed(&self, texts: &[String]) -> Result<Vec<Vec<f32>>, MemoryError> {
+        self.started.notify_one();
+        self.release.notified().await;
+        WordEmbedder.embed(texts).await
+    }
+}
+
+#[sqlx::test(migrator = "capricorn_platform::MIGRATOR")]
+async fn revoking_memory_while_embedding_prevents_the_late_write(pool: PgPool) {
+    let app = app(pool.clone());
+    let child = app.child().await;
+    for purpose in ["voice", "memory"] {
+        app.consent(&child, purpose, true).await;
+    }
+    let (session, _) = app.session(&child).await;
+    let started = Arc::new(tokio::sync::Notify::new());
+    let release = Arc::new(tokio::sync::Notify::new());
+    let embedder = BlockedEmbedder { started: started.clone(), release: release.clone() };
+    let child_id = child.parse().unwrap();
+    let session_id = session.parse().unwrap();
+    let writing = tokio::spawn(async move {
+        capricorn_platform::memory::remember(
+            &pool,
+            Some(&embedder),
+            child_id,
+            Some(session_id),
+            &[NewMemory { kind: "preference".into(), content: "Likes football.".into() }],
+        )
+        .await
+    });
+    tokio::time::timeout(std::time::Duration::from_secs(5), started.notified()).await.unwrap();
+    // Revocation cannot wait for an external provider to return.
+    tokio::time::timeout(std::time::Duration::from_secs(5), app.consent(&child, "memory", false))
+        .await
+        .unwrap();
+    release.notify_one();
+    assert_eq!(writing.await.unwrap().unwrap(), 0);
+    assert_eq!(app.count("select count(*) from memories").await, 0);
+}
+
+#[sqlx::test(migrator = "capricorn_platform::MIGRATOR")]
+async fn revoking_transcript_storage_applies_to_the_current_session(pool: PgPool) {
+    let app = app(pool);
+    let child = app.child().await;
+    for purpose in ["voice", "transcripts"] {
+        app.consent(&child, purpose, true).await;
+    }
+    let (_, token) = app.session(&child).await;
+    app.call(
+        Method::POST,
+        "/v1/agent/session/turns",
+        Some(&token),
+        Some(json!({ "turns": [{ "seq": 0, "role": "child", "content": "Hola" }] })),
+    )
+    .await;
+    app.consent(&child, "transcripts", false).await;
+    // Granting storage again must not revive an older session's permission.
+    app.consent(&child, "transcripts", true).await;
+    app.call(Method::POST, "/v1/agent/session/end", Some(&token), Some(json!({}))).await;
+    eventually("guidance settled", || async { app.state.watching.lock().unwrap().is_empty() }).await;
+
+    assert!(jobs::work_once(&app.state).await.unwrap());
+    assert_eq!(app.count("select count(*) from session_turns").await, 0);
+    assert_eq!(app.count("select count(*) from sessions where keep_transcript").await, 0);
+}
 
 /// Every event in the outbox, as it would travel, checked against the
 /// contracts at the repository root. Returns the event types in order.
