@@ -41,6 +41,8 @@ Devices do not use a bearer token: they sign with the key burned into them.
 |---|---|
 | `POST /v1/auth/start` | Sends a six-digit code to an email address. Answers the same whether or not the address has an account |
 | `POST /v1/auth/verify` | Trades the code for a token. A new address becomes a new family and must send `name` |
+| `GET /v1/auth/google` | The Google client an app must ask credentials for. 503 when Google sign-in is not set up |
+| `POST /v1/auth/google` | Trades a Google ID token (`credential`) for a token. Same account as the emailed code for that address; a new address becomes a new family, named from the Google account unless `name` is sent |
 | `POST /v1/auth/signout` | Ends this session |
 | `GET`, `PUT /v1/me` | The guardian, their children, unread notices; language and whether notices are emailed or pushed |
 | `DELETE /v1/me` | Erases the family and everything derived from it. Needs the email typed again |

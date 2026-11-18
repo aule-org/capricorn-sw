@@ -1,4 +1,5 @@
-//! Sign-in for guardians, without passwords: a code sent to their email.
+//! Sign-in for guardians, without passwords: a code sent to their email, or
+//! their Google account where the installation has set that up.
 //!
 //! Asking for a code answers the same way whether or not the address has an
 //! account, a code works once and for ten minutes, a few wrong guesses burn
@@ -18,6 +19,7 @@ use uuid::Uuid;
 
 use crate::auth::{Guardian, Input, bearer, token_hash};
 use crate::error::{ApiError, ApiResult};
+use crate::google::IdentityError;
 use crate::state::AppState;
 
 const CODE_MINUTES: i32 = 10;
@@ -142,45 +144,53 @@ pub async fn verify(
         return Err(wrong());
     }
 
+    let account = enter(&mut tx, &email, body.name.as_deref(), body.language.as_deref()).await?;
+    sqlx::query("delete from login_codes where email = $1").bind(&email).execute(&mut *tx).await?;
+    tx.commit().await?;
+    Ok(Json(account))
+}
+
+/// Opens a session for an address that has just been proven, by a code or by
+/// Google. An address seen for the first time becomes a new family, and for
+/// that it needs the guardian's name.
+async fn enter(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    email: &str,
+    name: Option<&str>,
+    language: Option<&str>,
+) -> ApiResult<Value> {
     let existing: Option<(Uuid, Uuid)> =
         sqlx::query_as("select id, family_id from guardians where email = $1")
-            .bind(&email)
-            .fetch_optional(&mut *tx)
+            .bind(email)
+            .fetch_optional(&mut **tx)
             .await?;
     let (guardian_id, family_id, new_account) = match existing {
         Some((guardian_id, family_id)) => (guardian_id, family_id, false),
         None => {
-            // The code stays valid, so the app can ask for the name and try again.
-            let name = body
-                .name
-                .as_deref()
-                .map(str::trim)
-                .filter(|name| !name.is_empty() && name.chars().count() <= 120);
+            let name = name.map(str::trim).filter(|name| !name.is_empty() && name.chars().count() <= 120);
             let Some(name) = name else {
                 return Err(ApiError::bad_request("name is needed to create the account"));
             };
-            let language =
-                body.language.as_deref().filter(|language| ["es", "en"].contains(language)).unwrap_or("es");
+            let language = language.filter(|language| ["es", "en"].contains(language)).unwrap_or("es");
             let (family_id, guardian_id) = (Uuid::now_v7(), Uuid::now_v7());
             sqlx::query("insert into families (id, name) values ($1, $2)")
                 .bind(family_id)
                 .bind(name)
-                .execute(&mut *tx)
+                .execute(&mut **tx)
                 .await?;
             sqlx::query(
                 "insert into guardians (id, family_id, email, name, language) values ($1, $2, $3, $4, $5)",
             )
             .bind(guardian_id)
             .bind(family_id)
-            .bind(&email)
+            .bind(email)
             .bind(name)
             .bind(language)
-            .execute(&mut *tx)
+            .execute(&mut **tx)
             .await?;
             (guardian_id, family_id, true)
         }
     };
-    sqlx::query("delete from login_codes where email = $1").bind(&email).execute(&mut *tx).await?;
 
     let mut secret = [0u8; 32];
     rand::rng().fill_bytes(&mut secret);
@@ -192,17 +202,64 @@ pub async fn verify(
     .bind(token_hash(&token))
     .bind(guardian_id)
     .bind(SESSION_DAYS)
-    .execute(&mut *tx)
+    .execute(&mut **tx)
     .await?;
-    tx.commit().await?;
 
-    Ok(Json(json!({
+    Ok(json!({
         "token": token,
         "guardian_id": guardian_id,
         "family_id": family_id,
         "new_account": new_account,
         "expires_in_days": SESSION_DAYS,
-    })))
+    }))
+}
+
+const NO_GOOGLE: ApiError = ApiError::Unavailable("sign-in with Google is not set up here");
+
+/// The client an app must ask Google to issue credentials for. It is not a
+/// secret: it is part of every sign-in page.
+pub async fn google_client(State(state): State<AppState>) -> ApiResult<Json<Value>> {
+    let client_id = state.config.google_client_id.as_deref().ok_or(NO_GOOGLE)?;
+    Ok(Json(json!({ "client_id": client_id })))
+}
+
+#[derive(Deserialize)]
+pub struct GoogleInput {
+    /// The ID token Google gave the app.
+    credential: String,
+    /// Used instead of the name in the Google account, for a new address.
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    language: Option<String>,
+}
+
+pub async fn google(
+    State(state): State<AppState>,
+    Input(body): Input<GoogleInput>,
+) -> ApiResult<Json<Value>> {
+    let provider = state.google.as_ref().ok_or(NO_GOOGLE)?;
+    if body.credential.len() > 4096 {
+        return Err(ApiError::bad_request("credential is not a Google ID token"));
+    }
+    let identity = provider.identify(&body.credential).await.map_err(|error| match error {
+        IdentityError::Refused(reason) => {
+            tracing::info!(%reason, "a Google sign-in was refused");
+            ApiError::Forbidden("that Google sign-in could not be confirmed")
+        }
+        IdentityError::Unreachable(reason) => {
+            tracing::error!(%reason, "Google could not be asked about a sign-in");
+            ApiError::Unavailable("Google could not be reached; try again later")
+        }
+    })?;
+    let email = normalized_email(&identity.email)?;
+    let name =
+        body.name.as_deref().map(str::trim).filter(|name| !name.is_empty()).or(identity.name.as_deref());
+
+    let mut tx = state.pool.begin().await?;
+    let account = enter(&mut tx, &email, name, body.language.as_deref()).await?;
+    tx.commit().await?;
+    Ok(Json(account))
 }
 
 /// Ends the session this request was made with.
