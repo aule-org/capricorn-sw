@@ -13,6 +13,7 @@
       "enum": [
         "exercise",
         "fraction_bars",
+        "fraction_circle",
         "number_line",
         "dot_array",
         "counters",
@@ -42,7 +43,7 @@
       "type": "array",
       "minItems": 1,
       "maxItems": 4,
-      "description": "fraction_bars: one bar per fraction, all the same length.",
+      "description": "fraction_bars (one bar per fraction) or fraction_circle (each drawn as a pie): the fractions to show.",
       "items": {
         "type": "object",
         "required": [
@@ -251,6 +252,23 @@
         "properties": {
           "kind": {
             "const": "fraction_bars"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "required": [
+          "fractions"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "fraction_circle"
           }
         },
         "required": [

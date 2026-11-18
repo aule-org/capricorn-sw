@@ -128,6 +128,40 @@ function fractionBars(v, top) {
     .join("");
 }
 
+function fractionCircle(v, top) {
+  // Same fractions as fraction_bars, drawn as pie slices: a circle cut into the
+  // denominator, the numerator shaded solid and the rest left open. Black on
+  // white, so a shaded slice reads on the e-ink screen.
+  const items = v.fractions;
+  const slot = (W - 40) / items.length;
+  const radius = Math.min(slot * 0.34, (H - top - 56) * 0.46);
+  const cy = top + (H - top) / 2 - 8;
+  return items
+    .map((fraction, i) => {
+      const cx = 20 + slot * i + slot / 2;
+      const parts = fraction.denominator;
+      const shaded = Math.min(fraction.numerator, parts);
+      let out = "";
+      if (parts === 1) {
+        out += `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="${shaded >= 1 ? INK : "#fff"}" stroke="${INK}" stroke-width="2"/>`;
+      } else {
+        for (let k = 0; k < parts; k += 1) {
+          const a0 = -Math.PI / 2 + (k / parts) * 2 * Math.PI;
+          const a1 = -Math.PI / 2 + ((k + 1) / parts) * 2 * Math.PI;
+          const x0 = cx + radius * Math.cos(a0);
+          const y0 = cy + radius * Math.sin(a0);
+          const x1 = cx + radius * Math.cos(a1);
+          const y1 = cy + radius * Math.sin(a1);
+          const large = a1 - a0 > Math.PI ? 1 : 0;
+          out += `<path d="M ${cx} ${cy} L ${show(x0)} ${show(y0)} A ${radius} ${radius} 0 ${large} 1 ${show(x1)} ${show(y1)} Z" fill="${k < shaded ? INK : "#fff"}" stroke="${INK}" stroke-width="2"/>`;
+        }
+      }
+      const label = fraction.label ?? `${fraction.numerator}/${fraction.denominator}`;
+      return out + text(cx, cy + radius + 28, label, { size: 22, weight: 600, room: slot - 8 });
+    })
+    .join("");
+}
+
 function numberLine(v, top) {
   const left = 50;
   const right = W - 50;
@@ -274,6 +308,7 @@ function rectangle(v, top) {
 const KINDS = {
   exercise,
   fraction_bars: fractionBars,
+  fraction_circle: fractionCircle,
   number_line: numberLine,
   dot_array: dotArray,
   counters,
