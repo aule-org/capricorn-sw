@@ -75,3 +75,21 @@ test("an unknown kind is refused", () => {
   assert.throws(() => renderVisual({ kind: "video" }), /unknown kind/);
   assert.throws(() => renderVisual(null), /unknown kind/);
 });
+
+test("long text is made smaller until it fits, never cut", () => {
+  const widest = (svg) =>
+    Math.max(...[...svg.matchAll(/font-size="([\d.]+)"[^>]*>([^<]*)</g)].map(([, size, value]) => Number(size) * value.length * 0.58));
+  const long = "Tengo una bolsa: 5 pelotas rojas y 1 pelota azul adentro.";
+  const cases = [
+    { kind: "exercise", title: "t".repeat(80), lines: [long, "Sacas una sin mirar."] },
+    { kind: "table", headers: ["h".repeat(24), "b"], cells: [["c".repeat(24), "1"]] },
+    { kind: "bar_chart", bars: Array.from({ length: 8 }, (_, i) => ({ label: "l".repeat(16), value: i })) },
+  ];
+  for (const visual of cases) assert.ok(widest(renderVisual(visual)) <= 640, visual.kind);
+
+  // Lines of one exercise share a size, so the statement reads as one block.
+  const sizes = [...renderVisual({ kind: "exercise", lines: [long, "Sacas una sin mirar."] }).matchAll(/font-size="([\d.]+)" font-weight="600"/g)].map((m) => m[1]);
+  assert.equal(new Set(sizes).size, 1);
+  // A short one keeps its large size.
+  assert.match(renderVisual({ kind: "exercise", lines: ["3/4 + 1/4 = ?"] }), /font-size="44"/);
+});
