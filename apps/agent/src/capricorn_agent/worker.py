@@ -12,6 +12,7 @@ import sys
 from dataclasses import replace
 from typing import Any
 
+from livekit import rtc
 from livekit.agents import AgentServer, AgentSession, JobContext, JobProcess, cli, room_io
 from livekit.plugins import silero
 
@@ -57,6 +58,32 @@ def persona_of(dispatch_metadata: str) -> Persona:
         metadata.get("tutor_persona"),
         metadata.get("tutor_persona_note"),
     )
+
+
+async def enable_push_to_talk(ctx: JobContext, session: AgentSession) -> None:
+    """Hand turn-taking to the client's talk button. The attribute tells the page
+    to show the hold-to-talk control; the RPCs it sends drive each turn: start on
+    press, commit on release, cancel on abandon.
+    """
+    await ctx.room.local_participant.set_attributes({"capricorn.turns": "manual"})
+
+    async def start_turn(_: rtc.RpcInvocationData) -> str:
+        session.interrupt()
+        session.clear_user_turn()
+        return "ok"
+
+    async def end_turn(_: rtc.RpcInvocationData) -> str:
+        await session.commit_user_turn()
+        return "ok"
+
+    async def cancel_turn(_: rtc.RpcInvocationData) -> str:
+        session.clear_user_turn()
+        return "ok"
+
+    local = ctx.room.local_participant
+    local.register_rpc_method("start_turn", start_turn)
+    local.register_rpc_method("end_turn", end_turn)
+    local.register_rpc_method("cancel_turn", cancel_turn)
 
 
 def prewarm(proc: JobProcess) -> None:
@@ -122,6 +149,9 @@ async def entrypoint(ctx: JobContext) -> None:
         llm=build_llm(settings),
         tts=build_tts(settings, language),
         vad=ctx.proc.userdata["vad"],
+        # Push-to-talk: the talk button commits each turn (see ``push_to_talk``
+        # below), so the VAD must not end a turn on its own.
+        **({"turn_detection": "manual"} if settings.push_to_talk else {}),
     )
 
     async def end_when_time_is_up() -> None:
@@ -159,6 +189,8 @@ async def entrypoint(ctx: JobContext) -> None:
         record=False,
     )
     camera.start()
+    if settings.push_to_talk:
+        await enable_push_to_talk(ctx, session)
     logger.info("session started", extra={"audience": audience, "language": language})
 
 

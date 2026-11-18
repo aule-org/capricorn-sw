@@ -132,6 +132,7 @@ async def test_each_key_builds_its_gate_and_nothing_can_turn_one_off(keys, compl
         llm_model="m",
         language="es",
         session_max_minutes=15,
+        push_to_talk=False,
         **keys,
     )
 
