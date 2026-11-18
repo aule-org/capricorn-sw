@@ -113,6 +113,7 @@ pub async fn open_session(
     .execute(&state.pool)
     .await?;
 
+    let tutor = crate::families::tutor(child.as_ref());
     // The plan is written while the person connects, so nobody waits for it.
     if let Some(child) = child {
         let state = state.clone();
@@ -129,6 +130,9 @@ pub async fn open_session(
         "language": language,
         "session_id": session_id,
         "platform_token": agent_token,
+        "tutor_name": tutor["name"],
+        "tutor_persona": tutor["persona"],
+        "tutor_persona_note": tutor["note"],
     });
     let token = room_token(
         livekit,
@@ -228,7 +232,9 @@ pub async fn agent_start(Agent(session): Agent, State(state): State<AppState>) -
     .await?;
 
     let Some(child_id) = session.child_id else {
-        return Ok(Json(json!({ "session_id": session.id, "instructions": "" })));
+        return Ok(Json(
+            json!({ "session_id": session.id, "instructions": "", "tutor": crate::families::tutor(None) }),
+        ));
     };
     let child = find_child(&state.pool, child_id).await?;
     let deadline = tokio::time::Instant::now() + BRIEF_WAIT;
@@ -245,7 +251,12 @@ pub async fn agent_start(Agent(session): Agent, State(state): State<AppState>) -
         Some(brief) => format!("{}\n\n{}", student_line(&child), brief.as_instructions()),
         None => student_line(&child),
     };
-    Ok(Json(json!({ "session_id": session.id, "instructions": instructions, "brief": brief })))
+    Ok(Json(json!({
+        "session_id": session.id,
+        "instructions": instructions,
+        "brief": brief,
+        "tutor": crate::families::tutor(Some(&child)),
+    })))
 }
 
 #[derive(Deserialize)]
