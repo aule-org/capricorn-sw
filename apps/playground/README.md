@@ -38,3 +38,8 @@ pnpm --filter @capricorn/playground typecheck
 pnpm --filter @capricorn/playground test
 node --env-file=../../.env src/server.ts
 ```
+
+## Testing as on the device
+
+- **Device screen** (a switch in the session) shows the drawing as the device's panel would: 800 x 480, snapped to black, white and one grey, with a flash on every redraw. It does not imitate ghosting.
+- **Hold to talk** appears when the tutor sets the participant attribute `capricorn.turns` to `manual`. The microphone is then closed except while the button (or the space bar) is held: pressing calls the tutor's `start_turn`, letting go calls `end_turn`, and losing the button or the window calls `cancel_turn`. The microphone switch is the device's mute: while it is off nothing is sent.

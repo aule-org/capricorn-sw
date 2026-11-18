@@ -8,6 +8,12 @@ const { Room, RoomEvent, Track, ParticipantKind } = LivekitClient;
 
 const TRANSCRIPTION_TOPIC = "lk.transcription";
 const AGENT_STATE = "lk.agent.state";
+// Set by the tutor when a turn lasts while a button is held, like on the
+// device, instead of ending when the person goes quiet.
+const TURNS = "capricorn.turns";
+// How long the microphone stays open after the button is let go, so the last
+// syllable is not cut.
+const TALK_TAIL_MS = 200;
 const TUTOR_WAIT_MS = 15_000;
 
 const STATE_TEXT = {
@@ -38,6 +44,11 @@ const message = $("message");
 const wanted = { mic: true, cam: true };
 let preview = null;
 let meter = null;
+
+// Push-to-talk, when the tutor works that way.
+let tutorIdentity = null;
+let manualTurns = false;
+let talking = false;
 
 let room = null;
 let clock = null;
@@ -133,6 +144,10 @@ async function onVisual(reader) {
   try {
     $("board").innerHTML = renderVisual(JSON.parse(await reader.readAll()));
     $("board").hidden = false;
+    // The panel flashes when it redraws.
+    $("board").classList.remove("redraw");
+    void $("board").offsetWidth;
+    $("board").classList.add("redraw");
   } catch {
     // A description this page cannot draw is skipped; the voice carries on.
   }
@@ -141,7 +156,64 @@ async function onVisual(reader) {
 function watchTutor(participant) {
   if (participant.kind !== ParticipantKind.AGENT) return;
   clearTimeout(tutorTimer);
+  tutorIdentity = participant.identity;
   setTutorState(participant.attributes[AGENT_STATE] ?? "initializing");
+  setManualTurns(participant.attributes[TURNS] === "manual");
+}
+
+// The switch is the device's mute: while it is off nothing is heard, held
+// button or not.
+function showTalk() {
+  $("talk").hidden = !manualTurns;
+  $("talk").disabled = !wanted.mic;
+  $("talk").setAttribute("aria-pressed", String(talking));
+  $("talk").textContent = !wanted.mic
+    ? "Microphone is off"
+    : talking
+      ? "Listening… let go to send"
+      : "Hold to talk (or hold the space bar)";
+}
+
+async function setManualTurns(manual) {
+  if (manual === manualTurns) return;
+  manualTurns = manual;
+  talking = false;
+  showTalk();
+  // With a button the microphone is closed between turns; without one it
+  // follows the switch.
+  await room?.localParticipant.setMicrophoneEnabled(manual ? false : wanted.mic);
+}
+
+function turn(method) {
+  return room.localParticipant.performRpc({ destinationIdentity: tutorIdentity, method, payload: "" });
+}
+
+async function startTalking() {
+  if (!room || !manualTurns || talking || !wanted.mic || !tutorIdentity) return;
+  talking = true;
+  showTalk();
+  try {
+    await room.localParticipant.setMicrophoneEnabled(true);
+    await turn("start_turn");
+  } catch {
+    await stopTalking("cancel_turn");
+    showMessage("The tutor could not be told that you are talking. Try again.");
+  }
+}
+
+async function stopTalking(method = "end_turn") {
+  if (!talking) return;
+  talking = false;
+  showTalk();
+  const speaking = room;
+  if (method === "end_turn") await new Promise((done) => setTimeout(done, TALK_TAIL_MS));
+  if (!speaking || speaking !== room) return;
+  try {
+    await turn(method);
+  } catch {
+    if (method === "end_turn") showMessage("The tutor did not get that. Hold the button and say it again.");
+  }
+  if (!talking) await speaking.localParticipant.setMicrophoneEnabled(false);
 }
 
 function showCamera() {
@@ -194,8 +266,9 @@ async function join(session) {
   lobby.hidden = true;
   stage.hidden = false;
 
-  await room.localParticipant.setMicrophoneEnabled(wanted.mic);
+  await room.localParticipant.setMicrophoneEnabled(wanted.mic && !manualTurns);
   setToggle($("mic"), "Microphone", wanted.mic);
+  showTalk();
   try {
     await room.localParticipant.setCameraEnabled(wanted.cam);
   } catch {
@@ -293,6 +366,10 @@ function leave(reason) {
   clearTimeout(tutorTimer);
   clearInterval(supervisorTimer);
   $("supervisor").hidden = true;
+  tutorIdentity = null;
+  manualTurns = false;
+  talking = false;
+  showTalk();
   leaving.disconnect();
   $("audio").replaceChildren();
   $("board").replaceChildren();
@@ -353,9 +430,42 @@ $("join").addEventListener("click", async () => {
 });
 
 $("mic").addEventListener("click", async () => {
-  const on = !room.localParticipant.isMicrophoneEnabled;
-  await room.localParticipant.setMicrophoneEnabled(on);
-  setToggle($("mic"), "Microphone", on);
+  wanted.mic = !wanted.mic;
+  setToggle($("mic"), "Microphone", wanted.mic);
+  if (manualTurns) {
+    if (!wanted.mic) await stopTalking("cancel_turn");
+    showTalk();
+  } else {
+    await room.localParticipant.setMicrophoneEnabled(wanted.mic);
+  }
+});
+
+$("talk").addEventListener("pointerdown", (event) => {
+  event.preventDefault();
+  $("talk").setPointerCapture(event.pointerId);
+  startTalking();
+});
+$("talk").addEventListener("pointerup", () => stopTalking());
+$("talk").addEventListener("pointercancel", () => stopTalking("cancel_turn"));
+$("talk").addEventListener("contextmenu", (event) => event.preventDefault());
+
+// The space bar is the button too, except while typing or on another control.
+const typing = (target) => ["INPUT", "SELECT", "TEXTAREA", "BUTTON"].includes(target?.tagName);
+document.addEventListener("keydown", (event) => {
+  if (event.code !== "Space" || event.repeat || !manualTurns || stage.hidden || typing(event.target)) return;
+  event.preventDefault();
+  startTalking();
+});
+document.addEventListener("keyup", (event) => {
+  if (event.code === "Space" && talking) stopTalking();
+});
+// A turn nobody is holding any more is dropped, not sent.
+window.addEventListener("blur", () => stopTalking("cancel_turn"));
+
+$("device").addEventListener("click", () => {
+  const on = !$("board").classList.contains("device");
+  $("board").classList.toggle("device", on);
+  setToggle($("device"), "Device screen", on);
 });
 
 $("cam").addEventListener("click", async () => {

@@ -70,9 +70,13 @@
 
         <figure id="board" class="board" hidden aria-live="polite"></figure>
 
+        <!-- The device does not listen all the time: a turn lasts while its button is held. -->
+        <button type="button" id="talk" class="talk" hidden aria-pressed="false">Hold to talk</button>
+
         <div class="controls">
           <button type="button" id="mic" aria-pressed="true">Microphone on</button>
           <button type="button" id="cam" aria-pressed="true">Camera on</button>
+          <button type="button" id="device" aria-pressed="false">Device screen off</button>
           <span id="clock" class="clock" aria-label="Time left"></span>
           <button type="button" id="end" class="danger">End session</button>
         </div>
@@ -86,6 +90,18 @@
 
         <ol id="transcript" aria-label="Conversation" aria-live="polite"></ol>
       </section>
+
+      <!-- The device's panel shows four greys; this snaps the drawing to them. -->
+      <svg width="0" height="0" aria-hidden="true" focusable="false">
+        <filter id="four-greys" color-interpolation-filters="sRGB">
+          <feColorMatrix type="saturate" values="0" />
+          <feComponentTransfer>
+            <feFuncR type="discrete" tableValues="0 0.541 0.541 1" />
+            <feFuncG type="discrete" tableValues="0 0.541 0.541 1" />
+            <feFuncB type="discrete" tableValues="0 0.541 0.541 1" />
+          </feComponentTransfer>
+        </filter>
+      </svg>
 
       <p id="message" class="message" role="alert" hidden></p>
       <div id="audio"></div>
