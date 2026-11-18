@@ -16,8 +16,15 @@ const escape = (value) =>
 // Numbers in a drawing are for reading: no long decimal tails.
 const show = (n) => String(Math.round(n * 100) / 100);
 
-const text = (x, y, value, { size = 18, anchor = "middle", weight = 400 } = {}) =>
-  `<text x="${x}" y="${y}" font-size="${size}" font-weight="${weight}" text-anchor="${anchor}">${escape(value)}</text>`;
+// A character of this font is a little over half as wide as it is tall. That
+// estimate is enough to shrink a long text until it fits the room it has;
+// nothing is ever cut off.
+const GLYPH = 0.58;
+const fitted = (value, size, room) =>
+  Math.round(Math.max(8, Math.min(size, room / (Math.max(String(value).length, 1) * GLYPH))) * 10) / 10;
+
+const text = (x, y, value, { size = 18, anchor = "middle", weight = 400, room = W - 40 } = {}) =>
+  `<text x="${x}" y="${y}" font-size="${fitted(value, size, room)}" font-weight="${weight}" text-anchor="${anchor}">${escape(value)}</text>`;
 
 const line = (x1, y1, x2, y2, width = 2) =>
   `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${INK}" stroke-width="${width}"/>`;
@@ -27,7 +34,8 @@ const rect = (x, y, w, h, fill = "none") =>
 
 function exercise(v, top) {
   const lines = v.lines;
-  const size = lines.length <= 2 ? 44 : lines.length <= 4 ? 32 : 26;
+  const longest = lines.reduce((a, b) => (b.length > a.length ? b : a));
+  const size = fitted(longest, lines.length <= 2 ? 44 : lines.length <= 4 ? 32 : 26, W - 40);
   const gap = size * 1.5;
   const first = top + (H - top - gap * (lines.length - 1)) / 2;
   return lines.map((value, i) => text(W / 2, first + i * gap, value, { size, weight: 600 })).join("");
@@ -56,7 +64,7 @@ function fractionBars(v, top) {
       }
       cells += rect(left, y, width, height);
       const label = fraction.label ?? `${fraction.numerator}/${fraction.denominator}`;
-      return cells + text(left + width + 20, y + height / 2 + 8, label, { size: 24, anchor: "start", weight: 600 });
+      return cells + text(left + width + 20, y + height / 2 + 8, label, { size: 24, anchor: "start", weight: 600, room: W - left - width - 30 });
     })
     .join("");
 }
@@ -85,7 +93,7 @@ function numberLine(v, top) {
     const b = x(Math.max(v.from, Math.min(v.to, jump.to)));
     const lift = Math.min(70, 24 + Math.abs(b - a) / 4);
     out += `<path d="M ${a} ${y - 12} Q ${(a + b) / 2} ${y - 12 - lift * 2} ${b} ${y - 12}" fill="none" stroke="${INK}" stroke-width="2" marker-end="url(#arrow)"/>`;
-    if (jump.label) out += text((a + b) / 2, y - 22 - lift, jump.label, { size: 18, weight: 600 });
+    if (jump.label) out += text((a + b) / 2, y - 22 - lift, jump.label, { size: 18, weight: 600, room: 160 });
   }
   return out;
 }
@@ -119,6 +127,7 @@ function table(v, top) {
             text(left + c * cell + cell / 2, top + 6 + r * height + height / 2 + 6, value, {
               size: 18,
               weight: r === 0 ? 700 : 400,
+              room: cell - 12,
             }),
         )
         .join(""),
@@ -141,7 +150,7 @@ function barChart(v, top) {
         return (
           rect(x, base - height, slot * 0.6, height, INK) +
           text(x + slot * 0.3, base - height - 8, show(bar.value), { size: 16, weight: 600 }) +
-          text(x + slot * 0.3, base + 24, bar.label, { size: 16 })
+          text(x + slot * 0.3, base + 24, bar.label, { size: 16, room: slot - 6 })
         );
       })
       .join("")
@@ -159,7 +168,7 @@ function rectangle(v, top) {
   return (
     rect(x, y, w, h) +
     text(x + w / 2, y + h + 30, `${show(v.width)}${unit}`, { size: 20, weight: 600 }) +
-    text(x + w + 14, y + h / 2 + 7, `${show(v.height)}${unit}`, { size: 20, anchor: "start", weight: 600 })
+    text(x + w + 14, y + h / 2 + 7, `${show(v.height)}${unit}`, { size: 20, anchor: "start", weight: 600, room: W - x - w - 24 })
   );
 }
 
