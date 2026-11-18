@@ -60,6 +60,10 @@ def persona_of(dispatch_metadata: str) -> Persona:
     )
 
 
+# How long a released talk button waits for the last final transcript.
+COMMIT_TRANSCRIPT_TIMEOUT_SECONDS = 0.8
+
+
 async def enable_push_to_talk(ctx: JobContext, session: AgentSession) -> None:
     """Hand turn-taking to the client's talk button. The attribute tells the page
     to show the hold-to-talk control; the RPCs it sends drive each turn: start on
@@ -73,7 +77,10 @@ async def enable_push_to_talk(ctx: JobContext, session: AgentSession) -> None:
         return "ok"
 
     async def end_turn(_: rtc.RpcInvocationData) -> str:
-        await session.commit_user_turn()
+        # The microphone stays attached, so there is no flush to wait for: a
+        # short wait lets a final transcript in flight land, and whatever is
+        # still interim is committed as it stands.
+        await session.commit_user_turn(transcript_timeout=COMMIT_TRANSCRIPT_TIMEOUT_SECONDS)
         return "ok"
 
     async def cancel_turn(_: rtc.RpcInvocationData) -> str:
