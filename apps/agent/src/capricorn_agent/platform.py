@@ -26,6 +26,10 @@ logger = logging.getLogger("capricorn.agent.platform")
 
 START_TIMEOUT_SECONDS = 6.0
 REPORT_TIMEOUT_SECONDS = 10.0
+REPORT_RETRY_SECONDS = 1.0
+END_FLUSH_TIMEOUT_SECONDS = 5.0
+# The platform accepts at most 20 turns per request.
+MAX_TURNS_PER_REPORT = 20
 # Turns kept while the platform is unreachable; older ones are dropped.
 MAX_PENDING_TURNS = 50
 ROLES = {"user": "child", "assistant": "tutor"}
@@ -164,23 +168,30 @@ class Platform:
             self._flagged_at.pop(key, None)
 
     async def report_once(self) -> str | None:
-        """Sends the queued turns and returns the newest guidance, if any."""
-        turns, self._pending = self._pending, []
-        answer = await self._call(
-            "POST",
-            "/v1/agent/session/turns",
-            {"turns": turns, "after_guidance": self._after_guidance},
-            REPORT_TIMEOUT_SECONDS,
-        )
-        if answer is None:
-            # Kept for the next report; the platform stores a repeated turn once.
-            self._pending = (turns + self._pending)[-MAX_PENDING_TURNS:]
-            return None
+        """Sends a snapshot in bounded batches and returns the newest guidance."""
+        turns = list(self._pending)
+        batches = [
+            turns[start : start + MAX_TURNS_PER_REPORT]
+            for start in range(0, len(turns), MAX_TURNS_PER_REPORT)
+        ] or [[]]
         newest = None
-        for item in answer.get("guidance") or []:
-            if isinstance(item.get("id"), int) and isinstance(item.get("instructions"), str):
-                self._after_guidance = max(self._after_guidance, item["id"])
-                newest = item["instructions"]
+        for batch in batches:
+            answer = await self._call(
+                "POST",
+                "/v1/agent/session/turns",
+                {"turns": batch, "after_guidance": self._after_guidance},
+                REPORT_TIMEOUT_SECONDS,
+            )
+            if answer is None:
+                break
+            # Keep unacknowledged turns in the queue, including if this task is
+            # cancelled during the request. New arrivals have larger seq values.
+            if batch:
+                self._pending = [turn for turn in self._pending if turn["seq"] > batch[-1]["seq"]]
+            for item in answer.get("guidance") or []:
+                if isinstance(item.get("id"), int) and isinstance(item.get("instructions"), str):
+                    self._after_guidance = max(self._after_guidance, item["id"])
+                    newest = item["instructions"]
         return newest
 
     async def run(self, advise: Callable[[str], Awaitable[None]]) -> None:
@@ -191,6 +202,9 @@ class Platform:
             guidance = await self.report_once()
             if guidance:
                 await advise(guidance)
+            if self._pending:
+                await asyncio.sleep(REPORT_RETRY_SECONDS)
+                self._wake.set()
 
     async def end(self) -> None:
         if self._flags:
@@ -199,8 +213,17 @@ class Platform:
             for task in late:
                 task.cancel()
             await asyncio.gather(*late, return_exceptions=True)
-        if self._pending:
-            await self.report_once()
-        await self._call("POST", "/v1/agent/session/end", {}, REPORT_TIMEOUT_SECONDS)
+        try:
+            async with asyncio.timeout(END_FLUSH_TIMEOUT_SECONDS):
+                while self._pending:
+                    await self.report_once()
+                    if self._pending:
+                        await asyncio.sleep(REPORT_RETRY_SECONDS)
+        except TimeoutError:
+            logger.warning(
+                "session ended with unreported turns", extra={"turns": len(self._pending)}
+            )
+        body = {"end_reason": "error"} if self._pending else {}
+        await self._call("POST", "/v1/agent/session/end", body, REPORT_TIMEOUT_SECONDS)
         if self._http_session is not None:
             await self._http_session.close()

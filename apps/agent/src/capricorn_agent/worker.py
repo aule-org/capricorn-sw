@@ -113,6 +113,7 @@ async def entrypoint(ctx: JobContext) -> None:
     async def cleanup() -> None:
         for task in tasks:
             task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
         camera.stop()
         await gates.close()
         if platform:
