@@ -41,3 +41,25 @@ test('every example has a schema', () => {
   const examples = readdirSync(new URL('examples/', root)).map((file) => file.replace('.json', ''));
   assert.deepEqual(examples.sort(), [...types].sort());
 });
+
+// What the tutor shows on a screen: one schema, and one example per kind.
+const visual = read('visuals/visual.v1.schema.json');
+const validateVisual = new Ajv2020({ allErrors: true, strict: false }).compile(visual);
+const visualExamples = readdirSync(new URL('visuals/examples/', root)).map((file) => file.replace('.json', ''));
+
+test('every kind of visual has an example that validates', () => {
+  assert.deepEqual(visualExamples.sort(), [...visual.properties.kind.enum].sort());
+  for (const name of visualExamples) {
+    const example = read(`visuals/examples/${name}.json`);
+    assert.equal(example.kind, name);
+    assert.ok(validateVisual(example), `${name}: ${JSON.stringify(validateVisual.errors)}`);
+  }
+});
+
+test('a visual without what its kind needs, or with unknown fields, is rejected', () => {
+  assert.equal(validateVisual({ kind: 'fraction_bars' }), false);
+  assert.equal(validateVisual({ kind: 'dot_array', rows: 3 }), false);
+  assert.equal(validateVisual({ kind: 'dot_array', rows: 3, columns: 40 }), false);
+  assert.equal(validateVisual({ kind: 'exercise', lines: ['2 + 2 = ?'], html: '<b>x</b>' }), false);
+  assert.equal(validateVisual({ kind: 'hologram' }), false);
+});

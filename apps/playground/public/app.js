@@ -1,6 +1,8 @@
 // The playground page: asks the server for a room token, joins the room with
 // the microphone and the camera, and shows what the tutor is doing.
 
+import { TOPIC as VISUAL_TOPIC, renderVisual } from "./visuals.js";
+
 const { Room, RoomEvent, Track, ParticipantKind } = LivekitClient;
 
 const TRANSCRIPTION_TOPIC = "lk.transcription";
@@ -119,6 +121,16 @@ async function showSupervisor(sessionId) {
   }
 }
 
+// The tutor describes what to show; the page draws it.
+async function onVisual(reader) {
+  try {
+    $("board").innerHTML = renderVisual(JSON.parse(await reader.readAll()));
+    $("board").hidden = false;
+  } catch {
+    // A description this page cannot draw is skipped; the voice carries on.
+  }
+}
+
 function watchTutor(participant) {
   if (participant.kind !== ParticipantKind.AGENT) return;
   clearTimeout(tutorTimer);
@@ -155,6 +167,10 @@ async function join(session) {
     onTranscription(reader, participant).catch(() => undefined);
   });
 
+  room.registerTextStreamHandler(VISUAL_TOPIC, (reader) => {
+    onVisual(reader);
+  });
+
   await room.connect(session.serverUrl, session.token);
   await room.startAudio();
   room.remoteParticipants.forEach(watchTutor);
@@ -189,6 +205,8 @@ function leave(reason) {
   $("supervisor").hidden = true;
   leaving.disconnect();
   $("audio").replaceChildren();
+  $("board").replaceChildren();
+  $("board").hidden = true;
   stage.hidden = true;
   entry.hidden = false;
   $("start").disabled = false;

@@ -1,13 +1,17 @@
 """The tutor: what it is told to be, and where the gates and the camera plug in."""
 
-from collections.abc import AsyncIterable
+from collections.abc import AsyncIterable, Awaitable, Callable
 from typing import Any
 
 from livekit import rtc
-from livekit.agents import Agent, ModelSettings, StopResponse, llm
+from livekit.agents import Agent, ModelSettings, StopResponse, function_tool, llm
 
+from . import visuals
 from .replies import ADULT_HELP_SEQUENCE, OFFERS, reply
 from .safety import Gates
+
+# Sends one visual to the student's screen.
+Show = Callable[[dict[str, Any]], Awaitable[None]]
 
 # The longest side of the frame the model receives. Enough to read handwriting.
 FRAME_SIDE = 1024
@@ -85,6 +89,26 @@ homework or an object you are talking about; if you cannot read it, ask them to 
 closer. Do not comment on how they look or on where they are.""",
 }
 
+# What the model reads after a visual went up.
+SHOWN = "It is on the screen now. Say in one short sentence what they are looking at."
+
+# Added to the instructions only when the student has a screen.
+SCREEN = {
+    "es": """El estudiante tiene una pantalla y tú puedes mostrarle cosas con la herramienta \
+show: el enunciado de un ejercicio, barras de fracciones, una recta numérica, un arreglo de \
+puntos, una tabla, un gráfico de barras o un rectángulo con sus medidas. Úsala cuando ver \
+ayude a pensar, sobre todo al proponer un ejercicio o cuando una explicación con palabras no \
+alcanza. Primero muestra y después di en una frase qué está viendo, sin leerle toda la \
+pantalla. En la pantalla sí van los números y los símbolos. Nunca muestres la respuesta ni \
+un dibujo que la delate.""",
+    "en": """The student has a screen and you can show them things with the show tool: the \
+statement of an exercise, fraction bars, a number line, an array of dots, a table, a bar \
+chart or a rectangle with its sides. Use it when seeing helps them think, above all when \
+you set an exercise or when words alone are not enough. Show first, then say in one \
+sentence what they are looking at, without reading the whole screen to them. Numbers and \
+symbols do belong on the screen. Never show the answer, or a drawing that gives it away.""",
+}
+
 GREETING = {
     "es": "Saluda con calidez en una frase como Capri. Si el plan ya dice qué trabajar, entra \
 directo a esa primera actividad con una pregunta o un ejemplo concreto. Si no hay plan, \
@@ -143,14 +167,49 @@ async def checked(stream: AsyncIterable[Any], gates: Gates, language: str) -> As
         yield reply(decision.reply or "unavailable", language)
 
 
+async def present(visual: object, gates: Gates, show: Show) -> str:
+    """Puts a visual on the student's screen, if it can be drawn and may be read.
+
+    Returns what the model is told next. The model tends to call the tool
+    without saying anything, so a shown visual asks it for the sentence that
+    goes with it; one that was not shown says why, so the model can correct it.
+    """
+    found = visuals.problems(visual)
+    if found:
+        return f"Not shown: {found[0]}"
+    assert isinstance(visual, dict)
+    # What is read on the screen passes the same gate as what is spoken.
+    if not (await gates.spoken(visuals.text_of(visual))).allowed:
+        return "Not shown: that text cannot be put on the screen."
+    await show(visual)
+    return SHOWN
+
+
 class Tutor(Agent):
     def __init__(
-        self, *, language: str, gates: Gates, camera: Any = None, context: str = ""
+        self,
+        *,
+        language: str,
+        gates: Gates,
+        camera: Any = None,
+        context: str = "",
+        show: Show | None = None,
     ) -> None:
         # `context` is what the platform knows about this student and the
         # supervisor's plan for the session; empty when there is no platform.
-        self._base = with_notes(INSTRUCTIONS[language], context)
-        super().__init__(instructions=self._base)
+        # `show` is given when the student has a screen to draw on.
+        instructions = INSTRUCTIONS[language]
+        tools = []
+        if show is not None:
+            instructions = with_notes(instructions, SCREEN[language])
+
+            @function_tool(raw_schema=visuals.tool_schema())
+            async def show_tool(raw_arguments: dict[str, object]) -> str:
+                return await present(raw_arguments, gates, show)
+
+            tools.append(show_tool)
+        self._base = with_notes(instructions, context)
+        super().__init__(instructions=self._base, tools=tools)
         self._language = language
         self._gates = gates
         self._camera = camera

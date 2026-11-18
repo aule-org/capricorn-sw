@@ -9,10 +9,12 @@ import json
 import logging
 import os
 import sys
+from typing import Any
 
 from livekit.agents import AgentServer, AgentSession, JobContext, JobProcess, cli, room_io
 from livekit.plugins import silero
 
+from . import visuals
 from .camera import Camera
 from .config import LANGUAGES, ConfigError, Settings
 from .platform import Platform, platform_session
@@ -77,7 +79,15 @@ async def entrypoint(ctx: JobContext) -> None:
     await ctx.connect()
     camera = Camera(ctx.room)
     context = await platform.start() if platform else ""
-    tutor = Tutor(language=language, gates=gates, camera=camera, context=context)
+
+    async def show(visual: dict[str, Any]) -> None:
+        # Every Capricorn screen (the playground today, the device's e-ink
+        # later) draws visuals that arrive on this topic.
+        await ctx.room.local_participant.send_text(
+            json.dumps(visual, ensure_ascii=False), topic=visuals.TOPIC
+        )
+
+    tutor = Tutor(language=language, gates=gates, camera=camera, context=context, show=show)
     session = AgentSession(
         stt=build_stt(settings, language),
         llm=build_llm(settings),

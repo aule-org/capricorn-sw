@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node src/server.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node --test \"test/*.test.ts\""
+    "test": "node --test \"test/*.test.ts\" \"test/*.test.mjs\""
   },
   "dependencies": {
     "livekit-client": "2.24.1",

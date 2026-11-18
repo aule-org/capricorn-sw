@@ -300,3 +300,18 @@ button.danger {
 .supervisor ol li {
   color: var(--accent);
 }
+
+/* What the tutor shows. Always black on white, like the device's screen. */
+.board {
+  margin: 12px 0 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.board svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}

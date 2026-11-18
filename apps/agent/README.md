@@ -12,6 +12,7 @@ Capricorn's voice tutor: a [LiveKit Agents](https://github.com/livekit/agents) w
 | `moderation` | The content-moderation gate: what the person said and what the tutor is about to say |
 | `physical_safety` | The physical-safety gate: whether what the person said needs a nearby adult |
 | `replies` | The fixed replies a person hears when a gate stops a turn, in Spanish and English |
+| `visuals` | What the tutor can show on the student's screen, checked against the shared contract before it is sent |
 | `camera` | The latest camera frame, held in memory and never stored |
 | `providers` | Builds the speech and language models from the settings |
 | `platform` | Gets the student's profile and the supervisor's plan, reports turns and safety flags in the background, applies guidance |
