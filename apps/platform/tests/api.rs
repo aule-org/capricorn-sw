@@ -1289,6 +1289,7 @@ async fn a_family_names_its_tutor_and_the_agent_is_told(pool: PgPool) {
 
     // A child starts with the tutor as it comes.
     let (_, fresh) = app.admin(Method::GET, &path, None).await;
+    let fresh = &fresh["child"];
     assert_eq!(
         (&fresh["tutor_name"], &fresh["tutor_persona"], &fresh["tutor_persona_note"]),
         (&json!("Capri"), &json!("calido"), &Value::Null)
