@@ -41,6 +41,18 @@ test("an array draws rows times columns dots", () => {
   assert.equal(count(renderVisual({ kind: "dot_array", rows: 12, columns: 12 }), "circle"), 144);
 });
 
+test("an exercise stacks a tight fraction and leaves a spaced division as text", () => {
+  const stacked = renderVisual({ kind: "exercise", lines: ["3/4 + 1/4 = ?"] });
+  assert.ok(!stacked.includes("3/4"), "no literal slash fraction");
+  assert.ok(stacked.includes(">3<") && stacked.includes(">4<"), "numerator and denominator drawn apart");
+  assert.ok(count(stacked, "line") >= 2, "a dividing bar per fraction");
+  assert.ok(stacked.includes("> + <"), "the operators stay as text");
+
+  const division = renderVisual({ kind: "exercise", lines: ["12 / 4 = ?"] });
+  assert.ok(division.includes("12 / 4 = ?"), "a spaced division keeps its slash");
+  assert.equal(count(division, "line"), 0, "and draws no fraction bar");
+});
+
 test("a number line labels its ticks, marks points and draws jumps", () => {
   const svg = renderVisual(example("number_line"));
 
