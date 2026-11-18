@@ -47,6 +47,10 @@ let meter = null;
 
 // Push-to-talk, when the tutor works that way.
 let tutorIdentity = null;
+// True once the tutor is in the session and has said how turns work. Until
+// then the microphone stays closed: nobody is listening yet, and the page does
+// not know whether it should be open at all.
+let tutorReady = false;
 let manualTurns = false;
 let talking = false;
 
@@ -157,8 +161,22 @@ function watchTutor(participant) {
   if (participant.kind !== ParticipantKind.AGENT) return;
   clearTimeout(tutorTimer);
   tutorIdentity = participant.identity;
-  setTutorState(participant.attributes[AGENT_STATE] ?? "initializing");
-  setManualTurns(participant.attributes[TURNS] === "manual");
+  const state = participant.attributes[AGENT_STATE] ?? "initializing";
+  setTutorState(state);
+  const manual = participant.attributes[TURNS] === "manual";
+  const ready = state !== "initializing";
+  if (manual === manualTurns && ready === tutorReady) return;
+  manualTurns = manual;
+  tutorReady = ready;
+  talking = false;
+  showTalk();
+  syncMicrophone();
+}
+
+// Open only when the tutor is there and turns end by themselves; with a talk
+// button the microphone is closed between turns.
+function syncMicrophone() {
+  return room?.localParticipant.setMicrophoneEnabled(wanted.mic && tutorReady && !manualTurns);
 }
 
 // The switch is the device's mute: while it is off nothing is heard, held
@@ -172,16 +190,6 @@ function showTalk() {
     : talking
       ? "Listening… let go to send"
       : "Hold to talk (or hold the space bar)";
-}
-
-async function setManualTurns(manual) {
-  if (manual === manualTurns) return;
-  manualTurns = manual;
-  talking = false;
-  showTalk();
-  // With a button the microphone is closed between turns; without one it
-  // follows the switch.
-  await room?.localParticipant.setMicrophoneEnabled(manual ? false : wanted.mic);
 }
 
 function turn(method) {
@@ -266,7 +274,7 @@ async function join(session) {
   lobby.hidden = true;
   stage.hidden = false;
 
-  await room.localParticipant.setMicrophoneEnabled(wanted.mic && !manualTurns);
+  await syncMicrophone();
   setToggle($("mic"), "Microphone", wanted.mic);
   showTalk();
   try {
@@ -367,6 +375,7 @@ function leave(reason) {
   clearInterval(supervisorTimer);
   $("supervisor").hidden = true;
   tutorIdentity = null;
+  tutorReady = false;
   manualTurns = false;
   talking = false;
   showTalk();
@@ -436,7 +445,7 @@ $("mic").addEventListener("click", async () => {
     if (!wanted.mic) await stopTalking("cancel_turn");
     showTalk();
   } else {
-    await room.localParticipant.setMicrophoneEnabled(wanted.mic);
+    await syncMicrophone();
   }
 });
 
