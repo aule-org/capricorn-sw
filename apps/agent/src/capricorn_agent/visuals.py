@@ -25,6 +25,7 @@ DESCRIPTION = (
     "kind and give "
     "what it needs: exercise needs lines; fraction_bars needs fractions; number_line needs "
     "from, to and step (marks and jumps are optional); dot_array needs rows and columns; "
+    "counters needs groups (each a count and a fill, solid or open, for a bag of things); "
     "table needs headers and cells; bar_chart needs bars; rectangle needs width and height. "
     "title is optional for every kind."
 )
