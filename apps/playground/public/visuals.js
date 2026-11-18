@@ -32,13 +32,72 @@ const line = (x1, y1, x2, y2, width = 2) =>
 const rect = (x, y, w, h, fill = "none") =>
   `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" stroke="${INK}" stroke-width="2"/>`;
 
+// A tight a/b token like 3/4 is a fraction to stack. A division written with
+// spaces ("12 / 4") keeps its slash and stays plain text, so the two read apart.
+const FRACTION = /(\d+)\/(\d+)/g;
+
+// A line split into runs: plain text, and {num, den} fractions, left to right.
+function runs(raw) {
+  const parts = [];
+  let last = 0;
+  for (const match of raw.matchAll(FRACTION)) {
+    if (match.index > last) parts.push({ text: raw.slice(last, match.index) });
+    parts.push({ num: match[1], den: match[2] });
+    last = match.index + match[0].length;
+  }
+  if (last < raw.length) parts.push({ text: raw.slice(last) });
+  return parts.length ? parts : [{ text: raw }];
+}
+
+// Numerator and denominator are a little smaller than the surrounding text.
+const DIGIT = 0.78;
+
+// How wide a run is at a given size. A stacked fraction is as wide as its taller
+// column of digits plus a little air; it is also taller than a line of text,
+// which the caller leaves vertical room for.
+function runWidth(run, size) {
+  if (run.text !== undefined) return run.text.length * size * GLYPH;
+  return Math.max(run.num.length, run.den.length) * size * DIGIT * GLYPH + size * 0.5;
+}
+
+// Draws a line of text with any a/b written as a stacked fraction, the whole
+// line centred on x with its text baseline at y.
+function inlineMath(x, y, raw, size) {
+  const parts = runs(raw);
+  let left = x - parts.reduce((sum, run) => sum + runWidth(run, size), 0) / 2;
+  let out = "";
+  for (const run of parts) {
+    const w = runWidth(run, size);
+    if (run.text !== undefined) {
+      out += `<text x="${left}" y="${y}" font-size="${size}" font-weight="600" text-anchor="start">${escape(run.text)}</text>`;
+    } else {
+      const cx = left + w / 2;
+      const small = Math.round(size * DIGIT * 10) / 10;
+      const bar = y - size * 0.3;
+      const half = (w - size * 0.5) / 2;
+      out +=
+        `<text x="${cx}" y="${bar - size * 0.12}" font-size="${small}" font-weight="600" text-anchor="middle">${escape(run.num)}</text>` +
+        line(cx - half, bar, cx + half, bar, 2) +
+        `<text x="${cx}" y="${bar + small * 0.95}" font-size="${small}" font-weight="600" text-anchor="middle">${escape(run.den)}</text>`;
+    }
+    left += w;
+  }
+  return out;
+}
+
 function exercise(v, top) {
   const lines = v.lines;
-  const longest = lines.reduce((a, b) => (b.length > a.length ? b : a));
-  const size = fitted(longest, lines.length <= 2 ? 44 : lines.length <= 4 ? 32 : 26, W - 40);
-  const gap = size * 1.5;
+  const base = lines.length <= 2 ? 44 : lines.length <= 4 ? 32 : 26;
+  // One size for every line, shrunk until the widest fits — stacked fractions
+  // measured too — so the statement reads as one block and nothing is cut off.
+  const widest = Math.max(
+    ...lines.map((raw) => runs(raw).reduce((sum, run) => sum + runWidth(run, base), 0)),
+    1,
+  );
+  const size = Math.round(Math.min(base, (base * (W - 40)) / widest) * 10) / 10;
+  const gap = size * 1.6;
   const first = top + (H - top - gap * (lines.length - 1)) / 2;
-  return lines.map((value, i) => text(W / 2, first + i * gap, value, { size, weight: 600 })).join("");
+  return lines.map((raw, i) => inlineMath(W / 2, first + i * gap, raw, size)).join("");
 }
 
 function fractionBars(v, top) {
