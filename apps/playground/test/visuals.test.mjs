@@ -78,6 +78,7 @@ test("counters draw each group with its own fill and label", () => {
   assert.equal(count(svg, "circle"), 6, "one circle per counter");
   assert.equal((svg.match(/<circle[^>]*fill="#111"\/>/g) || []).length, 5, "five solid");
   assert.equal((svg.match(/<circle[^>]*stroke="#111"[^>]*\/>/g) || []).length, 1, "one open outline");
+  assert.ok(svg.includes('fill="url(#hatch)"'), "the open group is hatched (reads as grey on e-ink)");
   assert.ok(svg.includes(">rojas<") && svg.includes(">azul<"), "each group is named");
 });
 

@@ -2,7 +2,7 @@
   "kind": "counters",
   "title": "¿Qué es más probable?",
   "groups": [
-    { "count": 5, "fill": "solid", "label": "rojas" },
-    { "count": 1, "fill": "open", "label": "azul" }
+    { "count": 5, "fill": "solid", "label": "negras" },
+    { "count": 1, "fill": "open", "label": "gris" }
   ]
 }
