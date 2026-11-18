@@ -369,3 +369,72 @@ label.check input {
   width: auto;
   margin-top: 3px;
 }
+
+/* The drawing as the device shows it: the panel's shape (800 x 480), its
+   greys, and the flash it makes when it redraws. */
+.board.device {
+  max-width: 800px;
+  aspect-ratio: 800 / 480;
+  display: grid;
+  place-items: center;
+  border: 14px solid #1b1b1b;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.board.device svg {
+  max-height: 100%;
+  filter: url("#four-greys");
+}
+
+.board.device.redraw svg {
+  animation: redraw 360ms steps(1, end);
+}
+
+@keyframes redraw {
+  0% {
+    filter: url("#four-greys") invert(1);
+  }
+  45% {
+    filter: url("#four-greys");
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board.device.redraw svg {
+    animation: none;
+  }
+}
+
+.talk {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 22px 12px;
+  font-size: 1.125rem;
+  border-width: 2px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.talk[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  border-style: solid;
+}
+
+.talk[aria-pressed="false"] {
+  color: inherit;
+  border-style: solid;
+}
+
+.talk:disabled {
+  cursor: not-allowed;
+  border-style: dashed;
+}
