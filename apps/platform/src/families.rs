@@ -83,7 +83,45 @@ pub struct Child {
     pub language: String,
     pub interests: Vec<String>,
     pub notes: Option<String>,
+    pub tutor_name: String,
+    pub tutor_persona: String,
+    pub tutor_persona_note: Option<String>,
     pub created_at: DateTime<Utc>,
+}
+
+pub const TUTOR_NAME: &str = "Capri";
+pub const TUTOR_PERSONAS: [&str; 4] = ["calido", "jugueton", "aventurero", "tranquilo"];
+
+/// How the tutor presents itself, as the agent is told. The note is the
+/// guardian's own words: the agent treats it as a wish about tone, after its
+/// rules, and checks it like anything else a person typed.
+pub fn tutor(child: Option<&Child>) -> Value {
+    match child {
+        Some(child) => json!({
+            "name": child.tutor_name,
+            "persona": child.tutor_persona,
+            "note": child.tutor_persona_note,
+        }),
+        None => json!({ "name": TUTOR_NAME, "persona": TUTOR_PERSONAS[0], "note": null }),
+    }
+}
+
+/// A name a child can say: letters, spaces and hyphens, nothing that could
+/// be read as an instruction.
+fn tutor_name(value: &str) -> ApiResult<String> {
+    let name = text(value, "tutor_name", 20)?;
+    if !name.chars().all(|c| c.is_alphabetic() || c == ' ' || c == '-') {
+        return Err(ApiError::bad_request("tutor_name may only have letters, spaces and hyphens"));
+    }
+    Ok(name)
+}
+
+fn tutor_note(value: &str) -> ApiResult<String> {
+    let note = text(value, "tutor_persona_note", 200)?;
+    if note.chars().any(char::is_control) {
+        return Err(ApiError::bad_request("tutor_persona_note must be one line"));
+    }
+    Ok(note)
 }
 
 impl Child {
@@ -105,7 +143,7 @@ impl Child {
 
 pub async fn find_child(pool: &PgPool, child_id: Uuid) -> ApiResult<Child> {
     sqlx::query_as(
-        "select id, family_id, nickname, birth_year, grade, language, interests, notes, created_at
+        "select id, family_id, nickname, birth_year, grade, language, interests, notes, tutor_name, tutor_persona, tutor_persona_note, created_at
          from children where id = $1",
     )
     .bind(child_id)
@@ -134,6 +172,14 @@ pub struct ChildInput {
     interests: Vec<String>,
     #[serde(default)]
     notes: Option<String>,
+    /// The three below keep their value when they are left out.
+    #[serde(default)]
+    tutor_name: Option<String>,
+    #[serde(default)]
+    tutor_persona: Option<String>,
+    /// An empty text removes the note.
+    #[serde(default)]
+    tutor_persona_note: Option<String>,
 }
 
 struct CheckedChild {
@@ -143,6 +189,10 @@ struct CheckedChild {
     language: String,
     interests: Vec<String>,
     notes: Option<String>,
+    tutor_name: Option<String>,
+    tutor_persona: Option<String>,
+    /// `Some(None)` removes the note.
+    tutor_persona_note: Option<Option<String>>,
 }
 
 impl ChildInput {
@@ -165,6 +215,16 @@ impl ChildInput {
         if self.interests.len() > 10 {
             return Err(ApiError::bad_request("at most 10 interests"));
         }
+        if self.tutor_persona.as_deref().is_some_and(|persona| !TUTOR_PERSONAS.contains(&persona)) {
+            return Err(ApiError::bad_request(
+                "tutor_persona must be calido, jugueton, aventurero or tranquilo",
+            ));
+        }
+        let tutor_persona_note = match self.tutor_persona_note {
+            None => None,
+            Some(note) if note.trim().is_empty() => Some(None),
+            Some(note) => Some(Some(tutor_note(&note)?)),
+        };
         Ok(CheckedChild {
             nickname: text(&self.nickname, "nickname", 40)?,
             birth_year: self.birth_year,
@@ -176,6 +236,9 @@ impl ChildInput {
                 .map(|item| text(item, "an interest", 40))
                 .collect::<ApiResult<_>>()?,
             notes: optional(self.notes, "notes", 1000)?,
+            tutor_name: self.tutor_name.as_deref().map(tutor_name).transpose()?,
+            tutor_persona: self.tutor_persona,
+            tutor_persona_note,
         })
     }
 }
@@ -196,9 +259,10 @@ pub async fn create_child(
         .await?;
     family.ok_or(ApiError::NotFound("family"))?;
     let created: Child = sqlx::query_as(
-        "insert into children (id, family_id, nickname, birth_year, grade, language, interests, notes)
-         values ($1, $2, $3, $4, $5, $6, $7, $8)
-         returning id, family_id, nickname, birth_year, grade, language, interests, notes, created_at",
+        "insert into children (id, family_id, nickname, birth_year, grade, language, interests, notes,
+                               tutor_name, tutor_persona, tutor_persona_note)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, coalesce($9, 'Capri'), coalesce($10, 'calido'), $11)
+         returning id, family_id, nickname, birth_year, grade, language, interests, notes, tutor_name, tutor_persona, tutor_persona_note, created_at",
     )
     .bind(Uuid::now_v7())
     .bind(family_id)
@@ -208,6 +272,9 @@ pub async fn create_child(
     .bind(child.language)
     .bind(child.interests)
     .bind(child.notes)
+    .bind(child.tutor_name)
+    .bind(child.tutor_persona)
+    .bind(child.tutor_persona_note.flatten())
     .fetch_one(&state.pool)
     .await?;
     Ok((StatusCode::CREATED, Json(created)))
@@ -222,8 +289,10 @@ pub async fn update_child(
     child_for(&state.pool, &caller, child_id).await?;
     let child = body.checked(Utc::now())?;
     let updated: Option<Child> = sqlx::query_as(
-        "update children set nickname = $2, birth_year = $3, grade = $4, language = $5, interests = $6, notes = $7
-         where id = $1 returning id, family_id, nickname, birth_year, grade, language, interests, notes, created_at"
+        "update children set nickname = $2, birth_year = $3, grade = $4, language = $5, interests = $6, notes = $7,
+           tutor_name = coalesce($8, tutor_name), tutor_persona = coalesce($9, tutor_persona),
+           tutor_persona_note = case when $10 then $11 else tutor_persona_note end
+         where id = $1 returning id, family_id, nickname, birth_year, grade, language, interests, notes, tutor_name, tutor_persona, tutor_persona_note, created_at"
     )
     .bind(child_id)
     .bind(child.nickname)
@@ -232,6 +301,10 @@ pub async fn update_child(
     .bind(child.language)
     .bind(child.interests)
     .bind(child.notes)
+    .bind(child.tutor_name)
+    .bind(child.tutor_persona)
+    .bind(child.tutor_persona_note.is_some())
+    .bind(child.tutor_persona_note.flatten())
     .fetch_optional(&state.pool)
     .await?;
     updated.map(Json).ok_or(ApiError::NotFound("child"))
