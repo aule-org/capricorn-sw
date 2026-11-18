@@ -7,6 +7,7 @@ pub mod devices;
 pub mod error;
 pub mod events;
 pub mod families;
+pub mod google;
 pub mod http;
 pub mod jobs;
 pub mod learning;

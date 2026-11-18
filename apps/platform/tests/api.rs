@@ -11,6 +11,7 @@ use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
 use base64::Engine;
 use capricorn_platform::config::{Config, EventsWebhook, LiveKit};
+use capricorn_platform::google::{Identity, IdentityError, IdentityProvider};
 use capricorn_platform::llm::{Llm, LlmError, Request as LlmRequest};
 use capricorn_platform::mail::{MailError, Mailer};
 use capricorn_platform::memory::{DIMENSIONS, Embedder, MemoryError};
@@ -117,6 +118,27 @@ impl Pusher for Phones {
     }
 }
 
+const GOOGLE_CLIENT: &str = "1234-test.apps.googleusercontent.com";
+
+/// Stands in for Google: a credential is `ok:<email>:<name>`, `down` plays an
+/// outage, and anything else is refused.
+struct PretendGoogle;
+
+#[async_trait]
+impl IdentityProvider for PretendGoogle {
+    async fn identify(&self, credential: &str) -> Result<Identity, IdentityError> {
+        let mut parts = credential.split(':');
+        match (parts.next(), parts.next(), parts.next()) {
+            (Some("ok"), Some(email), name) => Ok(Identity {
+                email: email.to_string(),
+                name: name.filter(|name| !name.is_empty()).map(str::to_string),
+            }),
+            (Some("down"), ..) => Err(IdentityError::Unreachable("pretend outage".into())),
+            _ => Err(IdentityError::Refused("pretend refusal".into())),
+        }
+    }
+}
+
 struct App {
     phones: Arc<Phones>,
     router: Router,
@@ -147,6 +169,7 @@ fn app_with(pool: PgPool, events_webhook: Option<EventsWebhook>) -> App {
         mail: None,
         events_webhook,
         fcm_service_account: None,
+        google_client_id: Some(GOOGLE_CLIENT.into()),
         timezone_offset_minutes: -300,
     };
     let mail = Arc::new(Outbox::default());
@@ -159,6 +182,7 @@ fn app_with(pool: PgPool, events_webhook: Option<EventsWebhook>) -> App {
         embedder: Some(Arc::new(WordEmbedder)),
         mailer: Some(mail.clone()),
         pusher: Some(phones.clone()),
+        google: Some(Arc::new(PretendGoogle)),
         watching: Arc::new(Mutex::new(HashSet::new())),
         claim_attempts: Arc::new(Mutex::new(HashMap::new())),
     };
@@ -1189,4 +1213,57 @@ async fn a_notice_is_announced_on_the_guardians_phones_without_saying_what_it_is
     assert_eq!(app.count("select count(*) from push_tokens").await, 2);
     assert_eq!(forget(&app, phone, &ana).await, StatusCode::NO_CONTENT);
     assert_eq!(app.count("select count(*) from push_tokens").await, 1);
+}
+
+#[sqlx::test(migrator = "capricorn_platform::MIGRATOR")]
+async fn a_guardian_signs_in_with_google_and_it_is_the_same_account_as_by_code(pool: PgPool) {
+    let app = app(pool);
+    let google = |body: Value| app.call(Method::POST, "/v1/auth/google", None, Some(body));
+
+    // The app learns which client to ask Google for.
+    let (status, client) = app.call(Method::GET, "/v1/auth/google", None, None).await;
+    assert_eq!((status, client["client_id"].as_str()), (StatusCode::OK, Some(GOOGLE_CLIENT)));
+
+    // What Google does not vouch for opens nothing, and an outage is not a refusal.
+    assert_eq!(google(json!({ "credential": "forged" })).await.0, StatusCode::FORBIDDEN);
+    assert_eq!(google(json!({ "credential": "down" })).await.0, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(google(json!({ "credential": "x".repeat(5000) })).await.0, StatusCode::BAD_REQUEST);
+    assert_eq!(google(json!({})).await.0, StatusCode::BAD_REQUEST);
+    assert_eq!(app.count("select count(*) from guardians").await, 0);
+
+    // A new address becomes a family, named from the Google account.
+    let (status, account) = google(json!({ "credential": "ok:Ana@Example.org:Ana Quispe" })).await;
+    assert_eq!(status, StatusCode::OK, "{account}");
+    assert_eq!(account["new_account"], true);
+    let token = account["token"].as_str().unwrap().to_string();
+    let (_, me) = app.call(Method::GET, "/v1/me", Some(&token), None).await;
+    assert_eq!(
+        (me["guardian"]["email"].as_str(), me["guardian"]["name"].as_str()),
+        (Some("ana@example.org"), Some("Ana Quispe"))
+    );
+
+    // Again with Google, and then with an emailed code: the same family each time.
+    let (_, again) = google(json!({ "credential": "ok:ana@example.org:Someone Else" })).await;
+    assert_eq!((again["new_account"].as_bool(), &again["family_id"]), (Some(false), &account["family_id"]));
+    let by_code = app.sign_in("ana@example.org", "ignored").await;
+    let (_, me) = app.call(Method::GET, "/v1/me", Some(&by_code), None).await;
+    assert_eq!(me["family_id"], account["family_id"]);
+    assert_eq!(me["guardian"]["name"], "Ana Quispe");
+    assert_eq!(app.count("select count(*) from guardians").await, 1);
+
+    // A Google account without a name needs one from the app, like a code does.
+    let (status, body) = google(json!({ "credential": "ok:luis@example.org" })).await;
+    assert_eq!((status, body["error"]["code"].as_str()), (StatusCode::BAD_REQUEST, Some("bad_request")));
+    let (status, luis) =
+        google(json!({ "credential": "ok:luis@example.org", "name": "Luis", "language": "en" })).await;
+    assert_eq!(status, StatusCode::OK, "{luis}");
+    assert_ne!(luis["family_id"], account["family_id"]);
+
+    // Signing out ends that session only.
+    assert_eq!(
+        app.call(Method::POST, "/v1/auth/signout", Some(&token), None).await.0,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(app.call(Method::GET, "/v1/me", Some(&token), None).await.0, StatusCode::UNAUTHORIZED);
+    assert_eq!(app.call(Method::GET, "/v1/me", Some(&by_code), None).await.0, StatusCode::OK);
 }
