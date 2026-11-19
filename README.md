@@ -55,6 +55,8 @@ cd apps/agent && uv run pytest     # agent
 cd apps/platform && cargo test     # platform (needs DATABASE_URL to a Postgres with pgvector)
 ```
 
+Coding agents: read [AGENTS.md](AGENTS.md) first.
+
 To run it, copy `.env.example` to `.env`, fill it in, run `docker compose up -d --build` and, once, `docker compose exec embeddings ollama pull bge-m3`.
 
 ## How the pieces fit
