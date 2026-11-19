@@ -191,6 +191,10 @@ button.danger {
     transform 0.2s;
 }
 
+.tutor[data-state="reconnecting"] .tile-state {
+  font-weight: 600;
+}
+
 .tutor[data-state="listening"] .orb {
   opacity: 0.7;
 }
