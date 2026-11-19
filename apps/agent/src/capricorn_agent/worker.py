@@ -23,6 +23,7 @@ from .platform import Platform, platform_session
 from .providers import build_llm, build_stt, build_tts
 from .safety import audience_of, build_gates
 from .tutor import Persona, Tutor, persona_from
+from .usage import Usage
 
 logger = logging.getLogger("capricorn.agent")
 
@@ -157,9 +158,12 @@ async def entrypoint(ctx: JobContext) -> None:
         persona=persona,
         checker=platform,
     )
+    usage = Usage()
+    model = build_llm(settings)
+    model.on("metrics_collected", usage.add)
     session = AgentSession(
         stt=build_stt(settings, language),
-        llm=build_llm(settings),
+        llm=model,
         tts=build_tts(settings, language),
         vad=ctx.proc.userdata["vad"],
         # Push-to-talk: the talk button commits each turn (see ``push_to_talk``
@@ -187,6 +191,7 @@ async def entrypoint(ctx: JobContext) -> None:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
         camera.stop()
+        logger.info("session usage", extra=usage.summary())
         await gates.close()
         if platform:
             await platform.end()
