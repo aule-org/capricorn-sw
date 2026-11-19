@@ -14,6 +14,9 @@ from .safety import Gates
 # Sends one visual to the student's screen.
 Show = Callable[[dict[str, Any]], Awaitable[None]]
 
+# The longest typed message that is read. A spoken turn is rarely longer.
+MAX_TYPED_CHARS = 500
+
 DEFAULT_TUTOR_NAME = "Capri"
 PERSONAS = ("calido", "jugueton", "aventurero", "tranquilo")
 
@@ -318,23 +321,43 @@ class Tutor(Agent):
     async def on_user_turn_completed(
         self, turn_ctx: llm.ChatContext, new_message: llm.ChatMessage
     ) -> None:
+        if not await self._may_answer(turn_ctx, new_message):
+            # The stopped turn never reaches the model: StopResponse discards it.
+            raise StopResponse()
+
+    async def typed(self, text: str) -> None:
+        """A message typed instead of spoken.
+
+        It is judged like a spoken turn before the model sees it. Without this
+        a typed message would go straight to the model, past both input gates.
+        """
+        text = text.strip()[:MAX_TYPED_CHARS]
+        if not text:
+            return
+        await self.session.interrupt()
+        message = llm.ChatMessage(role="user", content=[text])
+        if await self._may_answer(self.chat_ctx.copy(), message):
+            self.session.generate_reply(user_input=text)
+
+    async def _may_answer(self, turn_ctx: llm.ChatContext, new_message: llm.ChatMessage) -> bool:
+        """Judges what the person said or typed. When it must not reach the
+        model, says the fixed reply for it and answers False."""
         # Read and reset before waiting, so a cancelled or safe turn starts the
         # sequence of reminders over.
         hazards, self._hazards_in_a_row = self._hazards_in_a_row, 0
         decision = await self._gates.heard(turn_ctx, new_message)
         if decision.allowed:
-            return
+            return True
         key = decision.reply or "unavailable"
         if key == "adult_help":
             key = ADULT_HELP_SEQUENCE[hazards]
-        # The stopped turn never reaches the model: StopResponse discards it.
         speech = await self.session.say(
             reply(key, self._language), add_to_chat_ctx=key in OFFERS, allow_interruptions=False
         )
         if decision.reply == "adult_help" and not speech.interrupted:
             # After the full offer, alternate the two shorter reminders.
             self._hazards_in_a_row = hazards + 1 if hazards + 1 < len(ADULT_HELP_SEQUENCE) else 1
-        raise StopResponse()
+        return False
 
     async def llm_node(
         self, chat_ctx: llm.ChatContext, tools: list[llm.Tool], model_settings: ModelSettings

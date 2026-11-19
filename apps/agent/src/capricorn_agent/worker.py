@@ -192,7 +192,15 @@ async def entrypoint(ctx: JobContext) -> None:
         room=ctx.room,
         # The camera is read by ``Camera``; the session's own video input only
         # feeds realtime models. Audio is not recorded.
-        room_options=room_io.RoomOptions(video_input=False, delete_room_on_close=True),
+        room_options=room_io.RoomOptions(
+            video_input=False,
+            delete_room_on_close=True,
+            # A typed message is judged like a spoken one. LiveKit's own
+            # handler would hand it to the model unchecked.
+            text_input=room_io.TextInputOptions(
+                text_input_cb=lambda _, event: tutor.typed(event.text)
+            ),
+        ),
         record=False,
     )
     camera.start()
