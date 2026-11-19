@@ -9,7 +9,18 @@ import { fileURLToPath } from "node:url";
 
 import { GuessLimiter, sameCode } from "./access.ts";
 import { ConfigError, LANGUAGES, readSettings, type Language, type Settings } from "./config.ts";
-import { PlatformError, createSession, supervisorView } from "./session.ts";
+import {
+  PlatformError,
+  account,
+  createSession,
+  createStudent,
+  createStudentSession,
+  googleClient,
+  signIn,
+  signOut,
+  supervisorView,
+} from "./session.ts";
+import { DailyLimit, guardianToken, signedInCookie, signedOutCookie } from "./signin.ts";
 
 const publicDir = new URL("../public/", import.meta.url);
 // The browser build that ships inside the livekit-client package.
@@ -21,12 +32,18 @@ const livekitClient = join(
 const STATIC: Record<string, { file: string | URL; type: string }> = {
   "/": { file: new URL("index.html", publicDir), type: "text/html; charset=utf-8" },
   "/app.js": { file: new URL("app.js", publicDir), type: "text/javascript; charset=utf-8" },
+  "/signin.js": { file: new URL("signin.js", publicDir), type: "text/javascript; charset=utf-8" },
   "/visuals.js": { file: new URL("visuals.js", publicDir), type: "text/javascript; charset=utf-8" },
   "/style.css": { file: new URL("style.css", publicDir), type: "text/css; charset=utf-8" },
   "/livekit-client.js": { file: livekitClient, type: "text/javascript; charset=utf-8" },
 };
 
 const MAX_BODY_BYTES = 2_000;
+// A Google credential is a signed token of a couple of thousand characters.
+const MAX_SIGN_IN_BYTES = 8_000;
+const MAX_NAME_CHARS = 40;
+// Where the browser gets Google's sign-in button from, and nothing else of Google's.
+const GOOGLE = "https://accounts.google.com/gsi/";
 
 function securityHeaders(settings: Settings): Record<string, string> {
   const livekit = new URL(settings.livekitUrl);
@@ -35,15 +52,18 @@ function securityHeaders(settings: Settings): Record<string, string> {
   return {
     "Content-Security-Policy": [
       "default-src 'none'",
-      "script-src 'self'",
-      "style-src 'self'",
-      `connect-src 'self' ${signalling} ${http}`,
+      `script-src 'self' ${GOOGLE}client`,
+      `style-src 'self' ${GOOGLE}style`,
+      `connect-src 'self' ${signalling} ${http} ${GOOGLE}`,
+      `frame-src ${GOOGLE}`,
       "media-src 'self' blob: mediastream:",
       "img-src 'self' data:",
       "base-uri 'none'",
       "form-action 'none'",
       "frame-ancestors 'none'",
     ].join("; "),
+    // Google's sign-in opens a window that has to answer this page.
+    "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
     "Permissions-Policy": "camera=(self), microphone=(self)",
     "Referrer-Policy": "no-referrer",
     "X-Content-Type-Options": "nosniff",
@@ -52,12 +72,12 @@ function securityHeaders(settings: Settings): Record<string, string> {
   };
 }
 
-async function readJson(request: IncomingMessage): Promise<Record<string, unknown>> {
+async function readJson(request: IncomingMessage, limit = MAX_BODY_BYTES): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of request) {
     size += (chunk as Buffer).length;
-    if (size > MAX_BODY_BYTES) throw new Error("body too large");
+    if (size > limit) throw new Error("body too large");
     chunks.push(chunk as Buffer);
   }
   const body: unknown = JSON.parse(Buffer.concat(chunks).toString("utf8"));
@@ -70,6 +90,7 @@ async function readJson(request: IncomingMessage): Promise<Record<string, unknow
 export function createPlayground(settings: Settings): Server {
   const headers = securityHeaders(settings);
   const limiter = new GuessLimiter();
+  const daily = new DailyLimit(settings.dailySessions);
 
   const send = (response: ServerResponse, status: number, type: string, body: string | Buffer) => {
     response.writeHead(status, { ...headers, "Content-Type": type });
@@ -77,6 +98,89 @@ export function createPlayground(settings: Settings): Server {
   };
   const json = (response: ServerResponse, status: number, body: unknown) =>
     send(response, status, "application/json; charset=utf-8", JSON.stringify(body));
+
+  // Who is signed in, for the page: never the token, only what it shows.
+  async function whoIsHere(
+    request: IncomingMessage,
+    response: ServerResponse,
+    entered?: { token: string; cookie: string },
+  ) {
+    const extra = entered ? { "Set-Cookie": entered.cookie } : {};
+    const reply = (body: unknown, more: Record<string, string> = {}) => {
+      response.writeHead(200, { ...headers, ...extra, ...more, "Content-Type": "application/json; charset=utf-8" });
+      response.end(JSON.stringify(body));
+    };
+    if (!settings.platform) return reply({ google_client_id: null, signed_in: false });
+    const token = entered?.token ?? guardianToken(request);
+    const clientId = await googleClient(settings);
+    if (!token) return reply({ google_client_id: clientId, signed_in: false });
+    try {
+      const who = await account(settings, token);
+      return reply({ google_client_id: clientId, signed_in: true, name: who.name, students: who.students });
+    } catch (error) {
+      if (!(error instanceof PlatformError)) throw error;
+      // A session the platform no longer knows: the page starts over signed out.
+      return reply(
+        { google_client_id: clientId, signed_in: false },
+        { "Set-Cookie": signedOutCookie(settings.basePath) },
+      );
+    }
+  }
+
+  async function signedIn(path: string, request: IncomingMessage, response: ServerResponse) {
+    if (!settings.platform) return json(response, 404, { error: "not_found" });
+    let body: Record<string, unknown>;
+    try {
+      body = await readJson(request, path === "/api/signin" ? MAX_SIGN_IN_BYTES : MAX_BODY_BYTES);
+    } catch {
+      return json(response, 400, { error: "bad_request" });
+    }
+    if (path === "/api/signin") {
+      if (typeof body.credential !== "string" || !body.credential) {
+        return json(response, 400, { error: "bad_request" });
+      }
+      let entered;
+      try {
+        entered = await signIn(settings, body.credential);
+      } catch (error) {
+        if (error instanceof PlatformError && error.status < 500) {
+          return json(response, 403, { error: "sign_in_refused" });
+        }
+        throw error;
+      }
+      return whoIsHere(request, response, {
+        token: entered.token,
+        cookie: signedInCookie(entered.token, settings.basePath, entered.days),
+      });
+    }
+    const token = guardianToken(request);
+    if (path === "/api/signout") {
+      if (token) await signOut(settings, token).catch(() => undefined);
+      response.writeHead(200, {
+        ...headers,
+        "Set-Cookie": signedOutCookie(settings.basePath),
+        "Content-Type": "application/json; charset=utf-8",
+      });
+      return response.end(JSON.stringify({ signed_in: false }));
+    }
+    if (!token) return json(response, 401, { error: "not_signed_in" });
+    const language = LANGUAGES.find((known) => known === body.language) ?? ("es" as Language);
+    if (path === "/api/student") {
+      const name = typeof body.name === "string" ? body.name.trim() : "";
+      // Nothing is created without the guardian's explicit yes on the page.
+      if (!name || name.length > MAX_NAME_CHARS || body.consent !== true) {
+        return json(response, 400, { error: "bad_request" });
+      }
+      const who = await account(settings, token);
+      return json(response, 201, await createStudent(settings, token, who.familyId, name, language));
+    }
+    // "/api/session" for a signed-in guardian.
+    if (typeof body.student_id !== "string" || !/^[0-9a-f-]{36}$/i.test(body.student_id)) {
+      return json(response, 400, { error: "bad_request" });
+    }
+    if (!daily.take(token)) return json(response, 429, { error: "daily_limit" });
+    return json(response, 200, await createStudentSession(settings, token, body.student_id, language));
+  }
 
   async function session(path: string, request: IncomingMessage, response: ServerResponse) {
     if (limiter.blocked()) return json(response, 429, { error: "too_many_attempts" });
@@ -116,8 +220,16 @@ export function createPlayground(settings: Settings): Server {
 
     const handle = async () => {
       if (path === "/healthz" && request.method === "GET") return json(response, 200, { ok: true });
+      if (path === "/api/account" && request.method === "GET") return whoIsHere(request, response);
+      if (path === "/api/signin" || path === "/api/signout" || path === "/api/student") {
+        if (request.method !== "POST") return json(response, 405, { error: "method_not_allowed" });
+        return signedIn(path, request, response);
+      }
       if (path === "/api/session" || path === "/api/supervisor") {
         if (request.method !== "POST") return json(response, 405, { error: "method_not_allowed" });
+        // Signed in, a session is for one of the family's students; the access
+        // code stays as the team's way in, and the only way to the supervisor.
+        if (path === "/api/session" && guardianToken(request)) return signedIn(path, request, response);
         return session(path, request, response);
       }
       const asset = STATIC[path];

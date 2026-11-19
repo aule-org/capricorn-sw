@@ -4,38 +4,77 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
-    <title>Capricorn playground</title>
+    <title>Aule</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <main>
       <header>
-        <h1>Capricorn playground</h1>
-        <p>Talk to the tutor with your microphone and show it your work with the camera.</p>
+        <h1>Aule</h1>
+        <p>Habla con tu tutor por el micrófono y muéstrale tu cuaderno con la cámara.</p>
       </header>
 
-      <form id="entry" autocomplete="off">
-        <label>
-          Access code
-          <input id="code" type="password" required autocomplete="off" spellcheck="false" />
-        </label>
-        <label>
-          Language
-          <select id="language">
-            <option value="es">Español</option>
-            <option value="en">English</option>
-          </select>
-        </label>
-        <label class="check">
-          <input id="operator" type="checkbox" />
-          Show the supervisor's plan and notes, and the report for the family (team only, not
-          for a child's screen)
-        </label>
-        <button type="submit" id="start">Continue</button>
-        <p class="note">
-          For adults on the team only. Audio and video are processed to answer and are not stored.
-        </p>
-      </form>
+      <section id="welcome">
+        <!-- Signing in: a Google account, then the student this session is for. -->
+        <div id="signed-out" hidden>
+          <div id="google"></div>
+          <p class="note">
+            Entra con tu cuenta de Google. La primera vez se crea tu cuenta de padre de familia.
+          </p>
+        </div>
+
+        <form id="who" hidden autocomplete="off">
+          <p id="hello" class="hello"></p>
+          <fieldset id="students" hidden>
+            <legend>¿Quién va a estudiar hoy?</legend>
+            <div id="student-list"></div>
+          </fieldset>
+          <label id="new-student">
+            Nombre del alumno
+            <input id="student-name" type="text" maxlength="40" autocomplete="off" />
+          </label>
+          <label class="check" id="consent-line">
+            <input id="consent" type="checkbox" />
+            Soy su padre, madre o apoderado y acepto que Aule procese su voz para responderle y
+            recuerde lo que aprende entre sesiones. No se guarda el audio ni la conversación.
+          </label>
+          <label>
+            Idioma
+            <select id="student-language">
+              <option value="es">Español</option>
+              <option value="en">English</option>
+            </select>
+          </label>
+          <button type="submit" id="enter">Continuar</button>
+          <button type="button" id="sign-out" class="quiet">Salir de la cuenta</button>
+        </form>
+
+        <details id="team">
+          <summary>Acceso del equipo</summary>
+          <form id="entry" autocomplete="off">
+            <label>
+              Access code
+              <input id="code" type="password" required autocomplete="off" spellcheck="false" />
+            </label>
+            <label>
+              Language
+              <select id="language">
+                <option value="es">Español</option>
+                <option value="en">English</option>
+              </select>
+            </label>
+            <label class="check">
+              <input id="operator" type="checkbox" />
+              Show the supervisor's plan and notes, and the report for the family (team only, not
+              for a child's screen)
+            </label>
+            <button type="submit" id="start">Continue</button>
+            <p class="note">
+              For adults on the team only. Audio and video are processed to answer and are not stored.
+            </p>
+          </form>
+        </details>
+      </section>
 
       <section id="lobby" hidden aria-labelledby="lobby-title">
         <h2 id="lobby-title">Ready to join?</h2>
