@@ -4,7 +4,7 @@
 
 import { TOPIC as VISUAL_TOPIC, renderVisual } from "./visuals.js";
 
-const { Room, RoomEvent, Track, ParticipantKind } = LivekitClient;
+const { Room, RoomEvent, Track, ParticipantKind, DisconnectReason } = LivekitClient;
 
 const TRANSCRIPTION_TOPIC = "lk.transcription";
 const AGENT_STATE = "lk.agent.state";
@@ -25,7 +25,17 @@ const STATE_TEXT = {
   missing:
     "The tutor did not join. The agent worker is probably not running or has no provider keys.",
   left: "The tutor left the session.",
+  reconnecting: "The connection was lost. Reconnecting…",
 };
+
+// Ways a session ends that nobody asked for.
+const LOST = new Set([
+  DisconnectReason.JOIN_FAILURE,
+  DisconnectReason.SIGNAL_CLOSE,
+  DisconnectReason.STATE_MISMATCH,
+  DisconnectReason.CONNECTION_TIMEOUT,
+  DisconnectReason.MEDIA_FAILURE,
+]);
 
 const SUPERVISOR_POLL_MS = 3000;
 // The review is written after the session ends; it usually takes under a
@@ -235,6 +245,17 @@ function watchTutor(participant) {
   syncMicrophone();
 }
 
+// While the connection is down the tutor neither hears nor is heard, and the
+// last state it reported would be shown as if it were still true.
+function showConnection(lost) {
+  if (lost) return setTutorState("reconnecting");
+  const tutor = [...(room?.remoteParticipants.values() ?? [])].find(
+    (participant) => participant.kind === ParticipantKind.AGENT,
+  );
+  if (tutor) watchTutor(tutor);
+  else setTutorState("left");
+}
+
 // Open only when the tutor is there and turns end by themselves; with a talk
 // button the microphone is closed between turns.
 function syncMicrophone() {
@@ -311,7 +332,16 @@ async function join(session) {
     .on(RoomEvent.LocalTrackPublished, showCamera)
     .on(RoomEvent.TrackMuted, showCamera)
     .on(RoomEvent.TrackUnmuted, showCamera)
-    .on(RoomEvent.Disconnected, () => leave("The session ended."));
+    .on(RoomEvent.Reconnecting, () => showConnection(true))
+    .on(RoomEvent.SignalReconnecting, () => showConnection(true))
+    .on(RoomEvent.Reconnected, () => showConnection(false))
+    .on(RoomEvent.Disconnected, (reason) =>
+      leave(
+        LOST.has(reason)
+          ? "The connection was lost and the session could not be resumed. Start a new one."
+          : "The session ended.",
+      ),
+    );
   room.registerTextStreamHandler(TRANSCRIPTION_TOPIC, (reader, participant) => {
     onTranscription(reader, participant).catch(() => undefined);
   });
