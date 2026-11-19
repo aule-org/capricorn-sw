@@ -331,8 +331,8 @@ async def test_the_model_is_told_what_the_checker_said_and_nothing_else():
     checker = ScriptedChecker(posed="Ask it and wait.", judged="Give one hint about the sign.")
     tutor = Tutor(language="es", gates=ScriptedGates(), checker=checker)
 
-    assert await tool(tutor, "pose_exercise")(expression="3/4 + 1/8") == "Ask it and wait."
-    assert await tool(tutor, "check_answer")(said="me da cuatro doceavos") == (
+    assert await tool(tutor, "pose_exercise")({"expression": "3/4 + 1/8"}) == "Ask it and wait."
+    assert await tool(tutor, "check_answer")({"said": "me da cuatro doceavos"}) == (
         "Give one hint about the sign."
     )
     assert checker.calls == [
@@ -344,5 +344,33 @@ async def test_the_model_is_told_what_the_checker_said_and_nothing_else():
 async def test_an_exercise_that_cannot_be_checked_leaves_the_tutor_on_its_own():
     tutor = Tutor(language="en", gates=ScriptedGates(), checker=ScriptedChecker())
 
-    assert await tool(tutor, "pose_exercise")(expression="which is bigger?") == UNCHECKED
-    assert await tool(tutor, "check_answer")(said="the red one") == UNCHECKED
+    assert await tool(tutor, "pose_exercise")({"expression": "which is bigger?"}) == UNCHECKED
+    assert await tool(tutor, "check_answer")({"said": "the red one"}) == UNCHECKED
+
+
+def nullable(schema):
+    """Every place a tool schema declares a value that may be null."""
+    if isinstance(schema, dict):
+        kind = schema.get("type")
+        here = kind == "null" or (isinstance(kind, list) and "null" in kind)
+        return here or any(nullable(value) for value in schema.values())
+    return isinstance(schema, list) and any(nullable(item) for item in schema)
+
+
+def test_no_tool_declares_a_nullable_argument_which_the_model_api_refuses_with_an_enum():
+    tutor = Tutor(
+        language="es", gates=ScriptedGates(), checker=ScriptedChecker(), show=lambda visual: None
+    )
+
+    assert len(tutor.tools) == 3
+    for each in tutor.tools:
+        assert not nullable(each.info.raw_schema), each.info.name
+
+
+async def test_a_checking_call_without_its_text_is_not_sent_to_the_platform():
+    checker = ScriptedChecker(posed="x", judged="y")
+    tutor = Tutor(language="es", gates=ScriptedGates(), checker=checker)
+
+    assert await tool(tutor, "pose_exercise")({"skill_id": "a.b"}) == UNCHECKED
+    assert await tool(tutor, "check_answer")({"said": 7}) == UNCHECKED
+    assert checker.calls == []

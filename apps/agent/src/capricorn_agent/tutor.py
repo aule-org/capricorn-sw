@@ -2,7 +2,7 @@
 
 from collections.abc import AsyncIterable, Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any, Literal, Protocol
+from typing import Any, Protocol
 
 from livekit import rtc
 from livekit.agents import Agent, ModelSettings, StopResponse, function_tool, llm
@@ -22,6 +22,32 @@ class Checker(Protocol):
 
     async def answer(self, said: str) -> str | None: ...
 
+
+# The two checking tools as the model sees them. Written out by hand: a schema
+# derived from optional Python arguments declares them nullable, and the
+# model's API refuses an enum on a nullable type.
+POSE_EXERCISE: dict[str, Any] = {
+    "name": "pose_exercise",
+    "description": "Register the computation you are about to ask, e.g. '3/4 + 1/8'.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "expression": {"type": "string"},
+            "skill_id": {"type": "string"},
+            "form": {"type": "string", "enum": ["any", "simplified", "mixed"]},
+        },
+        "required": ["expression"],
+    },
+}
+CHECK_ANSWER: dict[str, Any] = {
+    "name": "check_answer",
+    "description": "Check the student's answer to the registered computation.",
+    "parameters": {
+        "type": "object",
+        "properties": {"said": {"type": "string"}},
+        "required": ["said"],
+    },
+}
 
 # What the model reads when an exercise or an answer could not be checked.
 UNCHECKED = "Not checked: carry on by yourself."
@@ -321,22 +347,27 @@ class Tutor(Agent):
         if checker is not None:
             instructions = with_notes(instructions, CHECKING[language])
 
-            @function_tool(
-                name="pose_exercise",
-                description="Register the computation you are about to ask, e.g. '3/4 + 1/8'.",
-            )
-            async def pose_exercise(
-                expression: str,
-                skill_id: str | None = None,
-                form: Literal["any", "simplified", "mixed"] | None = None,
-            ) -> str:
-                return await checker.pose(expression, skill_id, form) or UNCHECKED
+            @function_tool(raw_schema=POSE_EXERCISE)
+            async def pose_exercise(raw_arguments: dict[str, object]) -> str:
+                expression, skill_id, form = (
+                    raw_arguments.get(key) for key in ("expression", "skill_id", "form")
+                )
+                if not isinstance(expression, str) or not expression.strip():
+                    return UNCHECKED
+                return (
+                    await checker.pose(
+                        expression,
+                        skill_id if isinstance(skill_id, str) else None,
+                        form if isinstance(form, str) else None,
+                    )
+                    or UNCHECKED
+                )
 
-            @function_tool(
-                name="check_answer",
-                description="Check the student's answer to the registered computation.",
-            )
-            async def check_answer(said: str) -> str:
+            @function_tool(raw_schema=CHECK_ANSWER)
+            async def check_answer(raw_arguments: dict[str, object]) -> str:
+                said = raw_arguments.get("said")
+                if not isinstance(said, str) or not said.strip():
+                    return UNCHECKED
                 return await checker.answer(said) or UNCHECKED
 
             tools += [pose_exercise, check_answer]
