@@ -10,13 +10,23 @@
   <body>
     <main>
       <header>
-        <h1>Aule</h1>
+        <div class="brand">
+          <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+            <rect x="6" y="8" width="52" height="40" rx="10" fill="#fbfaf6" stroke="#141414" stroke-width="4" />
+            <circle cx="24" cy="27" r="4" fill="#141414" />
+            <circle cx="40" cy="27" r="4" fill="#141414" />
+            <path d="M24 37 q8 6 16 0" fill="none" stroke="#141414" stroke-width="3.5" stroke-linecap="round" />
+            <path d="M22 48 v8 M42 48 v8 M16 56 h32" fill="none" stroke="#141414" stroke-width="4" stroke-linecap="round" />
+          </svg>
+          <h1>Aule</h1>
+        </div>
         <p>Habla con tu tutor por el micrófono y muéstrale tu cuaderno con la cámara.</p>
       </header>
 
       <section id="welcome">
         <!-- Signing in: a Google account, then the student this session is for. -->
         <div id="signed-out" hidden>
+          <h2>Entra a tu sesión</h2>
           <div id="google"></div>
           <p class="note">
             Entra con tu cuenta de Google. La primera vez se crea tu cuenta de padre de familia.
@@ -24,7 +34,7 @@
         </div>
 
         <form id="who" hidden autocomplete="off">
-          <p id="hello" class="hello"></p>
+          <h2 id="hello" class="hello"></h2>
           <fieldset id="students" hidden>
             <legend>¿Quién va a estudiar hoy?</legend>
             <div id="student-list"></div>
@@ -53,11 +63,11 @@
           <summary>Acceso del equipo</summary>
           <form id="entry" autocomplete="off">
             <label>
-              Access code
+              Código de acceso
               <input id="code" type="password" required autocomplete="off" spellcheck="false" />
             </label>
             <label>
-              Language
+              Idioma
               <select id="language">
                 <option value="es">Español</option>
                 <option value="en">English</option>
@@ -65,19 +75,19 @@
             </label>
             <label class="check">
               <input id="operator" type="checkbox" />
-              Show the supervisor's plan and notes, and the report for the family (team only, not
-              for a child's screen)
+              Mostrar el plan y las notas del supervisor y el informe para la familia (solo el
+              equipo; no es para la pantalla de un alumno)
             </label>
-            <button type="submit" id="start">Continue</button>
+            <button type="submit" id="start">Continuar</button>
             <p class="note">
-              For adults on the team only. Audio and video are processed to answer and are not stored.
+              Solo para adultos del equipo. El audio y el video se procesan para responder y no se guardan.
             </p>
           </form>
         </details>
       </section>
 
       <section id="lobby" hidden aria-labelledby="lobby-title">
-        <h2 id="lobby-title">Ready to join?</h2>
+        <h2 id="lobby-title">¿Listo para entrar?</h2>
         <div class="tile preview">
           <video id="preview" autoplay muted playsinline></video>
           <p id="preview-off" class="tile-empty" hidden>Camera off</p>
@@ -89,8 +99,8 @@
         </div>
         <p id="lobby-note" class="note" role="status"></p>
         <div class="controls">
-          <button type="button" id="join" class="primary">Join now</button>
-          <button type="button" id="back">Back</button>
+          <button type="button" id="join" class="primary">Entrar ahora</button>
+          <button type="button" id="back">Volver</button>
         </div>
       </section>
 
