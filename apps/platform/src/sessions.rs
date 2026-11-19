@@ -408,6 +408,13 @@ pub async fn agent_end(
         return Err(ApiError::bad_request(format!("end_reason must be one of: {}", END_REASONS.join(", "))));
     }
     let speaking_seconds = body.speaking_seconds.filter(|seconds| (0..=86_400).contains(seconds));
+    // An exercise still open when the session closes was left, not failed.
+    sqlx::query(
+        "update session_exercises set status = 'dropped', resolved_at = now() where session_id = $1 and status = 'open'",
+    )
+    .bind(session.id)
+    .execute(&state.pool)
+    .await?;
     end_session(&state.pool, session.id, speaking_seconds, reason).await?;
     Ok(StatusCode::NO_CONTENT)
 }

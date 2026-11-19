@@ -96,7 +96,7 @@ Devices do not use a bearer token: they sign with the key burned into them.
 | `POST /v1/agent/session/turns` | Reports turns; returns guidance written since the last call |
 | `POST /v1/agent/session/flags` | Reports that a safety gate stopped a turn: the gate, what it did, fixed categories |
 | `POST /v1/agent/session/exercises` | The tutor states the exercise it is about to ask, as arithmetic (`expression`: `"3/4 + 1/8"`, optional `skill_id` and `form`: `any`, `simplified` or `mixed`). The platform works out the answer and keeps it; the response says whether this one is to find out what the student can do (`probe`) and what to do (`say`). 400 when it is not arithmetic it can check |
-| `POST /v1/agent/session/answers` | What the student answered (`said`, their words). Returns `verdict` (`correct`, `wrong_form`, `incorrect`, `unreadable`), the number that was `read`, a named `misconception` when the mistake is a known one, and what to do next (`stage`, `next`, `say`). `reveal` carries the answer only once the exercise is closed and has to be worked out together |
+| `POST /v1/agent/session/answers` | What the student answered (`said`, their words). Returns `verdict` (`correct`, `wrong_form`, `incorrect`, `dont_know`, `unreadable`), the number that was `read`, a named `misconception` when the mistake is a known one, and what to do next (`stage`, `next`, `say`). `reveal` carries the answer only once the exercise is closed and has to be worked out together |
 | `POST /v1/agent/session/end` | Closes the session and queues its review |
 
 Errors are `{"error": {"code": "...", "message": "..."}}`.
@@ -147,7 +147,7 @@ The tutor does not decide whether an answer is right, and while an exercise is o
 
 1. **Find out first.** The first two exercises on a skill get no hints and no "right" or "wrong". Both right: the skill is known, move on.
 2. **Teach, then practise.** Otherwise the tutor teaches with a worked example and asks the student to explain it back.
-3. **Help that grows.** A wrong answer in practice gets a hint aimed at the mistake, a second one, then a worked example with other numbers. The exercise stays the same. The right amount in the wrong form costs no hint.
+3. **Help that grows.** A wrong answer in practice gets a hint aimed at the mistake, a second one, then a worked example with other numbers. The exercise stays the same. The right amount in the wrong form costs no hint. "No sé" gets the next hint without counting as a wrong answer. Stating the open exercise again keeps its tries and hints.
 4. **Stuck is allowed.** After that the exercise is worked out together (only then is the answer given to the tutor), the idea is taught again and practice starts over.
 5. **Enough is enough.** Three exercises solved in a row, each from a different angle, and the skill is done for the session.
 

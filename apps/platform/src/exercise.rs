@@ -542,6 +542,8 @@ pub enum Verdict {
     Incorrect,
     /// No number could be made out: ask again, it does not count.
     Unreadable,
+    /// "No sé": not a wrong answer, a request for help.
+    DontKnow,
 }
 
 /// A mistake with a name: it tells the tutor what the student did, so the
@@ -626,10 +628,27 @@ fn misconception(exercise: &Exercise, given: Rational) -> Option<Misconception> 
     is(Rational::whole(1).over(answer)).then_some(Inverted)
 }
 
+/// "No sé", "ni idea", "I don't know": said instead of an answer.
+pub fn says_dont_know(said: &str) -> bool {
+    let said = plain(said);
+    let words: Vec<&str> =
+        said.split(|c: char| !c.is_alphanumeric()).filter(|word| !word.is_empty()).collect();
+    let has = |phrase: &[&str]| words.windows(phrase.len()).any(|window| window == phrase);
+    has(&["no", "se"])
+        || has(&["no", "lo", "se"])
+        || has(&["ni", "idea"])
+        || has(&["no", "entiendo"])
+        || has(&["no", "puedo"])
+        || has(&["don", "t", "know"])
+        || has(&["dont", "know"])
+        || has(&["no", "idea"])
+}
+
 /// Judges what the student said against the exercise.
 pub fn check(exercise: &Exercise, form: Form, said: &str) -> Reading {
     let Some(written) = read_answer(said) else {
-        return Reading { read: None, verdict: Verdict::Unreadable, misconception: None };
+        let verdict = if says_dont_know(said) { Verdict::DontKnow } else { Verdict::Unreadable };
+        return Reading { read: None, verdict, misconception: None };
     };
     let read = Some(written.to_string());
     let Some(given) = written.value() else {
@@ -740,7 +759,12 @@ mod tests {
         assert_eq!(verdict(Form::Simplified, "2/4"), Verdict::WrongForm);
         assert_eq!(verdict(Form::Simplified, "0.5"), Verdict::WrongForm);
         assert_eq!(verdict(Form::Any, "1/3"), Verdict::Incorrect);
-        assert_eq!(verdict(Form::Any, "no sé"), Verdict::Unreadable);
+        assert_eq!(verdict(Form::Any, "no sé"), Verdict::DontKnow);
+        assert_eq!(verdict(Form::Any, "mmm, ni idea"), Verdict::DontKnow);
+        assert_eq!(verdict(Form::Any, "I don't know"), Verdict::DontKnow);
+        assert_eq!(verdict(Form::Any, "¿cómo?"), Verdict::Unreadable);
+        // A number wins over the doubt around it.
+        assert_eq!(verdict(Form::Any, "no sé, ¿un medio?"), Verdict::Correct);
 
         let above_one = Exercise::parse("3/4 + 3/4").unwrap();
         let verdict = |form, said| check(&above_one, form, said).verdict;

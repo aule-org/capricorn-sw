@@ -148,29 +148,26 @@ const ANGLES: [&str; 4] = [
 fn aimed_at(misconception: Option<Misconception>) -> &'static str {
     match misconception {
         Some(Misconception::AddedAcross) => {
-            "They added the tops and the bottoms. Ask what the bottom number tells us, and whether the pieces are the same size."
+            "They added tops and bottoms: ask what the bottom number tells us."
         }
         Some(Misconception::KeptOneDenominator) => {
-            "They added the tops but kept one bottom number. Ask whether the two fractions are cut into pieces of the same size."
+            "They kept one bottom number: ask if both are cut into pieces of the same size."
         }
         Some(Misconception::Inverted) => {
-            "They gave it upside down. Ask which number says how many pieces there are in the whole."
+            "They gave it upside down: ask which number counts the pieces in the whole."
         }
         Some(Misconception::MultipliedInstead) => {
-            "They multiplied. Ask what the exercise asks: how many times one fits in the other."
+            "They multiplied: ask how many times one fits in the other."
         }
-        Some(Misconception::DividedInstead) => {
-            "They divided. Ask what 'of' or 'times' means here, with a small example."
-        }
-        Some(Misconception::WrongSign) => {
-            "They did the opposite operation. Ask them to read the exercise again, aloud."
-        }
-        None => "Ask one short question that points at the first step, without doing it for them.",
+        Some(Misconception::DividedInstead) => "They divided: ask what 'of' or 'times' means here.",
+        Some(Misconception::WrongSign) => "They did the opposite operation: have them read it again aloud.",
+        None => "Ask one short question that points at the first step.",
     }
 }
 
 /// Applies the rules to one answer. `past` is every other exercise of this
-/// session on the same skill.
+/// session on the same skill. What the tutor is told is kept short: it is
+/// paid for again on every later turn.
 pub fn judge(current: Current<'_>, past: &[Past], reading: &Reading) -> Outcome {
     let keep = |next, say: &str, stage| Outcome {
         status: Status::Open,
@@ -183,11 +180,13 @@ pub fn judge(current: Current<'_>, past: &[Past], reading: &Reading) -> Outcome 
     if reading.verdict == Verdict::Unreadable {
         return keep(
             Next::AskAgain,
-            "No number could be made out. Ask them to say just their answer once more. This does not count as a try.",
+            "No number was understood. Ask them to say just their answer again.",
             now,
         );
     }
-    let attempts = current.attempts + 1;
+    // "No sé" is a request for help, not a wrong answer: in a probe it settles
+    // that they cannot do it yet; in practice it gets the next hint.
+    let dont_know = reading.verdict == Verdict::DontKnow;
     // The value decides whether they can do it; the form is a detail to fix.
     let right_value = matches!(reading.verdict, Verdict::Correct | Verdict::WrongForm);
     let with = |status: Status| {
@@ -202,36 +201,40 @@ pub fn judge(current: Current<'_>, past: &[Past], reading: &Reading) -> Outcome 
         let (next, say) = match after {
             Stage::Diagnose => (
                 Next::Probe,
-                "Do not say whether that was right. Say something neutral, like 'anotado', and ask one more question of the same kind to see what they can do. No hints.".to_string(),
+                "Do not say if it was right. Say 'anotado' and ask one more of the same kind. No hints."
+                    .to_string(),
             ),
             Stage::Done => (
                 Next::MoveOn,
-                "They can already do this. Say so in a few warm words and move on to the next skill in the plan, or to something harder.".to_string(),
+                "They can already do this. Say so warmly and move to the next skill, or something harder."
+                    .to_string(),
             ),
             Stage::Practice => (
                 Next::Teach,
                 format!(
-                    "Do not dwell on right or wrong. They need this taught: explain the idea with one worked example using other numbers, ask them to explain it back in their own words, and then give an exercise to practise. {}",
+                    "Teach it now: one worked example with other numbers, have them explain it back, then an exercise. {}",
                     aimed_at(reading.misconception)
                 ),
             ),
         };
-        let directive = Directive { stage: after, next, say, reveal: None };
-        return Outcome { status, attempts, hints: 0, first_try: Some(right_value), directive };
+        return Outcome {
+            status,
+            attempts: current.attempts + 1,
+            hints: 0,
+            first_try: Some(right_value),
+            directive: Directive { stage: after, next, say, reveal: None },
+        };
     }
 
     if reading.verdict == Verdict::WrongForm {
         let form =
             if current.form == Form::Mixed { "a whole number and a fraction" } else { "the simplest form" };
-        return keep(
-            Next::FixForm,
-            &format!(
-                "The amount is right. Tell them it is the same amount and ask them to write it as {form}. Do not write it for them. This does not use up a hint."
-            ),
-            Stage::Practice,
-        );
+        let say =
+            format!("Right amount. Say so and ask them to write it as {form}. Do not write it for them.");
+        return keep(Next::FixForm, &say, Stage::Practice);
     }
 
+    let attempts = current.attempts + i32::from(!dont_know);
     if reading.verdict == Verdict::Correct {
         let after = with(Status::Correct);
         let solved = past
@@ -242,54 +245,66 @@ pub fn judge(current: Current<'_>, past: &[Past], reading: &Reading) -> Outcome 
             .count()
             + 1;
         let (next, say) = if after == Stage::Done {
-            (Next::MoveOn, "Correct. Say what they did well, in one sentence, and move on: the next skill in the plan, or wrap up.".to_string())
+            (
+                Next::MoveOn,
+                "Correct. Say what they did well in one sentence, then the next skill or wrap up."
+                    .to_string(),
+            )
         } else {
             (
                 Next::NextExercise,
-                format!(
-                    "Correct. Say so briefly and give another one from a different angle: {}.",
-                    ANGLES[solved % ANGLES.len()]
-                ),
+                format!("Correct. Say so briefly, then another one as {}.", ANGLES[solved % ANGLES.len()]),
             )
         };
-        let directive = Directive { stage: after, next, say, reveal: None };
         return Outcome {
             status: Status::Correct,
             attempts,
             hints: current.hints,
             first_try: Some(attempts == 1 && current.hints == 0),
-            directive,
+            directive: Directive { stage: after, next, say, reveal: None },
         };
     }
 
-    // Wrong: a hint, a second one, a worked example, and then it is worked out together.
+    // Wrong, or asking for help: a hint, a second one, a worked example, and
+    // then it is worked out together.
     let hints = current.hints + 1;
-    let mut outcome = Outcome {
+    let open = |next, say: String| Outcome {
         status: Status::Open,
         attempts,
         hints,
         first_try: None,
-        directive: Directive { stage: Stage::Practice, next: Next::Hint, say: String::new(), reveal: None },
+        directive: Directive { stage: Stage::Practice, next, say, reveal: None },
     };
     if hints < HINTS {
-        outcome.directive.say = format!(
-            "Not right yet; do not give the answer and do not say the number they should get. {} Then let them try the same exercise again.",
-            aimed_at(reading.misconception)
+        let lead = if dont_know { "They asked for help" } else { "Not right yet" };
+        return open(
+            Next::Hint,
+            format!(
+                "{lead}; do not give the answer. {} Same exercise again.",
+                aimed_at(reading.misconception)
+            ),
         );
-    } else if hints == HINTS {
-        outcome.directive.next = Next::WorkedExample;
-        outcome.directive.say = "Still not right. Work through a similar exercise with different numbers, step by step, aloud. Then ask them to try the same exercise once more. Do not solve theirs.".to_string();
-    } else {
-        outcome.status = Status::Failed;
-        outcome.first_try = Some(false);
-        outcome.directive = Directive {
+    }
+    if hints == HINTS {
+        return open(
+            Next::WorkedExample,
+            "Work a similar one with other numbers, step by step. Then they retry theirs. Do not solve theirs."
+                .to_string(),
+        );
+    }
+    Outcome {
+        status: Status::Failed,
+        attempts,
+        hints,
+        first_try: Some(false),
+        directive: Directive {
             stage: with(Status::Failed),
             next: Next::Teach,
-            say: "They are stuck, and that is fine: say so kindly. Work this exercise out together, step by step, to the answer given here. Then explain the idea again with another example, and give an easier exercise to practise.".to_string(),
+            say: "They are stuck; be kind. Work it out together to the answer given, re-explain the idea, then an easier one."
+                .to_string(),
             reveal: Some(current.answer.to_string()),
-        };
+        },
     }
-    outcome
 }
 
 // Storage and the agent's calls -------------------------------------------------
@@ -364,6 +379,25 @@ pub async fn pose(
     })?;
     let skill_id = body.skill_id.as_deref().map(str::trim).filter(|id| learning::is_slug(id));
 
+    // Stating the open exercise again (a retry, or "¿me repites?") changes
+    // nothing: its tries and hints stay.
+    let open: Option<(i64, String, bool)> = sqlx::query_as(
+        "select id, expression, probe from session_exercises
+         where session_id = $1 and status = 'open' order by id desc limit 1",
+    )
+    .bind(session.id)
+    .fetch_optional(&state.pool)
+    .await?;
+    if let Some((id, open_expression, probe)) = open
+        && Exercise::parse(&open_expression).is_some_and(|open| open == exercise)
+    {
+        let stage = if probe { Stage::Diagnose } else { Stage::Practice };
+        let say = "Same exercise as before: carry on with it.";
+        return Ok((
+            StatusCode::OK,
+            Json(json!({ "exercise": id, "stage": stage, "probe": probe, "say": say })),
+        ));
+    }
     // One exercise at a time: asking a new one leaves the last one behind.
     sqlx::query("update session_exercises set status = 'dropped', resolved_at = now() where session_id = $1 and status = 'open'")
         .bind(session.id)
@@ -391,14 +425,10 @@ pub async fn pose(
     .await?;
     let say = match stage {
         Stage::Diagnose => {
-            "This one is to see what they can do. Ask it plainly. No hints, and whatever they answer, do not say whether it is right."
+            "To see what they can do: ask it plainly, no hints, and do not say if the answer is right."
         }
-        Stage::Practice => {
-            "Ask it and wait. If they are wrong, do not give the answer: report what they said and follow what comes back."
-        }
-        Stage::Done => {
-            "They have done enough of this skill today. Ask it if you like, but prefer the next skill in the plan."
-        }
+        Stage::Practice => "Ask it and wait. Report their answer; never give the answer yourself.",
+        Stage::Done => "Enough of this skill today; prefer the next skill in the plan.",
     };
     Ok((StatusCode::CREATED, Json(json!({ "exercise": id, "stage": stage, "probe": probe, "say": say }))))
 }
@@ -568,14 +598,14 @@ mod tests {
         let first = judge(PROBE, &[], &reading(Verdict::Incorrect, Some(Misconception::AddedAcross)));
         assert_eq!((first.status, first.first_try, first.hints), (Status::Failed, Some(false), 0));
         assert_eq!((first.directive.stage, first.directive.next), (Stage::Diagnose, Next::Probe));
-        assert!(first.directive.say.contains("Do not say whether"));
+        assert!(first.directive.say.contains("Do not say if it was right"));
         assert_eq!(first.directive.reveal, None);
 
         // The second one settles it: wrong before, so it is taught, aimed at the mistake.
         let second =
             judge(PROBE, &[PROBE_WRONG], &reading(Verdict::Incorrect, Some(Misconception::AddedAcross)));
         assert_eq!((second.directive.stage, second.directive.next), (Stage::Practice, Next::Teach));
-        assert!(second.directive.say.contains("tops and the bottoms"));
+        assert!(second.directive.say.contains("tops and bottoms"));
         let known = judge(PROBE, &[PROBE_RIGHT], &reading(Verdict::Correct, None));
         assert_eq!(
             (known.status, known.directive.stage, known.directive.next),
@@ -617,6 +647,21 @@ mod tests {
         let hint = judge(practice(0, 0), &taught, &wrong);
         assert!(hint.directive.say.contains("kept one bottom number"));
         assert!(hint.directive.say.contains("do not give the answer"));
+
+        // "No sé" gets the next hint without a wrong mark, and in a probe settles it.
+        let asked = judge(practice(1, 1), &taught, &reading(Verdict::DontKnow, None));
+        assert_eq!(
+            (asked.status, asked.attempts, asked.hints, asked.directive.next),
+            (Status::Open, 1, 2, Next::Hint)
+        );
+        assert!(asked.directive.say.starts_with("They asked for help"));
+        let probe = judge(PROBE, &[PROBE_RIGHT], &reading(Verdict::DontKnow, None));
+        assert_eq!((probe.status, probe.directive.next), (Status::Failed, Next::Teach));
+
+        // Every instruction is short: it is paid for on each later turn.
+        for outcome in [&hint, &asked, &probe] {
+            assert!(outcome.directive.say.split_whitespace().count() <= 30, "{}", outcome.directive.say);
+        }
     }
 
     #[test]

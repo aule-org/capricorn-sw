@@ -1507,7 +1507,7 @@ async fn the_platform_checks_the_tutors_exercises_and_says_what_to_do_next(pool:
     assert_eq!(status, StatusCode::CREATED, "{first}");
     assert_eq!((first["stage"].as_str(), first["probe"].as_bool()), (Some("diagnose"), Some(true)));
     assert!(first.get("answer").is_none() && !first.to_string().contains("5/6"), "{first}");
-    let (_, unread) = answer("no sé, mmm").await;
+    let (_, unread) = answer("¿cómo? mmm").await;
     assert_eq!(
         (unread["verdict"].as_str(), unread["attempts"].as_i64(), unread["closed"].as_bool()),
         (Some("unreadable"), Some(0), Some(false))
@@ -1532,10 +1532,17 @@ async fn the_platform_checks_the_tutors_exercises_and_says_what_to_do_next(pool:
     // Then practice: the same exercise until it is solved, with help that grows.
     let (_, third) = pose("3/4 + 1/8").await;
     assert_eq!((third["stage"].as_str(), third["probe"].as_bool()), (Some("practice"), Some(false)));
+    // Stating the same exercise again keeps it, with its tries and hints.
+    let (status, same) = pose("3/4 + 1/8").await;
+    assert_eq!((status, &same["exercise"]), (StatusCode::OK, &third["exercise"]));
+    // "No sé" gets a hint and no wrong mark.
+    let (_, help) = answer("no sé").await;
+    assert_eq!((help["verdict"].as_str(), help["next"].as_str()), (Some("dont_know"), Some("hint")));
+    assert_eq!((help["attempts"].as_i64(), help["hints"].as_i64()), (Some(0), Some(1)));
     let (_, hint) = answer("cuatro doceavos").await;
     assert_eq!(
         (hint["misconception"].as_str(), hint["next"].as_str(), hint["hints"].as_i64()),
-        (Some("added_across"), Some("hint"), Some(1))
+        (Some("added_across"), Some("hint"), Some(2))
     );
     assert!(hint["say"].as_str().unwrap().contains("do not give the answer"));
     let (_, solved) = answer("ah, es siete octavos").await;
