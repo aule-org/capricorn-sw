@@ -302,7 +302,9 @@ see the plan, the latest turns and a few things remembered about the student. Mo
 needs to change: then return an empty text. Speak up when the student is frustrated or guessing, when the \
 tutor gave the answer away or explained before asking, when the task is clearly too easy or too hard, when \
 the conversation left schoolwork for more than a couple of turns, or when a memory offers a better example. \
-Say what to do next, not what went wrong. When there is an open exercise, the tutor is following fixed \
+Say what to do next, not what went wrong. What the student says they need today, such as homework or a \
+topic for a test, outranks the plan: tell the tutor to work on that, with the student's own task as the \
+material, and do not steer back to the planned activity. When there is an open exercise, the tutor is following fixed \
 steps for it (finding out what the student can do, or hints after a wrong answer): do not tell it to change \
 task or go back to the plan until that exercise is closed; advise only on tone, or return an empty text. \
 Write in English, for the tutor only. {UNTRUSTED}"
