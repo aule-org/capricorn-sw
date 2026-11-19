@@ -149,7 +149,13 @@ async def entrypoint(ctx: JobContext) -> None:
         persona = replace(persona, note=None)
 
     tutor = Tutor(
-        language=language, gates=gates, camera=camera, context=context, show=show, persona=persona
+        language=language,
+        gates=gates,
+        camera=camera,
+        context=context,
+        show=show,
+        persona=persona,
+        checker=platform,
     )
     session = AgentSession(
         stt=build_stt(settings, language),

@@ -26,6 +26,10 @@ from .tutor import Persona, persona_from
 logger = logging.getLogger("capricorn.agent.platform")
 
 START_TIMEOUT_SECONDS = 6.0
+# One more try when the first call fails, which covers a platform restarting.
+START_RETRY_SECONDS = 1.0
+# An exercise is checked while the student waits for the tutor's reply.
+CHECK_TIMEOUT_SECONDS = 1.5
 REPORT_TIMEOUT_SECONDS = 10.0
 REPORT_RETRY_SECONDS = 1.0
 END_FLUSH_TIMEOUT_SECONDS = 5.0
@@ -65,6 +69,11 @@ def platform_session(
     return PlatformSession(url=url, token=token)
 
 
+def _said(answer: dict[str, Any] | None) -> str | None:
+    say = (answer or {}).get("say")
+    return say if isinstance(say, str) and say else None
+
+
 class Platform:
     def __init__(
         self,
@@ -100,7 +109,7 @@ class Platform:
         ) as response:
             if response.status == 204:
                 return {}
-            if response.status != 200:
+            if response.status not in (200, 201):
                 # The body may repeat what was sent, so only the status is kept.
                 raise RuntimeError(f"platform answered {response.status}")
             return await response.json()
@@ -120,12 +129,42 @@ class Platform:
 
     async def start(self) -> str:
         """What the tutor should know before it says hello. Empty if unknown."""
-        answer = (await self._call("GET", "/v1/agent/session", None, START_TIMEOUT_SECONDS)) or {}
+        answer = await self._call("GET", "/v1/agent/session", None, START_TIMEOUT_SECONDS)
+        if answer is None:
+            await asyncio.sleep(START_RETRY_SECONDS)
+            answer = await self._call("GET", "/v1/agent/session", None, START_TIMEOUT_SECONDS)
+        answer = answer or {}
         tutor = answer.get("tutor")
         if isinstance(tutor, dict):
             self.persona = persona_from(tutor.get("name"), tutor.get("persona"), tutor.get("note"))
         instructions = answer.get("instructions")
         return instructions if isinstance(instructions, str) else ""
+
+    async def pose(self, expression: str, skill_id: str | None, form: str | None) -> str | None:
+        """Tells the platform which exercise is being asked. Returns what the
+        tutor should do, or None when the platform cannot check this one."""
+        body = {"expression": expression}
+        if skill_id:
+            body["skill_id"] = skill_id
+        if form:
+            body["form"] = form
+        answer = await self._call(
+            "POST", "/v1/agent/session/exercises", body, CHECK_TIMEOUT_SECONDS
+        )
+        return _said(answer)
+
+    async def answer(self, said: str) -> str | None:
+        """Has the platform judge the student's answer to the open exercise.
+        Returns what the tutor should do, or None when it could not be judged."""
+        answer = await self._call(
+            "POST", "/v1/agent/session/answers", {"said": said}, CHECK_TIMEOUT_SECONDS
+        )
+        say = _said(answer)
+        reveal = (answer or {}).get("reveal")
+        if say and isinstance(reveal, str) and reveal:
+            # Only sent once the exercise is closed, to work it out together.
+            return f"{say} The answer is {reveal}."
+        return say
 
     def heard(self, role: str, text: str | None) -> None:
         """Queues one finished turn. Never waits."""
