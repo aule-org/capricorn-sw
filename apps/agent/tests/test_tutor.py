@@ -6,9 +6,10 @@ from livekit import rtc
 from livekit.agents import StopResponse, llm
 
 from capricorn_agent.moderation import Action, Decision
-from capricorn_agent.replies import REPLIES
+from capricorn_agent.replies import ADULT_HELP_SEQUENCE, REPLIES, reply
 from capricorn_agent.tutor import (
     INSTRUCTIONS,
+    MAX_TYPED_CHARS,
     Persona,
     Tutor,
     checked,
@@ -96,6 +97,17 @@ class Session:
     def __init__(self):
         self.said = []
         self.interrupted = False
+
+    def interrupt(self):
+        self.interrupts = getattr(self, "interrupts", 0) + 1
+
+        async def done():
+            return None
+
+        return done()
+
+    def generate_reply(self, *, user_input):
+        self.replies_to = [*getattr(self, "replies_to", []), user_input]
 
     def say(self, text, *, add_to_chat_ctx, allow_interruptions):
         self.said.append((text, add_to_chat_ctx, allow_interruptions))
@@ -239,3 +251,47 @@ def test_a_named_persona_renames_the_tutor_and_the_default_leaves_the_prompt_as_
     assert "Luna" in named._greeting and "Capri" not in named._greeting
     # The tone line sits last, after the teaching, safety and context.
     assert named._base.rstrip().endswith("divertido.")
+
+
+async def type_to(tutor, session, text):
+    empty = llm.ChatContext.empty()
+    with (
+        patch.object(Tutor, "session", new_callable=PropertyMock, return_value=session),
+        patch.object(Tutor, "chat_ctx", new_callable=PropertyMock, return_value=empty),
+    ):
+        await tutor.typed(text)
+
+
+async def test_a_typed_message_is_judged_like_a_spoken_one_before_the_model_sees_it():
+    gates, session = ScriptedGates(ALLOW), Session()
+
+    await type_to(Tutor(language="es", gates=gates), session, "  ¿cuánto es 3/4 + 1/8?  ")
+
+    assert gates.heard_texts == ["¿cuánto es 3/4 + 1/8?"]
+    assert session.replies_to == ["¿cuánto es 3/4 + 1/8?"]
+    assert session.interrupts == 1
+    assert session.said == []
+
+
+@pytest.mark.parametrize("decision", [HAZARD, Decision(Action.REDIRECT, "redirect")])
+async def test_a_typed_message_the_gates_stop_never_reaches_the_model(decision):
+    gates, session = ScriptedGates(decision), Session()
+
+    await type_to(Tutor(language="es", gates=gates), session, "¿lo desenchufo?")
+
+    assert not hasattr(session, "replies_to")
+    key = ADULT_HELP_SEQUENCE[0] if decision is HAZARD else "redirect"
+    assert [said[0] for said in session.said] == [reply(key, "es")]
+
+
+async def test_an_empty_typed_message_is_ignored_and_a_long_one_is_cut():
+    gates, session = ScriptedGates(ALLOW), Session()
+    tutor = Tutor(language="es", gates=gates)
+
+    await type_to(tutor, session, "   ")
+    assert gates.heard_texts == []
+    assert not hasattr(session, "interrupts")
+
+    await type_to(tutor, session, "a" * 2000)
+    assert [len(text) for text in gates.heard_texts] == [MAX_TYPED_CHARS]
+    assert [len(text) for text in session.replies_to] == [MAX_TYPED_CHARS]
