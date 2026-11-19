@@ -234,10 +234,12 @@ the exercise with black ones and grey ones.""",
 
 # Added to the instructions only when there is something to check answers with.
 CHECKING = {
-    "es": """Antes de pedirle un cálculo, llama a pose_exercise con la operación. Cuando \
-responda, llama a check_answer con sus palabras y haz lo que te indique.""",
-    "en": """Before you ask for a computation, call pose_exercise with the operation. When \
-they answer, call check_answer with their words and do what it tells you.""",
+    "es": """Antes de pedirle un cálculo, llama a pose_exercise con la operación. Después, \
+a cada cosa que responda, también un "no sé" o una duda, llama a check_answer con sus \
+palabras y haz lo que te indique.""",
+    "en": """Before you ask for a computation, call pose_exercise with the operation. Then, \
+for everything they reply, an "I don't know" or a doubt too, call check_answer with their \
+words and do what it tells you.""",
 }
 
 GREETING = {
