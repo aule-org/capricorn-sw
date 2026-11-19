@@ -180,16 +180,16 @@ puntos, una tabla, un gráfico de barras o un rectángulo con sus medidas. Úsal
 ayude a pensar, sobre todo al proponer un ejercicio o cuando una explicación con palabras no \
 alcanza. Primero muestra y después di en una frase qué está viendo, sin leerle toda la \
 pantalla. En la pantalla sí van los números y los símbolos. Nunca muestres la respuesta ni \
-un dibujo que la delate. La pantalla solo tiene negro, gris y blanco: al hablar de lo que \
-muestra no nombres otros colores; di las negras y las grises.""",
+un dibujo que la delate. La pantalla solo tiene negro, gris y blanco: no nombres otros \
+colores, y si el plan los trae, di el ejercicio con negras y grises.""",
     "en": """The student has a screen and you can show them things with the show tool: the \
 statement of an exercise, fraction bars, a number line, an array of dots, a table, a bar \
 chart or a rectangle with its sides. Use it when seeing helps them think, above all when \
 you set an exercise or when words alone are not enough. Show first, then say in one \
 sentence what they are looking at, without reading the whole screen to them. Numbers and \
 symbols do belong on the screen. Never show the answer, or a drawing that gives it away. The \
-screen only has black, grey and white: when you talk about what it shows, name no other \
-colour; say the black ones and the grey ones.""",
+screen only has black, grey and white: name no other colour, and if the plan uses some, say \
+the exercise with black ones and grey ones.""",
 }
 
 GREETING = {
