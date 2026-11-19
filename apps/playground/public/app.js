@@ -120,7 +120,7 @@ async function onTranscription(reader, participant) {
   if (!line) {
     line = document.createElement("li");
     line.dataset.who = mine ? "you" : "tutor";
-    line.dataset.name = mine ? "You" : "Capri";
+    line.dataset.name = mine ? "You" : "Aule";
     lines.set(id, line);
     $("transcript").append(line);
   }

@@ -5,7 +5,7 @@
 
 export const TOPIC = "capricorn.visual";
 
-// The capri-slate e-ink panel is 800x480 (Good Display GDEY075T7); drawing at
+// The device's e-ink panel is 800x480 (Good Display GDEY075T7); drawing at
 // that aspect so a layout here translates one-to-one to the device. W and H are
 // the single source: fitted(), positions and the viewBox all follow them.
 const W = 800;

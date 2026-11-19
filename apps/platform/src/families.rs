@@ -89,7 +89,7 @@ pub struct Child {
     pub created_at: DateTime<Utc>,
 }
 
-pub const TUTOR_NAME: &str = "Capri";
+pub const TUTOR_NAME: &str = "Aule";
 pub const TUTOR_PERSONAS: [&str; 4] = ["calido", "jugueton", "aventurero", "tranquilo"];
 
 /// How the tutor presents itself, as the agent is told. The note is the
@@ -261,7 +261,7 @@ pub async fn create_child(
     let created: Child = sqlx::query_as(
         "insert into children (id, family_id, nickname, birth_year, grade, language, interests, notes,
                                tutor_name, tutor_persona, tutor_persona_note)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, coalesce($9, 'Capri'), coalesce($10, 'calido'), $11)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, coalesce($9, 'Aule'), coalesce($10, 'calido'), $11)
          returning id, family_id, nickname, birth_year, grade, language, interests, notes, tutor_name, tutor_persona, tutor_persona_note, created_at",
     )
     .bind(Uuid::now_v7())

@@ -228,8 +228,8 @@ async def test_a_reply_that_does_not_pass_is_replaced_whole(key):
 
 def test_persona_falls_back_to_the_defaults():
     assert persona_from("Luna", "jugueton", " sé breve ") == Persona("Luna", "jugueton", "sé breve")
-    # An unknown preset becomes calido, a blank name becomes Capri, a blank note None.
-    assert persona_from("  ", "unknown", "   ") == Persona("Capri", "calido", None)
+    # An unknown preset becomes calido, a blank name becomes Aule, a blank note None.
+    assert persona_from("  ", "unknown", "   ") == Persona("Aule", "calido", None)
     assert persona_from(None, None, None) == Persona()
 
 
@@ -250,13 +250,13 @@ def test_persona_notes_add_nothing_by_default_and_a_bounded_wish_with_a_note():
 def test_a_named_persona_renames_the_tutor_and_the_default_leaves_the_prompt_as_written():
     default = Tutor(language="es", gates=ScriptedGates(ALLOW))
     assert default._base == INSTRUCTIONS["es"]
-    assert "Capri" in default._greeting
+    assert "Aule" in default._greeting
 
     named = Tutor(
         language="es", gates=ScriptedGates(ALLOW), persona=Persona(name="Luna", preset="jugueton")
     )
-    assert "Eres Luna" in named._base and "Capri" not in named._base
-    assert "Luna" in named._greeting and "Capri" not in named._greeting
+    assert "Eres Luna" in named._base and "Aule" not in named._base
+    assert "Luna" in named._greeting and "Aule" not in named._greeting
     # The tone line sits last, after the teaching, safety and context.
     assert named._base.rstrip().endswith("divertido.")
 

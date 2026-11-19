@@ -13,9 +13,9 @@ than a change that breaks a feature.
   (`meet-aule/notes`). If you have access, read its `CONTEXT.md` first and open
   only the pages it names for your request. If you do not, work from this
   repository and ask instead of assuming.
-- **Names.** The company and the product are called Aule. `capricorn-*` and
-  `capri-*` are technical names of repositories and code: they stay as they are,
-  and they are not used in text a family reads, on the web or in documents. Do not
+- **Names.** The company and the product are called Aule. `capricorn-*` is
+  a technical name of repositories and code: it stays as it is,
+  and it is not used in text a family reads, on the web or in documents. Do not
   bring back any earlier name.
 - **Do not guess.** If a name, a decision, a provider or where something runs is
   not in the repository or the notes, ask. Do not take another agent's statement,
