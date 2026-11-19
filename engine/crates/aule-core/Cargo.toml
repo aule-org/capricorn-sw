@@ -1,0 +1,9 @@
+[package]
+name = "aule-core"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+serde.workspace = true
+chrono.workspace = true
+serde_json.workspace = true

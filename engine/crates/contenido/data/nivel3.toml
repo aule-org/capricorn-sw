@@ -1,0 +1,335 @@
+# [PROPUESTA] Nivel 3 de Fracciones (5to de primaria). Escrito por Claude para la demo.
+nivel = 3
+titulo = "Suma y resta con igual denominador; mixtos e impropias"
+subtema = "sumar y restar fracciones con igual denominador y convertir mixtos e impropias"
+
+# ---------------------------------------------------------------- Tamizaje
+
+[[tamizaje]]
+id = "n3-t1"
+enunciado = "Calcula 2/7 + 3/7. Luego explica cómo lo hiciste."
+respuesta = "5/7"
+verificar = "2/7 + 3/7"
+criterio_explicacion = "Dice que el denominador se mantiene (son partes del mismo tamaño) y que se suman los numeradores."
+claves_explicacion = [["numerador", "arriba"], ["mismo denominador", "denominador igual", "igual denominador", "se queda", "se mantiene", "no cambia"]]
+minimo_claves = 2
+tiempo_s = 90
+
+[[tamizaje]]
+id = "n3-t2"
+enunciado = "Calcula 5/6 + 4/6 y escribe el resultado como número mixto. Luego explica cómo lo hiciste."
+respuesta = "1 1/2"
+forma = "mixto"
+verificar = "5/6 + 4/6"
+criterio_explicacion = "Suma los numeradores dejando el denominador (9/6) y explica que 6/6 forman un entero y sobran 3/6, por eso es 1 3/6 (o 1 1/2 si simplifica)."
+claves_explicacion = [["numerador", "arriba", "9/6"], ["entero", "6/6", "sobra", "queda"], ["mismo denominador", "se queda", "se mantiene", "no cambia"]]
+minimo_claves = 2
+tiempo_s = 150
+
+# ---------------------------------------------------------------- Etapa 1
+
+[etapa1]
+
+[[etapa1.teoria]]
+texto = "Ya sabes reconocer fracciones equivalentes, simplificar y comparar. Ahora vamos a juntar y quitar fracciones. Mira 2/5 y 1/5: las dos son quintos. Sus pedazos son del mismo tamaño."
+grafico = { tipo = "barras", filas = [{ partes = 5, sombreadas = 2, etiqueta = "2/5" }, { partes = 5, sombreadas = 1, etiqueta = "1/5" }] }
+
+[[etapa1.teoria]]
+texto = "Para sumar, juntas los pedazos: sumas los numeradores y el denominador se queda igual. 2/5 + 1/5 = 3/5. ¡Ojo! Los denominadores no se suman: al juntar, los pedazos no cambian de tamaño."
+grafico = { tipo = "barra", partes = 5, sombreadas = 3, etiqueta = "2/5 + 1/5 = 3/5" }
+
+[[etapa1.teoria]]
+texto = "Para restar, quitas pedazos. Tenías 5/8 y quitas 2/8: te quedan 3/8. Restas los numeradores y el denominador se queda igual. Si puedes, simplifica al final, como ya sabes hacer."
+grafico = { tipo = "barras", filas = [{ partes = 8, sombreadas = 5, etiqueta = "tenías 5/8" }, { partes = 8, sombreadas = 3, etiqueta = "te quedan 3/8" }] }
+
+[[etapa1.teoria]]
+texto = "A veces el numerador es mayor que el denominador, como en 7/4. Es una fracción impropia: vale más de un entero. Con 4/4 formas 1 entero y te sobran 3/4. Entonces 7/4 = 1 3/4. A eso le llamamos número mixto: un entero y una fracción."
+grafico = { tipo = "circulos", partes = 4, sombreadas = 7 }
+
+[[etapa1.teoria]]
+texto = "También puedes ir al revés. Para pasar 2 1/3 a impropia: cada entero tiene 3 tercios, así que 2 enteros son 2 × 3 = 6 tercios. Le sumas el tercio que sobra: 6 + 1 = 7. Entonces 2 1/3 = 7/3."
+grafico = { tipo = "circulos", partes = 3, sombreadas = 7 }
+
+[[etapa1.no_asistidos]]
+enunciado = "Calculemos 7/9 - 4/9 y simplifiquemos el resultado."
+grafico = { tipo = "barras", filas = [{ partes = 9, sombreadas = 7, etiqueta = "7/9" }, { partes = 9, sombreadas = 4, etiqueta = "quito 4/9" }] }
+pasos = ["Miro los denominadores: los dos son 9, son novenos.", "Resto los numeradores: 7 - 4 = 3.", "Dejo el denominador: 3/9.", "Simplifico: 3 y 9 se pueden dividir entre 3. Me queda 1/3."]
+respuesta = "1/3"
+verificar = "7/9 - 4/9"
+
+[[etapa1.no_asistidos]]
+enunciado = "Escribamos 11/4 como número mixto."
+grafico = { tipo = "circulos", partes = 4, sombreadas = 11 }
+pasos = ["Cada entero tiene 4 cuartos. ¿Cuántas veces cabe 4 en 11? Cabe 2 veces, porque 2 × 4 = 8.", "Con 8 cuartos formo 2 enteros. Me sobran 11 - 8 = 3 cuartos.", "Escribo el entero y lo que sobra: 11/4 = 2 3/4."]
+respuesta = "2 3/4"
+verificar = "11/4"
+
+[[etapa1.asistidos]]
+enunciado = "Ahora tú: 4/9 + 2/9."
+secuencia = ["Mirar los denominadores", "Sumar los numeradores", "Escribir el resultado"]
+respuesta = "6/9"
+verificar = "4/9 + 2/9"
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 1: ¿los denominadores son iguales? Responde sí o no."
+respuesta = "Sí"
+opciones = ["Sí", "No"]
+ayuda = "¿Qué número hay abajo en cada fracción?"
+solucion = "Los dos tienen 9 abajo, así que sí son iguales."
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 2: suma los numeradores. ¿Cuánto es 4 + 2?"
+respuesta = "6"
+ayuda = "¿Cuánto tienes si juntas 4 y 2?"
+solucion = "4 + 2 = 6."
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 3: escribe el resultado como fracción."
+respuesta = "6/9"
+ayuda = "¿Qué numerador te salió y qué denominador se queda?"
+solucion = "El numerador es 6 y el denominador sigue siendo 9: el resultado es 6/9."
+
+[[etapa1.asistidos]]
+enunciado = "Ahora tú: convierte 2 3/5 en fracción impropia."
+grafico = { tipo = "circulos", partes = 5, sombreadas = 13 }
+secuencia = ["Multiplicar el entero por el denominador", "Sumar el numerador", "Escribir la fracción impropia"]
+respuesta = "13/5"
+verificar = "2 + 3/5"
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 1: cada entero tiene 5 quintos. ¿Cuántos quintos hay en 2 enteros? Calcula 2 × 5."
+respuesta = "10"
+ayuda = "Si cada círculo tiene 5 pedazos, ¿cuántos pedazos hay en 2 círculos?"
+solucion = "2 × 5 = 10. En 2 enteros hay 10 quintos."
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 2: suma los 3 quintos que sobran. ¿Cuánto es 10 + 3?"
+respuesta = "13"
+ayuda = "¿Cuántos quintos tienes si a los de los enteros les agregas los que sobran?"
+solucion = "10 + 3 = 13 quintos."
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 3: escribe la fracción impropia."
+respuesta = "13/5"
+ayuda = "¿Cuántos quintos tienes en total? Ese va arriba. ¿Y qué va abajo?"
+solucion = "Son 13 quintos: 2 3/5 = 13/5."
+
+[etapa1.explicar]
+pregunta = "Con tus propias palabras: ¿cómo se suman dos fracciones que tienen el mismo denominador? ¿Por qué el denominador no cambia?"
+criterio = "Explica que se suman los numeradores y el denominador queda igual porque las partes son del mismo tamaño (solo cambia cuántas hay)."
+claves = [["numerador", "arriba"], ["denominador", "abajo"], ["igual", "mismo", "se queda", "no cambia", "se mantiene", "tamaño"]]
+minimo_claves = 2
+pistas = ["Si tienes 2 pedazos de pizza de octavos y te dan 3 pedazos más de octavos, ¿cuántos pedazos tienes?", "¿Esos pedazos cambiaron de tamaño al juntarlos?"]
+pista_grafica = { texto = "Mira: 2/8 y 3/8 juntos.", grafico = { tipo = "barras", filas = [{ partes = 8, sombreadas = 2, etiqueta = "2/8" }, { partes = 8, sombreadas = 3, etiqueta = "3/8" }, { partes = 8, sombreadas = 5, etiqueta = "juntos" }] } }
+
+[[etapa1.repaso]]
+texto = "Repasemos con calma. El denominador dice el tamaño de cada pedazo: en octavos, el todo está partido en 8 partes iguales. El numerador dice cuántos pedazos tienes."
+grafico = { tipo = "barra", partes = 8, sombreadas = 3, etiqueta = "3/8" }
+
+[[etapa1.repaso]]
+texto = "Si juntas 3 octavos y 2 octavos, tienes 5 pedazos, y siguen siendo octavos: 3/8 + 2/8 = 5/8. El tamaño de los pedazos no cambia, por eso el denominador se queda igual."
+grafico = { tipo = "barras", filas = [{ partes = 8, sombreadas = 3, etiqueta = "3/8" }, { partes = 8, sombreadas = 2, etiqueta = "2/8" }, { partes = 8, sombreadas = 5, etiqueta = "5/8" }] }
+
+[[etapa1.repaso]]
+texto = "Si sumaras también los denominadores, te saldría 5/16: pedazos más chiquitos. ¡No tiene sentido! Juntaste más pizza, no menos."
+grafico = { tipo = "barras", filas = [{ partes = 8, sombreadas = 5, etiqueta = "5/8" }, { partes = 16, sombreadas = 5, etiqueta = "5/16" }] }
+
+# ---------------------------------------------------------------- Etapa 2
+
+[[ejercicios]]
+id = "n3-e01"
+angulo = "grafica"
+enunciado = "La barra de arriba muestra 2/6 y la de abajo 3/6. ¿Cuánto es 2/6 + 3/6?"
+grafico = { tipo = "barras", filas = [{ partes = 6, sombreadas = 2, etiqueta = "2/6" }, { partes = 6, sombreadas = 3, etiqueta = "3/6" }] }
+respuesta = "5/6"
+verificar = "2/6 + 3/6"
+tiempo_s = 90
+pistas = ["¿En cuántas partes iguales está dividida cada barra?", "Si juntas las partes pintadas de las dos barras, ¿cuántas partes son?"]
+pista_grafica = { texto = "En la recta, empieza en 2/6 y avanza 3 sextos más.", grafico = { tipo = "recta", desde = 0, hasta = 1, divisiones = 6, marca = "2/6" } }
+[ejercicios.similar]
+enunciado = "Una barra muestra 1/5 y otra muestra 3/5. ¿Cuánto es 1/5 + 3/5?"
+grafico = { tipo = "barras", filas = [{ partes = 5, sombreadas = 1, etiqueta = "1/5" }, { partes = 5, sombreadas = 3, etiqueta = "3/5" }] }
+pasos = ["Las dos barras están en quintos: el denominador es 5.", "Junto las partes pintadas: 1 + 3 = 4.", "El resultado es 4/5."]
+respuesta = "4/5"
+verificar = "1/5 + 3/5"
+
+[[ejercicios]]
+id = "n3-e02"
+angulo = "grafica"
+enunciado = "Cada pizza está partida en 4 partes iguales. ¿Qué número mixto forman las partes pintadas?"
+grafico = { tipo = "circulos", partes = 4, sombreadas = 9 }
+respuesta = "2 1/4"
+forma = "mixto"
+verificar = "9/4"
+tiempo_s = 120
+pistas = ["¿Cuántas pizzas están pintadas completas?", "¿Qué parte de la última pizza está pintada?"]
+pista_grafica = { texto = "Cuenta los cuartos en la recta: cada 4 cuartos llegas a un entero.", grafico = { tipo = "recta", desde = 0, hasta = 3, divisiones = 4, marca = "9/4", pregunta = true } }
+[ejercicios.similar]
+enunciado = "Cada torta está partida en 3 partes iguales y hay 5 tercios pintados. ¿Qué número mixto forman?"
+grafico = { tipo = "circulos", partes = 3, sombreadas = 5 }
+pasos = ["Cuento los pedazos pintados: son 5 tercios.", "Con 3 tercios formo 1 torta entera.", "Me sobran 5 - 3 = 2 tercios.", "El número mixto es 1 2/3."]
+respuesta = "1 2/3"
+verificar = "5/3"
+
+[[ejercicios]]
+id = "n3-e03"
+angulo = "calculo"
+enunciado = "Calcula 9/10 - 3/10. Escribe el resultado simplificado."
+respuesta = "3/5"
+forma = "simplificada"
+verificar = "9/10 - 3/10"
+tiempo_s = 120
+pistas = ["¿Los denominadores son iguales? ¿Qué haces entonces con los numeradores?", "Después de restar, ¿hay un número que divida al numerador y al denominador a la vez?"]
+pista_grafica = { texto = "Tienes 9 décimos y quitas 3.", grafico = { tipo = "barras", filas = [{ partes = 10, sombreadas = 9, etiqueta = "tienes" }, { partes = 10, sombreadas = 3, etiqueta = "quitas" }] } }
+[ejercicios.similar]
+enunciado = "Calcula 7/8 - 3/8. Escribe el resultado simplificado."
+pasos = ["Los dos son octavos: el denominador se queda en 8.", "Resto los numeradores: 7 - 3 = 4. Tengo 4/8.", "Simplifico: 4 y 8 se dividen entre 4. Me queda 1/2."]
+respuesta = "1/2"
+verificar = "7/8 - 3/8"
+
+[[ejercicios]]
+id = "n3-e04"
+angulo = "calculo"
+enunciado = "Convierte 3 2/5 en fracción impropia."
+respuesta = "17/5"
+forma = "impropia"
+verificar = "3 + 2/5"
+tiempo_s = 120
+pistas = ["¿Cuántos quintos tiene cada entero?", "Si tienes 3 enteros de quintos, ¿cuántos quintos son? ¿Y si les agregas los que sobran?"]
+pista_grafica = { texto = "Cuenta todos los quintos pintados.", grafico = { tipo = "circulos", partes = 5, sombreadas = 17 } }
+[ejercicios.similar]
+enunciado = "Convierte 2 1/4 en fracción impropia."
+grafico = { tipo = "circulos", partes = 4, sombreadas = 9 }
+pasos = ["Cada entero tiene 4 cuartos: 2 × 4 = 8 cuartos.", "Le sumo el cuarto que sobra: 8 + 1 = 9.", "2 1/4 = 9/4."]
+respuesta = "9/4"
+verificar = "2 + 1/4"
+
+[[ejercicios]]
+id = "n3-e05"
+angulo = "contexto"
+enunciado = "Ana leyó 2/8 de un libro el lunes y 3/8 el martes. ¿Qué parte del libro leyó en total?"
+contextos = { futbol = "Un equipo pintó las líneas de su cancha de fútbol: el lunes pintó 2/8 de las líneas y el martes 3/8. ¿Qué parte de las líneas pintó en total?", videojuegos = "En tu videojuego favorito exploraste 2/8 del mapa el lunes y 3/8 el martes. ¿Qué parte del mapa exploraste en total?", dinosaurios = "Una paleontóloga desenterró 2/8 de un esqueleto de dinosaurio el lunes y 3/8 el martes. ¿Qué parte del esqueleto desenterró en total?", cocina = "Para hacer queques usaste 2/8 de una bolsa de harina el lunes y 3/8 el martes. ¿Qué parte de la bolsa usaste en total?", musica = "Aprendiste 2/8 de una canción nueva en el piano el lunes y 3/8 el martes. ¿Qué parte de la canción aprendiste en total?" }
+respuesta = "5/8"
+verificar = "2/8 + 3/8"
+tiempo_s = 120
+pistas = ["¿Las dos partes son del mismo tamaño, o sea, tienen el mismo denominador?", "Si juntas 2 pedazos y 3 pedazos iguales, ¿cuántos pedazos tienes?"]
+pista_grafica = { texto = "Pinta 2 octavos y luego 3 octavos más.", grafico = { tipo = "barras", filas = [{ partes = 8, sombreadas = 2, etiqueta = "lunes" }, { partes = 8, sombreadas = 3, etiqueta = "martes" }] } }
+[ejercicios.similar]
+enunciado = "Beto pintó 1/6 de una pared en la mañana y 4/6 en la tarde. ¿Qué parte de la pared pintó?"
+pasos = ["Los denominadores son iguales: sextos.", "Sumo los numeradores: 1 + 4 = 5.", "El resultado es 5/6 de la pared."]
+respuesta = "5/6"
+verificar = "1/6 + 4/6"
+
+[[ejercicios]]
+id = "n3-e06"
+angulo = "contexto"
+enunciado = "Una botella tiene 9/5 litros de agua. Se usan 2/5 litros para regar una planta. ¿Cuántos litros quedan? Escribe la respuesta como número mixto."
+contextos = { futbol = "El equipo de fútbol tiene 9/5 litros de agua para el partido. En el primer tiempo toman 2/5 litros. ¿Cuántos litros quedan? Escribe la respuesta como número mixto.", videojuegos = "Tu personaje del videojuego tiene 9/5 barras de energía. Un monstruo le quita 2/5 de barra. ¿Cuántas barras le quedan? Escribe la respuesta como número mixto.", dinosaurios = "Un dinosaurio bebé tiene 9/5 kilos de hojas para comer. Se come 2/5 kilos. ¿Cuántos kilos le quedan? Escribe la respuesta como número mixto.", cocina = "Una jarra tiene 9/5 litros de chicha morada. Sirves 2/5 litros en vasos. ¿Cuántos litros quedan en la jarra? Escribe la respuesta como número mixto.", musica = "El ensayo de la banda dura 9/5 horas. Ya pasaron 2/5 horas. ¿Cuántas horas faltan? Escribe la respuesta como número mixto." }
+respuesta = "1 2/5"
+forma = "mixto"
+verificar = "9/5 - 2/5"
+tiempo_s = 150
+pistas = ["Si a unos quintos les quitas quintos, ¿qué pasa con el denominador?", "Después de restar, ¿cuántos quintos necesitas para formar un entero?"]
+pista_grafica = { texto = "Hay 9 quintos. Tacha 2 y cuenta los que quedan.", grafico = { tipo = "circulos", partes = 5, sombreadas = 9 } }
+[ejercicios.similar]
+enunciado = "Tenías 11/4 kilos de papa y usaste 2/4 kilos. ¿Cuántos kilos te quedan? Escribe la respuesta como número mixto."
+pasos = ["Los dos son cuartos: resto los numeradores, 11 - 2 = 9. Quedan 9/4.", "Con 8 cuartos formo 2 enteros (2 × 4 = 8).", "Sobra 9 - 8 = 1 cuarto.", "Quedan 2 1/4 kilos."]
+respuesta = "2 1/4"
+verificar = "11/4 - 2/4"
+
+[[ejercicios]]
+id = "n3-e07"
+angulo = "error"
+enunciado = "Luis dice que 3/8 + 4/8 = 7/16, porque sumó los numeradores y también los denominadores. ¿Cuál es el resultado correcto? Explica en qué se equivocó Luis."
+respuesta = "7/8"
+verificar = "3/8 + 4/8"
+pide_explicacion = true
+criterio_explicacion = "Dice que Luis no debía sumar los denominadores: los pedazos son octavos y siguen siendo octavos, así que el denominador se queda en 8 y solo se suman los numeradores (7/8). Puede notar que 7/16 es menos que 7/8, y eso no tiene sentido al juntar."
+claves_explicacion = [["denominador", "abajo", "octavo"], ["no se suma", "no se suman", "no debe sumar", "se queda", "se mantiene", "igual", "no cambia", "mismo tamaño"]]
+minimo_claves = 2
+tiempo_s = 180
+pistas = ["Si juntas pedazos que son octavos, ¿los pedazos se vuelven más pequeños?", "¿7/16 es más o es menos que 7/8? ¿Tiene sentido que al juntar tengas menos?"]
+pista_grafica = { texto = "Compara: 3/8 y 4/8 juntos, contra 7/16.", grafico = { tipo = "barras", filas = [{ partes = 8, sombreadas = 3, etiqueta = "3/8" }, { partes = 8, sombreadas = 4, etiqueta = "4/8" }, { partes = 16, sombreadas = 7, etiqueta = "7/16" }] } }
+[ejercicios.similar]
+enunciado = "Rita dice que 1/5 + 2/5 = 3/10. ¿Cuál es el resultado correcto?"
+pasos = ["Rita sumó también los denominadores: 5 + 5 = 10. Eso está mal.", "Los pedazos son quintos y siguen siendo quintos: el denominador se queda en 5.", "Sumo solo los numeradores: 1 + 2 = 3. El resultado correcto es 3/5."]
+respuesta = "3/5"
+verificar = "1/5 + 2/5"
+
+[[ejercicios]]
+id = "n3-e08"
+angulo = "error"
+enunciado = "Sofía dice que 1 2/5 es lo mismo que 3/5, porque sumó 1 + 2 arriba. ¿Verdadero o falso? Explica tu respuesta."
+opciones = ["Verdadero", "Falso"]
+respuesta = "Falso"
+verificar = "1 + 2/5 = 3/5"
+pide_explicacion = true
+criterio_explicacion = "Dice que es falso porque el entero no vale 1 quinto sino 5 quintos (5/5); por eso 1 2/5 = 5/5 + 2/5 = 7/5, no 3/5."
+claves_explicacion = [["5/5", "cinco quintos", "5 quintos", "entero"], ["7/5", "multiplic", "1 × 5"]]
+minimo_claves = 1
+tiempo_s = 150
+pistas = ["¿Cuántos quintos hay en un entero?", "Si un entero son varios quintos, ¿cuántos quintos tienes al agregarle 2/5?"]
+pista_grafica = { texto = "Mira 1 2/5: un círculo entero y 2 quintos más.", grafico = { tipo = "circulos", partes = 5, sombreadas = 7 } }
+[ejercicios.similar]
+enunciado = "¿Verdadero o falso? 2 1/4 es lo mismo que 9/4."
+pasos = ["Cada entero tiene 4 cuartos: 2 enteros son 2 × 4 = 8 cuartos.", "Le sumo el cuarto que sobra: 8 + 1 = 9 cuartos.", "2 1/4 = 9/4, así que es verdadero."]
+respuesta = "Verdadero"
+verificar = "2 + 1/4 = 9/4"
+
+[[ejercicios]]
+id = "n3-e09"
+angulo = "inverso"
+enunciado = "¿Qué fracción falta? 3/8 + ? = 7/8"
+respuesta = "4/8"
+verificar = "7/8 - 3/8"
+tiempo_s = 120
+pistas = ["¿Cuántos octavos tienes y cuántos quieres tener?", "¿Cuántos octavos le faltan a 3 para llegar a 7?"]
+pista_grafica = { texto = "Compara lo que tienes con lo que quieres tener.", grafico = { tipo = "barras", filas = [{ partes = 8, sombreadas = 3, etiqueta = "tienes 3/8" }, { partes = 8, sombreadas = 7, etiqueta = "quieres 7/8" }] } }
+[ejercicios.similar]
+enunciado = "¿Qué fracción falta? 2/9 + ? = 8/9"
+pasos = ["Los dos son novenos: lo que falta también son novenos.", "A 2 le faltan 6 para llegar a 8: 8 - 2 = 6.", "Falta 6/9 (que es igual a 2/3)."]
+respuesta = "6/9"
+verificar = "8/9 - 2/9"
+
+[[ejercicios]]
+id = "n3-e10"
+angulo = "inverso"
+enunciado = "Pedro tenía una cinta. Usó 3/4 de metro y le quedan 2/4 de metro. ¿Cuánto medía la cinta al inicio? Escríbelo como número mixto."
+respuesta = "1 1/4"
+forma = "mixto"
+verificar = "3/4 + 2/4"
+tiempo_s = 150
+pistas = ["Para saber cuánto había al inicio, ¿tienes que sumar o restar lo que usó y lo que quedó?", "¿Cuántos cuartos forman un metro entero?"]
+pista_grafica = { texto = "Empieza en 2/4 (lo que quedó) y avanza los 3 cuartos que usó.", grafico = { tipo = "recta", desde = 0, hasta = 2, divisiones = 4, marca = "2/4" } }
+[ejercicios.similar]
+enunciado = "Tito usó 4/6 de litro de pintura y le quedan 5/6 de litro. ¿Cuánta pintura tenía al inicio? Escríbelo como número mixto."
+pasos = ["Lo que tenía es lo que usó más lo que quedó: 4/6 + 5/6.", "Son sextos: 4 + 5 = 9. Tenía 9/6.", "Con 6 sextos formo 1 entero y sobran 3/6.", "Tenía 1 3/6 litros, que simplificado es 1 1/2."]
+respuesta = "1 1/2"
+verificar = "4/6 + 5/6"
+
+# ---------------------------------------------------------------- Simulación
+
+[[simulacion]]
+id = "n3-s1"
+enunciado = "Calcula 5/12 + 4/12."
+respuesta = "9/12"
+verificar = "5/12 + 4/12"
+tiempo_s = 90
+
+[[simulacion]]
+id = "n3-s2"
+enunciado = "Escribe 13/5 como número mixto."
+respuesta = "2 3/5"
+forma = "mixto"
+verificar = "13/5"
+tiempo_s = 120
+
+[[simulacion]]
+id = "n3-s3"
+enunciado = "Calcula 8/9 - 5/9 y escribe el resultado simplificado."
+respuesta = "1/3"
+forma = "simplificada"
+verificar = "8/9 - 5/9"
+tiempo_s = 120
+
+[[simulacion]]
+id = "n3-s4"
+enunciado = "Convierte 4 1/2 en fracción impropia."
+respuesta = "9/2"
+forma = "impropia"
+verificar = "4 + 1/2"
+tiempo_s = 120

@@ -1,0 +1,334 @@
+# [PROPUESTA] Contenido del nivel 2 escrito por Claude para la demo. El equipo debe refinarlo.
+nivel = 2
+titulo = "Fracciones equivalentes, simplificar y comparar fracciones"
+subtema = "fracciones equivalentes, simplificar y comparar"
+
+# ───────────────────────── Tamizaje ─────────────────────────
+
+[[tamizaje]]
+id = "n2-t1"
+enunciado = "Simplifica 6/8 hasta su forma más simple. Luego explica cómo lo hiciste."
+respuesta = "3/4"
+forma = "simplificada"
+verificar = "6/8"
+criterio_explicacion = "Dice que dividió el numerador y el denominador entre el mismo número (2) y que ya no se puede seguir simplificando."
+claves_explicacion = [["divid", "entre", "mitad"], ["mismo numero", "los dos", "ambos", "numerador y denominador", "arriba y abajo", "6 y 8"]]
+minimo_claves = 2
+tiempo_s = 90
+
+[[tamizaje]]
+id = "n2-t2"
+enunciado = "¿Qué signo va entre las fracciones: 2/3 __ 3/5? Elige <, > o =, y explica cómo lo sabes."
+opciones = ["<", ">", "="]
+respuesta = ">"
+verificar = "2/3 > 3/5"
+criterio_explicacion = "Lleva las fracciones a un mismo denominador (10/15 y 9/15) o compara de otra forma correcta (productos cruzados, barras) y concluye que 2/3 es mayor."
+claves_explicacion = [["15", "mismo denominador", "denominador comun", "igual denominador", "cruz", "multiplic", "equivalent"], ["10/15", "9/15", "mayor", "mas grande"]]
+minimo_claves = 2
+tiempo_s = 120
+
+# ───────────────────────── Etapa 1 ─────────────────────────
+
+[etapa1]
+
+[[etapa1.teoria]]
+texto = "Ya sabes leer y dibujar fracciones. Ahora mira algo curioso: estas tres barras son del mismo largo. Una tiene pintado 1/2, otra 2/4 y otra 4/8. ¡Lo pintado mide lo mismo! Cuando dos fracciones muestran la misma cantidad, se llaman fracciones equivalentes."
+grafico = { tipo = "barras", filas = [{ partes = 2, sombreadas = 1, etiqueta = "1/2" }, { partes = 4, sombreadas = 2, etiqueta = "2/4" }, { partes = 8, sombreadas = 4, etiqueta = "4/8" }] }
+
+[[etapa1.teoria]]
+texto = "Para conseguir una fracción equivalente, multiplica el numerador y el denominador por el mismo número. Por ejemplo, 2/3 por 2 arriba y abajo da 4/6. Es como partir cada pedazo en 2: hay el doble de partes y el doble de partes pintadas, pero lo pintado no cambia."
+grafico = { tipo = "barras", filas = [{ partes = 3, sombreadas = 2, etiqueta = "2/3" }, { partes = 6, sombreadas = 4, etiqueta = "4/6" }] }
+
+[[etapa1.teoria]]
+texto = "Simplificar es el camino de regreso: divide el numerador y el denominador entre el mismo número. Por ejemplo, 6/9 entre 3 arriba y abajo da 2/3. Una fracción está simplificada cuando ningún número, aparte del 1, divide a la vez al numerador y al denominador."
+grafico = { tipo = "barras", filas = [{ partes = 9, sombreadas = 6, etiqueta = "6/9" }, { partes = 3, sombreadas = 2, etiqueta = "2/3" }] }
+
+[[etapa1.teoria]]
+texto = "Para comparar: si tienen el mismo denominador, las partes son del mismo tamaño y gana la que tiene más partes: 5/8 > 3/8. Si tienen el mismo numerador, gana la de partes más grandes, o sea, la de denominador más chico: 3/4 > 3/5. Recuerda: > es «mayor que» y < es «menor que»; la abertura mira a la fracción mayor."
+grafico = { tipo = "barras", filas = [{ partes = 8, sombreadas = 5, etiqueta = "5/8" }, { partes = 8, sombreadas = 3, etiqueta = "3/8" }] }
+
+[[etapa1.teoria]]
+texto = "Si los denominadores son distintos, busca fracciones equivalentes con el mismo denominador. Para 2/3 y 3/4 usamos doceavos: 2/3 = 8/12 y 3/4 = 9/12. Como 9/12 > 8/12, entonces 3/4 > 2/3."
+grafico = { tipo = "barras", filas = [{ partes = 12, sombreadas = 8, etiqueta = "2/3 = 8/12" }, { partes = 12, sombreadas = 9, etiqueta = "3/4 = 9/12" }] }
+
+[[etapa1.no_asistidos]]
+enunciado = "Veamos juntos: simplifiquemos 8/12."
+grafico = { tipo = "barras", filas = [{ partes = 12, sombreadas = 8, etiqueta = "8/12" }, { partes = 3, sombreadas = 2, etiqueta = "2/3" }] }
+pasos = ["Busco un número que divida a 8 y a 12 a la vez: el 2 y el 4 sirven. Uso el 4, que es el más grande.", "Divido arriba: 8 ÷ 4 = 2. Divido abajo: 12 ÷ 4 = 3.", "Me queda 2/3. ¿Se puede seguir? 2 y 3 solo se dividen juntos entre 1, así que 8/12 simplificada es 2/3."]
+respuesta = "2/3"
+verificar = "8/12"
+
+[[etapa1.no_asistidos]]
+enunciado = "Otro ejemplo: ¿qué fracción es mayor, 3/5 o 1/2?"
+grafico = { tipo = "barras", filas = [{ partes = 10, sombreadas = 6, etiqueta = "3/5 = 6/10" }, { partes = 10, sombreadas = 5, etiqueta = "1/2 = 5/10" }] }
+pasos = ["Los denominadores son distintos (5 y 2). Busco uno común: el 10.", "3/5 = 6/10 (por 2 arriba y abajo) y 1/2 = 5/10 (por 5 arriba y abajo).", "Ahora las partes son del mismo tamaño: 6/10 > 5/10. Entonces la mayor es 3/5."]
+respuesta = "3/5"
+verificar = "3/5"
+
+[[etapa1.asistidos]]
+enunciado = "Ahora tú: completa la fracción equivalente 3/4 = ?/20."
+secuencia = ["Ver por cuánto se multiplicó el denominador", "Multiplicar el numerador por lo mismo", "Escribir la fracción"]
+respuesta = "15/20"
+verificar = "3/4"
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 1: el denominador pasó de 4 a 20. ¿Por qué número se multiplicó? (4 × ? = 20)"
+respuesta = "5"
+ayuda = "¿Qué número de la tabla del 4 da 20?"
+solucion = "4 × 5 = 20, así que se multiplicó por 5."
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 2: multiplica el numerador por el mismo número. ¿Cuánto es 3 × 5?"
+respuesta = "15"
+ayuda = "¿Cuánto suman cinco veces 3?"
+solucion = "3 × 5 = 15."
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 3: escribe la fracción equivalente con denominador 20."
+respuesta = "15/20"
+ayuda = "¿Qué numerador te salió en el paso 2?"
+solucion = "La fracción equivalente es 15/20."
+
+[[etapa1.asistidos]]
+enunciado = "Ahora tú: ¿qué fracción es mayor, 2/3 o 5/6?"
+grafico = { tipo = "barras", filas = [{ partes = 3, sombreadas = 2, etiqueta = "2/3" }, { partes = 6, sombreadas = 5, etiqueta = "5/6" }] }
+secuencia = ["Buscar un denominador común", "Convertir la fracción", "Comparar los numeradores"]
+respuesta = "5/6"
+verificar = "5/6"
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 1: queremos que 2/3 tenga denominador 6. ¿Por qué número multiplicas el 3 para llegar a 6?"
+respuesta = "2"
+ayuda = "¿3 por cuánto da 6?"
+solucion = "3 × 2 = 6, así que multiplicamos por 2."
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 2: escribe 2/3 con denominador 6."
+respuesta = "4/6"
+ayuda = "Si multiplicas abajo por 2, ¿qué haces con el 2 de arriba?"
+solucion = "2 × 2 = 4 y 3 × 2 = 6: 2/3 = 4/6."
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 3: ahora compara 4/6 y 5/6. ¿Cuál de las fracciones originales es mayor?"
+respuesta = "5/6"
+opciones = ["2/3", "5/6"]
+ayuda = "Si las partes son del mismo tamaño, ¿cuál tiene más partes: 4/6 o 5/6?"
+solucion = "5/6 > 4/6, y 4/6 es lo mismo que 2/3. La mayor es 5/6."
+
+[etapa1.explicar]
+pregunta = "Con tus propias palabras: ¿por qué 2/3 y 4/6 son fracciones equivalentes?"
+criterio = "Explica que representan la misma cantidad del todo y que 4/6 se obtiene multiplicando el numerador y el denominador de 2/3 por el mismo número (2), o que 4/6 se simplifica a 2/3 dividiendo entre 2."
+claves = [["misma cantidad", "lo mismo", "igual", "mismo tamano", "misma parte"], ["multiplic", "por 2", "doble", "divid", "entre 2", "mitad"], ["numerador y denominador", "arriba y abajo", "los dos", "ambos"]]
+minimo_claves = 2
+pistas = ["Si pintas 2/3 de una barra y 4/6 de otra barra igual, ¿cuál tiene más pintado?", "¿Por qué número multiplicas el 2 y el 3 para llegar a 4 y 6?"]
+pista_grafica = { texto = "Compara: dos barras del mismo largo, 2/3 arriba y 4/6 abajo.", grafico = { tipo = "barras", filas = [{ partes = 3, sombreadas = 2, etiqueta = "2/3" }, { partes = 6, sombreadas = 4, etiqueta = "4/6" }] } }
+
+[[etapa1.repaso]]
+texto = "Vamos despacio. Mira estas dos barras del mismo largo: arriba está pintado 2/3 y abajo 4/6. Lo pintado llega exactamente hasta el mismo lugar. Por eso son equivalentes: es la misma cantidad."
+grafico = { tipo = "barras", filas = [{ partes = 3, sombreadas = 2, etiqueta = "2/3" }, { partes = 6, sombreadas = 4, etiqueta = "4/6" }] }
+
+[[etapa1.repaso]]
+texto = "En la barra de abajo, cada tercio se partió en 2. Por eso hay el doble de partes (6 en vez de 3) y el doble de pintadas (4 en vez de 2). Es multiplicar arriba y abajo por 2."
+
+[[etapa1.repaso]]
+texto = "La regla de oro: si haces lo mismo arriba y abajo (multiplicar o dividir por el mismo número), la cantidad no cambia. Así encuentras equivalentes y así simplificas."
+
+# ───────────────────────── Etapa 2 ─────────────────────────
+
+[[ejercicios]]
+id = "n2-e01"
+angulo = "grafica"
+enunciado = "Mira la barra. Escribe la fracción pintada y luego simplifícala. ¿Qué fracción simplificada está pintada?"
+grafico = { tipo = "barra", partes = 10, sombreadas = 4 }
+respuesta = "2/5"
+forma = "simplificada"
+verificar = "4/10"
+tiempo_s = 90
+pistas = ["¿Qué fracción ves si cuentas todas las partes y las pintadas?", "¿Qué número divide a la vez a 4 y a 10?"]
+pista_grafica = { texto = "Si juntas las partes de dos en dos, la barra queda en 5 partes.", grafico = { tipo = "barras", filas = [{ partes = 10, sombreadas = 4, etiqueta = "4/10" }, { partes = 5, sombreadas = 2, etiqueta = "?" }] } }
+[ejercicios.similar]
+enunciado = "Escribe, simplificada, la fracción pintada de esta barra."
+grafico = { tipo = "barra", partes = 6, sombreadas = 3 }
+pasos = ["La barra tiene 6 partes y 3 pintadas: 3/6.", "3 y 6 se dividen entre 3: 3 ÷ 3 = 1 y 6 ÷ 3 = 2.", "La fracción simplificada es 1/2."]
+respuesta = "1/2"
+verificar = "3/6"
+
+[[ejercicios]]
+id = "n2-e02"
+angulo = "grafica"
+enunciado = "Mira las dos barras. ¿Qué signo va: 3/4 __ 5/8? Elige <, > o =."
+grafico = { tipo = "barras", filas = [{ partes = 4, sombreadas = 3, etiqueta = "3/4" }, { partes = 8, sombreadas = 5, etiqueta = "5/8" }] }
+opciones = ["<", ">", "="]
+respuesta = ">"
+verificar = "3/4 > 5/8"
+tiempo_s = 90
+pistas = ["¿Hasta dónde llega lo pintado en cada barra?", "Si partes cada cuarto en 2, ¿cuántos octavos son 3/4?"]
+pista_grafica = { texto = "Mira 3/4 convertido en octavos junto a 5/8.", grafico = { tipo = "barras", filas = [{ partes = 8, sombreadas = 6, etiqueta = "3/4 = 6/8" }, { partes = 8, sombreadas = 5, etiqueta = "5/8" }] } }
+[ejercicios.similar]
+enunciado = "Mira las barras. ¿Qué signo va: 2/5 __ 1/2?"
+grafico = { tipo = "barras", filas = [{ partes = 5, sombreadas = 2, etiqueta = "2/5" }, { partes = 2, sombreadas = 1, etiqueta = "1/2" }] }
+pasos = ["Llevo las dos a décimos: 2/5 = 4/10 y 1/2 = 5/10.", "Comparo los numeradores: 4 es menor que 5.", "Entonces 2/5 < 1/2."]
+respuesta = "<"
+verificar = "2/5 < 1/2"
+
+[[ejercicios]]
+id = "n2-e03"
+angulo = "calculo"
+enunciado = "Simplifica 12/18 hasta su forma más simple."
+respuesta = "2/3"
+forma = "simplificada"
+verificar = "12/18"
+tiempo_s = 90
+pistas = ["¿Qué número divide a la vez a 12 y a 18?", "Después de dividir, ¿todavía hay un número que divida a los dos?"]
+pista_grafica = { texto = "12/18 y su forma simplificada pintan lo mismo.", grafico = { tipo = "barras", filas = [{ partes = 18, sombreadas = 12, etiqueta = "12/18" }, { partes = 3, sombreadas = 2, etiqueta = "?" }] } }
+[ejercicios.similar]
+enunciado = "Simplifica 9/12 hasta su forma más simple."
+pasos = ["9 y 12 se pueden dividir entre 3.", "9 ÷ 3 = 3 y 12 ÷ 3 = 4: queda 3/4.", "3 y 4 ya no tienen otro divisor común aparte del 1. La respuesta es 3/4."]
+respuesta = "3/4"
+verificar = "9/12"
+
+[[ejercicios]]
+id = "n2-e04"
+angulo = "calculo"
+enunciado = "¿Qué signo va: 4/7 __ 3/5? Elige <, > o =."
+opciones = ["<", ">", "="]
+respuesta = "<"
+verificar = "4/7 < 3/5"
+tiempo_s = 120
+pistas = ["¿Qué denominador sirve a la vez para séptimos y quintos?", "Si las dos fracciones tienen denominador 35, ¿cuál tiene más partes?"]
+pista_grafica = { texto = "En las barras casi no se ve la diferencia: por eso conviene usar el mismo denominador.", grafico = { tipo = "barras", filas = [{ partes = 7, sombreadas = 4, etiqueta = "4/7" }, { partes = 5, sombreadas = 3, etiqueta = "3/5" }] } }
+[ejercicios.similar]
+enunciado = "¿Qué signo va: 5/6 __ 3/4?"
+pasos = ["Un denominador común para 6 y 4 es 12.", "5/6 = 10/12 y 3/4 = 9/12.", "Como 10/12 > 9/12, entonces 5/6 > 3/4."]
+respuesta = ">"
+verificar = "5/6 > 3/4"
+
+[[ejercicios]]
+id = "n2-e05"
+angulo = "contexto"
+enunciado = "Ana pintó 3/8 de una pared y Beto pintó 1/4 de otra pared igual. ¿Quién pintó más? Escribe la fracción mayor."
+contextos = { futbol = "En el entrenamiento, tú corriste 3/8 de la cancha y tu amigo corrió 1/4 de la misma cancha. ¿Quién corrió más? Escribe la fracción mayor.", videojuegos = "Completaste 3/8 de un nivel y tu amigo completó 1/4 del mismo nivel. ¿Quién avanzó más? Escribe la fracción mayor.", dinosaurios = "Un estegosaurio comió 3/8 de un helecho y un braquiosaurio comió 1/4 de otro helecho igual. ¿Quién comió más? Escribe la fracción mayor.", cocina = "Usaste 3/8 de una bolsa de harina y tu hermana usó 1/4 de otra bolsa igual. ¿Quién usó más harina? Escribe la fracción mayor.", musica = "Ensayaste 3/8 de una canción y tu amiga ensayó 1/4 de la misma canción. ¿Quién ensayó más? Escribe la fracción mayor." }
+respuesta = "3/8"
+verificar = "3/8"
+tiempo_s = 120
+pistas = ["¿Cuántos octavos es lo mismo que 1/4?", "Con el mismo denominador, ¿cuál tiene más partes?"]
+pista_grafica = { texto = "Mira 1/4 convertido en octavos junto a 3/8.", grafico = { tipo = "barras", filas = [{ partes = 8, sombreadas = 3, etiqueta = "3/8" }, { partes = 8, sombreadas = 2, etiqueta = "1/4 = 2/8" }] } }
+[ejercicios.similar]
+enunciado = "Rosa leyó 2/3 de un libro y Juan leyó 3/4 de otro libro igual. ¿Quién leyó más? Escribe la fracción mayor."
+pasos = ["Busco un denominador común para 3 y 4: el 12.", "2/3 = 8/12 y 3/4 = 9/12.", "9/12 > 8/12, así que Juan leyó más: la mayor es 3/4."]
+respuesta = "3/4"
+verificar = "3/4"
+
+[[ejercicios]]
+id = "n2-e06"
+angulo = "contexto"
+enunciado = "Tienes 20 canicas y 15 son azules. ¿Qué fracción de tus canicas son azules? Escríbela simplificada."
+contextos = { futbol = "Tu equipo jugó 20 partidos y ganó 15. ¿Qué fracción de los partidos ganó? Escríbela simplificada.", videojuegos = "Un videojuego tiene 20 misiones y ya hiciste 15. ¿Qué fracción de las misiones hiciste? Escríbela simplificada.", dinosaurios = "En un museo hay 20 esqueletos de dinosaurio y 15 son de carnívoros. ¿Qué fracción de los esqueletos son de carnívoros? Escríbela simplificada.", cocina = "Horneaste 20 galletas y 15 llevan chispas de chocolate. ¿Qué fracción de las galletas lleva chispas? Escríbela simplificada.", musica = "Tu lista tiene 20 canciones y 15 son de rock. ¿Qué fracción de las canciones son de rock? Escríbela simplificada." }
+respuesta = "3/4"
+forma = "simplificada"
+verificar = "15/20"
+tiempo_s = 120
+pistas = ["¿Qué fracción escribes primero con el total abajo y las azules arriba?", "¿Qué número divide a la vez a 15 y a 20?"]
+pista_grafica = { texto = "Agrupa las canicas de 5 en 5: ¿cuántos grupos hay y cuántos son azules?", grafico = { tipo = "conjunto", total = 20, marcados = 15 } }
+[ejercicios.similar]
+enunciado = "Tienes 12 lápices y 8 son rojos. ¿Qué fracción de los lápices son rojos? Escríbela simplificada."
+pasos = ["Total abajo y rojos arriba: 8/12.", "8 y 12 se dividen entre 4: 8 ÷ 4 = 2 y 12 ÷ 4 = 3.", "La fracción simplificada es 2/3."]
+respuesta = "2/3"
+verificar = "8/12"
+
+[[ejercicios]]
+id = "n2-e07"
+angulo = "error"
+enunciado = "Luis dice: «2/3 es menor que 2/5, porque 3 es menor que 5». ¿Es verdadero o falso? Explica por qué."
+opciones = ["Verdadero", "Falso"]
+respuesta = "Falso"
+verificar = "2/3 < 2/5"
+pide_explicacion = true
+criterio_explicacion = "Explica que, con el mismo numerador, el denominador más chico da partes más grandes: los tercios son más grandes que los quintos, así que 2/3 es mayor que 2/5 (también vale 10/15 > 6/15)."
+claves_explicacion = [["partes mas grandes", "mas grande", "tamano", "pedazos", "10/15", "6/15"], ["denominador", "abajo", "tercios", "quintos"], ["mayor", "falso", "no tiene razon", "se equivoca"]]
+minimo_claves = 2
+tiempo_s = 120
+pistas = ["¿Qué pedazo es más grande: un tercio o un quinto de la misma barra?", "Si tomas 2 pedazos grandes o 2 pedazos chicos, ¿cuándo tienes más?"]
+pista_grafica = { texto = "Compara 2/3 y 2/5 en barras del mismo largo.", grafico = { tipo = "barras", filas = [{ partes = 3, sombreadas = 2, etiqueta = "2/3" }, { partes = 5, sombreadas = 2, etiqueta = "2/5" }] } }
+[ejercicios.similar]
+enunciado = "Rosa dice: «3/4 es menor que 3/8, porque 4 es menor que 8». ¿Es verdadero o falso?"
+grafico = { tipo = "barras", filas = [{ partes = 4, sombreadas = 3, etiqueta = "3/4" }, { partes = 8, sombreadas = 3, etiqueta = "3/8" }] }
+pasos = ["Las dos fracciones tienen el mismo numerador: 3 pedazos.", "Los cuartos son más grandes que los octavos, porque el todo se partió en menos partes.", "3 cuartos es más que 3 octavos: 3/4 > 3/8. Lo que dice Rosa es falso."]
+respuesta = "Falso"
+verificar = "3/4 < 3/8"
+
+[[ejercicios]]
+id = "n2-e08"
+angulo = "error"
+enunciado = "Luis quiso simplificar 6/9: le restó 3 arriba y abajo y obtuvo 3/6. ¿Cuál es la simplificación correcta de 6/9? Escríbela y explica el error de Luis."
+respuesta = "2/3"
+forma = "simplificada"
+verificar = "6/9"
+pide_explicacion = true
+criterio_explicacion = "Explica que para simplificar no se resta: se divide el numerador y el denominador entre el mismo número (6 ÷ 3 = 2 y 9 ÷ 3 = 3); restar cambia la cantidad (3/6 es la mitad, no 2/3)."
+claves_explicacion = [["divid", "entre"], ["rest", "no se resta", "quit"], ["cambia", "no es igual", "otra cantidad", "mitad", "1/2"]]
+minimo_claves = 2
+tiempo_s = 150
+pistas = ["Para que la cantidad no cambie, ¿qué operación se hace arriba y abajo al simplificar?", "¿3/6 pinta lo mismo que 6/9 en barras del mismo largo?"]
+pista_grafica = { texto = "Compara lo pintado: 6/9 y lo que obtuvo Luis, 3/6.", grafico = { tipo = "barras", filas = [{ partes = 9, sombreadas = 6, etiqueta = "6/9" }, { partes = 6, sombreadas = 3, etiqueta = "3/6 de Luis" }] } }
+[ejercicios.similar]
+enunciado = "Carla quiso simplificar 4/10: le restó 2 arriba y abajo y obtuvo 2/8. ¿Cuál es la simplificación correcta de 4/10?"
+pasos = ["Simplificar es dividir, no restar.", "4 y 10 se dividen entre 2: 4 ÷ 2 = 2 y 10 ÷ 2 = 5.", "La simplificación correcta es 2/5 (2/8 es otra cantidad)."]
+respuesta = "2/5"
+verificar = "4/10"
+
+[[ejercicios]]
+id = "n2-e09"
+angulo = "inverso"
+enunciado = "Completa la fracción equivalente: 3/4 = ?/20. ¿Qué número va en lugar del signo de pregunta?"
+respuesta = "15"
+verificar = "20 * 3 / 4"
+tiempo_s = 90
+pistas = ["¿Por qué número multiplicas 4 para llegar a 20?", "Si abajo multiplicas por ese número, ¿qué haces con el 3 de arriba?"]
+pista_grafica = { texto = "Cada cuarto se parte en 5: la barra queda con 20 partes.", grafico = { tipo = "barras", filas = [{ partes = 4, sombreadas = 3, etiqueta = "3/4" }, { partes = 20, sombreadas = 15, etiqueta = "?/20" }] } }
+[ejercicios.similar]
+enunciado = "Completa la fracción equivalente: 2/3 = ?/12."
+pasos = ["El denominador pasó de 3 a 12: se multiplicó por 4.", "Multiplico el numerador por 4: 2 × 4 = 8.", "Va el 8: 2/3 = 8/12."]
+respuesta = "8"
+verificar = "12 * 2 / 3"
+
+[[ejercicios]]
+id = "n2-e10"
+angulo = "inverso"
+enunciado = "Una fracción es equivalente a 3/5 y su numerador es 12. ¿Cuál es su denominador?"
+respuesta = "20"
+verificar = "12 * 5 / 3"
+tiempo_s = 120
+pistas = ["¿Por qué número multiplicas el 3 para llegar a 12?", "¿Qué pasa si multiplicas el 5 por ese mismo número?"]
+pista_grafica = { texto = "Cada quinto se parte en 4 partes iguales.", grafico = { tipo = "barras", filas = [{ partes = 5, sombreadas = 3, etiqueta = "3/5" }, { partes = 20, sombreadas = 12, etiqueta = "12/?" }] } }
+[ejercicios.similar]
+enunciado = "Una fracción es equivalente a 2/7 y su numerador es 6. ¿Cuál es su denominador?"
+pasos = ["El numerador pasó de 2 a 6: se multiplicó por 3.", "Multiplico el denominador por 3: 7 × 3 = 21.", "El denominador es 21: 2/7 = 6/21."]
+respuesta = "21"
+verificar = "6 * 7 / 2"
+
+# ───────────────────────── Simulación ─────────────────────────
+
+[[simulacion]]
+id = "n2-s1"
+enunciado = "Simplifica 15/25 hasta su forma más simple."
+respuesta = "3/5"
+forma = "simplificada"
+verificar = "15/25"
+tiempo_s = 90
+
+[[simulacion]]
+id = "n2-s2"
+enunciado = "¿Qué signo va: 5/8 __ 2/3? Elige <, > o =."
+opciones = ["<", ">", "="]
+respuesta = "<"
+verificar = "5/8 < 2/3"
+tiempo_s = 120
+
+[[simulacion]]
+id = "n2-s3"
+enunciado = "Completa la fracción equivalente: 4/7 = ?/28. ¿Qué número va en lugar del signo de pregunta?"
+respuesta = "16"
+verificar = "28 * 4 / 7"
+tiempo_s = 90
+
+[[simulacion]]
+id = "n2-s4"
+enunciado = "¿Qué fracción es mayor, 7/10 o 3/4? Escribe la fracción mayor."
+respuesta = "3/4"
+verificar = "3/4"
+tiempo_s = 120

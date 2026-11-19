@@ -1,0 +1,332 @@
+# [PROPUESTA] Nivel 4 de Fracciones (5to de primaria). Escrito por Claude para la demo.
+nivel = 4
+titulo = "Suma y resta con distinto denominador"
+subtema = "sumar y restar fracciones con distinto denominador"
+
+# ---------------------------------------------------------------- Tamizaje
+
+[[tamizaje]]
+id = "n4-t1"
+enunciado = "Calcula 2/3 + 1/4. Luego explica cómo lo hiciste."
+respuesta = "11/12"
+verificar = "2/3 + 1/4"
+criterio_explicacion = "Explica que busca un denominador común (12), convierte cada fracción en una equivalente (8/12 y 3/12) y luego suma los numeradores. No suma los denominadores."
+claves_explicacion = [["denominador comun", "mismo denominador", "igual denominador", "mcm", "minimo comun", "doceavos", "12"], ["equivalente", "convert", "transform", "multiplic", "amplific"]]
+minimo_claves = 2
+tiempo_s = 180
+
+[[tamizaje]]
+id = "n4-t2"
+enunciado = "Calcula 3/4 - 1/6. Luego explica cómo lo hiciste."
+respuesta = "7/12"
+verificar = "3/4 - 1/6"
+criterio_explicacion = "Explica que busca un denominador común (12), convierte 3/4 en 9/12 y 1/6 en 2/12, y luego resta los numeradores: 9 - 2 = 7."
+claves_explicacion = [["denominador comun", "mismo denominador", "igual denominador", "mcm", "minimo comun", "doceavos", "12"], ["equivalente", "convert", "transform", "multiplic", "amplific", "9/12", "2/12"]]
+minimo_claves = 2
+tiempo_s = 180
+
+# ---------------------------------------------------------------- Etapa 1
+
+[etapa1]
+
+[[etapa1.teoria]]
+texto = "Ya sabes sumar fracciones con el mismo denominador: 2/5 + 1/5 = 3/5. Pero, ¿y si tienes 1/2 + 1/4? Una mitad y un cuarto son pedazos de distinto tamaño. Así no se pueden juntar todavía."
+grafico = { tipo = "barras", filas = [{ partes = 2, sombreadas = 1, etiqueta = "1/2" }, { partes = 4, sombreadas = 1, etiqueta = "1/4" }] }
+
+[[etapa1.teoria]]
+texto = "El truco es usar fracciones equivalentes, que ya conoces. 1/2 es lo mismo que 2/4. Ahora las dos fracciones son cuartos, y sí se pueden sumar: 2/4 + 1/4 = 3/4."
+grafico = { tipo = "barras", filas = [{ partes = 2, sombreadas = 1, etiqueta = "1/2" }, { partes = 4, sombreadas = 2, etiqueta = "2/4" }, { partes = 4, sombreadas = 3, etiqueta = "2/4 + 1/4 = 3/4" }] }
+
+[[etapa1.teoria]]
+texto = "¿Cómo encuentras el denominador común? Busca un número que esté en la tabla de los dos denominadores. Para 1/3 + 1/4: la tabla del 3 tiene 3, 6, 9, 12; la del 4 tiene 4, 8, 12. El menor que se repite es 12: es el mcm. Entonces 1/3 = 4/12 y 1/4 = 3/12."
+grafico = { tipo = "barras", filas = [{ partes = 3, sombreadas = 1, etiqueta = "1/3" }, { partes = 12, sombreadas = 4, etiqueta = "4/12" }, { partes = 4, sombreadas = 1, etiqueta = "1/4" }, { partes = 12, sombreadas = 3, etiqueta = "3/12" }] }
+
+[[etapa1.teoria]]
+texto = "Con el mismo denominador, haces lo del nivel anterior: sumas o restas los numeradores. 1/3 + 1/4 = 4/12 + 3/12 = 7/12. Y para restar: 1/3 - 1/4 = 4/12 - 3/12 = 1/12."
+grafico = { tipo = "barra", partes = 12, sombreadas = 7, etiqueta = "4/12 + 3/12 = 7/12" }
+
+[[etapa1.teoria]]
+texto = "Al final, mira si puedes simplificar. Por ejemplo, 1/6 + 1/3 = 1/6 + 2/6 = 3/6, y 3/6 es lo mismo que 1/2."
+grafico = { tipo = "barras", filas = [{ partes = 6, sombreadas = 3, etiqueta = "3/6" }, { partes = 2, sombreadas = 1, etiqueta = "1/2" }] }
+
+[[etapa1.no_asistidos]]
+enunciado = "Calculemos 1/2 + 1/3."
+grafico = { tipo = "barras", filas = [{ partes = 2, sombreadas = 1, etiqueta = "1/2" }, { partes = 3, sombreadas = 1, etiqueta = "1/3" }] }
+pasos = ["Los denominadores son 2 y 3: son distintos.", "Busco un número que esté en la tabla del 2 y del 3: el menor es 6.", "Convierto: 1/2 = 3/6 (multiplico arriba y abajo por 3) y 1/3 = 2/6 (multiplico arriba y abajo por 2).", "Sumo los numeradores: 3/6 + 2/6 = 5/6.", "5/6 ya no se puede simplificar. El resultado es 5/6."]
+respuesta = "5/6"
+verificar = "1/2 + 1/3"
+
+[[etapa1.no_asistidos]]
+enunciado = "Calculemos 5/6 - 1/3 y simplifiquemos el resultado."
+grafico = { tipo = "barras", filas = [{ partes = 6, sombreadas = 5, etiqueta = "5/6" }, { partes = 3, sombreadas = 1, etiqueta = "1/3" }] }
+pasos = ["Los denominadores son 6 y 3. El 6 está en la tabla del 3, así que el denominador común es 6.", "Convierto 1/3 en sextos: 1/3 = 2/6. El 5/6 se queda igual.", "Resto los numeradores: 5/6 - 2/6 = 3/6.", "Simplifico: 3 y 6 se dividen entre 3. El resultado es 1/2."]
+respuesta = "1/2"
+verificar = "5/6 - 1/3"
+
+[[etapa1.asistidos]]
+enunciado = "Ahora tú: 1/4 + 3/8."
+grafico = { tipo = "barras", filas = [{ partes = 4, sombreadas = 1, etiqueta = "1/4" }, { partes = 8, sombreadas = 3, etiqueta = "3/8" }] }
+secuencia = ["Buscar el denominador común", "Convertir en fracciones equivalentes", "Sumar los numeradores"]
+respuesta = "5/8"
+verificar = "1/4 + 3/8"
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 1: ¿cuál es el menor número que está en la tabla del 4 y también en la del 8?"
+respuesta = "8"
+ayuda = "¿El 8 está en la tabla del 4?"
+solucion = "La tabla del 4 tiene 4, 8, 12... y la del 8 empieza en 8. El denominador común es 8."
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 2: convierte 1/4 en octavos. Escribe la fracción equivalente."
+respuesta = "2/8"
+ayuda = "¿Por qué número multiplicas el 4 para llegar a 8? Multiplica el numerador por ese mismo número."
+solucion = "4 × 2 = 8, así que multiplico arriba y abajo por 2: 1/4 = 2/8."
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 3: ahora suma 2/8 + 3/8."
+respuesta = "5/8"
+ayuda = "Ya son octavos. ¿Qué haces con los numeradores?"
+solucion = "2 + 3 = 5 y el denominador se queda en 8: el resultado es 5/8."
+
+[[etapa1.asistidos]]
+enunciado = "Ahora tú: 2/3 - 1/2."
+grafico = { tipo = "barras", filas = [{ partes = 3, sombreadas = 2, etiqueta = "2/3" }, { partes = 2, sombreadas = 1, etiqueta = "1/2" }] }
+secuencia = ["Buscar el denominador común", "Convertir la primera fracción", "Convertir la segunda fracción", "Restar los numeradores"]
+respuesta = "1/6"
+verificar = "2/3 - 1/2"
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 1: ¿cuál es el menor número que está en la tabla del 3 y también en la del 2?"
+respuesta = "6"
+ayuda = "Escribe la tabla del 3: 3, 6, 9... ¿Cuál de esos está también en la tabla del 2?"
+solucion = "El 3 no está en la tabla del 2, pero el 6 sí. El denominador común es 6."
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 2: convierte 2/3 en sextos."
+respuesta = "4/6"
+ayuda = "¿Por qué número multiplicas el 3 para llegar a 6?"
+solucion = "3 × 2 = 6, así que multiplico arriba y abajo por 2: 2/3 = 4/6."
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 3: convierte 1/2 en sextos."
+respuesta = "3/6"
+ayuda = "¿Por qué número multiplicas el 2 para llegar a 6?"
+solucion = "2 × 3 = 6, así que multiplico arriba y abajo por 3: 1/2 = 3/6."
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 4: resta 4/6 - 3/6."
+respuesta = "1/6"
+ayuda = "Ya son sextos. ¿Cuánto es 4 - 3?"
+solucion = "4 - 3 = 1 y el denominador se queda en 6: el resultado es 1/6."
+
+[etapa1.explicar]
+pregunta = "Con tus propias palabras: ¿por qué no puedes sumar 1/2 + 1/3 sumando arriba con arriba y abajo con abajo? ¿Qué haces en su lugar?"
+criterio = "Explica que los pedazos son de distinto tamaño (medios y tercios), por eso primero hay que convertirlas en fracciones equivalentes con un mismo denominador (denominador común, por ejemplo 6) y recién sumar los numeradores."
+claves = [["distinto", "diferente", "tamaño"], ["equivalente", "convert", "denominador comun", "mismo denominador", "igual denominador", "mcm", "sextos"], ["numerador", "arriba"]]
+minimo_claves = 2
+pistas = ["¿Un medio y un tercio son pedazos del mismo tamaño?", "¿En qué pedazos más pequeños podrías partir tanto la mitad como el tercio para que todos sean del mismo tamaño?"]
+pista_grafica = { texto = "Mira cómo la mitad y el tercio se pueden partir en sextos.", grafico = { tipo = "barras", filas = [{ partes = 2, sombreadas = 1, etiqueta = "1/2" }, { partes = 6, sombreadas = 3, etiqueta = "3/6" }, { partes = 3, sombreadas = 1, etiqueta = "1/3" }, { partes = 6, sombreadas = 2, etiqueta = "2/6" }] } }
+
+[[etapa1.repaso]]
+texto = "Repasemos. Solo puedes juntar pedazos del mismo tamaño. 1/2 y 1/4 no lo son: una mitad es más grande que un cuarto."
+grafico = { tipo = "barras", filas = [{ partes = 2, sombreadas = 1, etiqueta = "1/2" }, { partes = 4, sombreadas = 1, etiqueta = "1/4" }] }
+
+[[etapa1.repaso]]
+texto = "Por eso, primero cambias una fracción por otra equivalente con el mismo denominador. Multiplicas arriba y abajo por el mismo número: 1/2 = (1 × 2)/(2 × 2) = 2/4."
+grafico = { tipo = "barras", filas = [{ partes = 2, sombreadas = 1, etiqueta = "1/2" }, { partes = 4, sombreadas = 2, etiqueta = "2/4" }] }
+
+[[etapa1.repaso]]
+texto = "Ahora sí son cuartos: 2/4 + 1/4 = 3/4. Recuerda: el denominador común es un número que está en la tabla de los dos denominadores."
+grafico = { tipo = "barra", partes = 4, sombreadas = 3, etiqueta = "3/4" }
+
+# ---------------------------------------------------------------- Etapa 2
+
+[[ejercicios]]
+id = "n4-e01"
+angulo = "grafica"
+enunciado = "Las barras muestran 1/3 y 1/6 de un mismo entero. ¿Cuánto es 1/3 + 1/6?"
+grafico = { tipo = "barras", filas = [{ partes = 3, sombreadas = 1, etiqueta = "1/3" }, { partes = 6, sombreadas = 1, etiqueta = "1/6" }] }
+respuesta = "1/2"
+verificar = "1/3 + 1/6"
+tiempo_s = 150
+pistas = ["¿Cuántos sextos caben en un tercio?", "Si cambias 1/3 por sextos, ¿cuántos sextos tienes en total?"]
+pista_grafica = { texto = "Mira cuántos sextos hay en 1/3.", grafico = { tipo = "barras", filas = [{ partes = 3, sombreadas = 1, etiqueta = "1/3" }, { partes = 6, sombreadas = 2, etiqueta = "2/6" }, { partes = 6, sombreadas = 1, etiqueta = "1/6" }] } }
+[ejercicios.similar]
+enunciado = "Las barras muestran 1/2 y 1/8 de un mismo entero. ¿Cuánto es 1/2 + 1/8?"
+grafico = { tipo = "barras", filas = [{ partes = 2, sombreadas = 1, etiqueta = "1/2" }, { partes = 8, sombreadas = 1, etiqueta = "1/8" }] }
+pasos = ["El 8 está en la tabla del 2: uso octavos.", "Convierto 1/2 en octavos: 1/2 = 4/8.", "Sumo: 4/8 + 1/8 = 5/8."]
+respuesta = "5/8"
+verificar = "1/2 + 1/8"
+
+[[ejercicios]]
+id = "n4-e02"
+angulo = "grafica"
+enunciado = "En la recta, el punto está en 3/4. Si retrocedes 1/2, ¿a qué fracción llegas?"
+grafico = { tipo = "recta", desde = 0, hasta = 1, divisiones = 4, marca = "3/4" }
+respuesta = "1/4"
+verificar = "3/4 - 1/2"
+tiempo_s = 150
+pistas = ["¿Cuántos cuartos hay en 1/2?", "Si estás en 3 cuartos y retrocedes esos cuartos, ¿dónde quedas?"]
+pista_grafica = { texto = "Mira cuántos cuartos ocupa la mitad.", grafico = { tipo = "barras", filas = [{ partes = 4, sombreadas = 3, etiqueta = "3/4" }, { partes = 2, sombreadas = 1, etiqueta = "1/2" }, { partes = 4, sombreadas = 2, etiqueta = "2/4" }] } }
+[ejercicios.similar]
+enunciado = "En una recta partida en sextos, el punto está en 5/6. Si retrocedes 1/3, ¿a qué fracción llegas?"
+grafico = { tipo = "recta", desde = 0, hasta = 1, divisiones = 6, marca = "5/6" }
+pasos = ["Convierto 1/3 en sextos: 1/3 = 2/6.", "Retroceder 2/6 desde 5/6 es restar: 5/6 - 2/6 = 3/6.", "Llego a 3/6, que es lo mismo que 1/2."]
+respuesta = "1/2"
+verificar = "5/6 - 1/3"
+
+[[ejercicios]]
+id = "n4-e03"
+angulo = "calculo"
+enunciado = "Calcula 3/5 + 1/4."
+respuesta = "17/20"
+verificar = "3/5 + 1/4"
+tiempo_s = 180
+pistas = ["¿Qué número está en la tabla del 5 y también en la del 4?", "¿Por qué número multiplicas arriba y abajo para que 3/5 quede en veinteavos? ¿Y para 1/4?"]
+pista_grafica = { texto = "Las dos fracciones se pueden partir en veinteavos.", grafico = { tipo = "barras", filas = [{ partes = 5, sombreadas = 3, etiqueta = "3/5" }, { partes = 20, sombreadas = 12, etiqueta = "12/20" }, { partes = 4, sombreadas = 1, etiqueta = "1/4" }, { partes = 20, sombreadas = 5, etiqueta = "5/20" }] } }
+[ejercicios.similar]
+enunciado = "Calcula 2/3 + 1/5."
+pasos = ["El menor número en la tabla del 3 y del 5 es 15.", "Convierto: 2/3 = 10/15 (por 5) y 1/5 = 3/15 (por 3).", "Sumo: 10/15 + 3/15 = 13/15."]
+respuesta = "13/15"
+verificar = "2/3 + 1/5"
+
+[[ejercicios]]
+id = "n4-e04"
+angulo = "calculo"
+enunciado = "Calcula 7/10 - 1/5. Escribe el resultado simplificado."
+respuesta = "1/2"
+forma = "simplificada"
+verificar = "7/10 - 1/5"
+tiempo_s = 180
+pistas = ["¿El 10 está en la tabla del 5? Entonces, ¿cuál puede ser el denominador común?", "Cuando tengas el resultado, ¿hay un número que divida al numerador y al denominador a la vez?"]
+pista_grafica = { texto = "Mira cuántos décimos hay en 1/5.", grafico = { tipo = "barras", filas = [{ partes = 10, sombreadas = 7, etiqueta = "7/10" }, { partes = 5, sombreadas = 1, etiqueta = "1/5" }, { partes = 10, sombreadas = 2, etiqueta = "2/10" }] } }
+[ejercicios.similar]
+enunciado = "Calcula 5/6 - 1/2. Escribe el resultado simplificado."
+pasos = ["El 6 está en la tabla del 2: uso sextos.", "Convierto 1/2 = 3/6.", "Resto: 5/6 - 3/6 = 2/6.", "Simplifico entre 2: 2/6 = 1/3."]
+respuesta = "1/3"
+verificar = "5/6 - 1/2"
+
+[[ejercicios]]
+id = "n4-e05"
+angulo = "contexto"
+enunciado = "Mariela caminó 1/2 kilómetro en la mañana y 1/3 kilómetro en la tarde. ¿Cuántos kilómetros caminó en total?"
+contextos = { futbol = "En el entrenamiento de fútbol corriste 1/2 kilómetro antes del partido y 1/3 kilómetro después. ¿Cuántos kilómetros corriste en total?", videojuegos = "En tu videojuego, tu personaje recorre 1/2 del mapa por el bosque y 1/3 del mapa por la cueva. ¿Qué parte del mapa recorrió en total?", dinosaurios = "Un dinosaurio caminó 1/2 kilómetro hasta el río y luego 1/3 kilómetro hasta el bosque. ¿Cuántos kilómetros caminó en total?", cocina = "Para una mazamorra usas 1/2 taza de leche y 1/3 taza de agua. ¿Cuántas tazas de líquido usas en total?", musica = "Practicaste guitarra 1/2 hora en la mañana y 1/3 hora en la tarde. ¿Cuántas horas practicaste en total?" }
+respuesta = "5/6"
+verificar = "1/2 + 1/3"
+tiempo_s = 180
+pistas = ["¿Medios y tercios son pedazos del mismo tamaño?", "¿Qué número está en la tabla del 2 y también en la del 3?"]
+pista_grafica = { texto = "Parte la mitad y el tercio en sextos.", grafico = { tipo = "barras", filas = [{ partes = 2, sombreadas = 1, etiqueta = "1/2" }, { partes = 6, sombreadas = 3, etiqueta = "3/6" }, { partes = 3, sombreadas = 1, etiqueta = "1/3" }, { partes = 6, sombreadas = 2, etiqueta = "2/6" }] } }
+[ejercicios.similar]
+enunciado = "Rafa tomó 1/4 litro de agua y luego 1/3 litro más. ¿Cuánta agua tomó en total?"
+pasos = ["El menor número en la tabla del 4 y del 3 es 12.", "Convierto: 1/4 = 3/12 y 1/3 = 4/12.", "Sumo: 3/12 + 4/12 = 7/12 litro."]
+respuesta = "7/12"
+verificar = "1/4 + 1/3"
+
+[[ejercicios]]
+id = "n4-e06"
+angulo = "contexto"
+enunciado = "Una botella tenía 3/4 litro de jugo. Se tomaron 1/6 litro. ¿Cuánto jugo queda?"
+contextos = { futbol = "El termo del equipo de fútbol tenía 3/4 litro de agua. El arquero tomó 1/6 litro. ¿Cuánta agua queda en el termo?", videojuegos = "En tu videojuego, tu escudo tenía 3/4 de su energía. Un ataque le quitó 1/6 de energía. ¿Qué parte de energía le queda?", dinosaurios = "En un museo tenían armado 3/4 de un esqueleto de dinosaurio. Para limpiarlo desarmaron 1/6 del esqueleto. ¿Qué parte sigue armada?", cocina = "Tenías 3/4 kilo de harina. Usaste 1/6 kilo para hacer panqueques. ¿Cuánta harina te queda?", musica = "Tu lista de canciones dura 3/4 de hora. Ya escuchaste 1/6 de hora. ¿Cuánto tiempo falta?" }
+respuesta = "7/12"
+verificar = "3/4 - 1/6"
+tiempo_s = 200
+pistas = ["¿Qué número está en la tabla del 4 y también en la del 6?", "Cuando las dos fracciones estén en doceavos, ¿qué haces con los numeradores?"]
+pista_grafica = { texto = "Pasa las dos fracciones a doceavos.", grafico = { tipo = "barras", filas = [{ partes = 4, sombreadas = 3, etiqueta = "3/4" }, { partes = 12, sombreadas = 9, etiqueta = "9/12" }, { partes = 6, sombreadas = 1, etiqueta = "1/6" }, { partes = 12, sombreadas = 2, etiqueta = "2/12" }] } }
+[ejercicios.similar]
+enunciado = "Había 2/3 kilo de arroz y se usó 1/4 kilo. ¿Cuánto arroz queda?"
+pasos = ["El menor número en la tabla del 3 y del 4 es 12.", "Convierto: 2/3 = 8/12 y 1/4 = 3/12.", "Resto: 8/12 - 3/12 = 5/12 kilo."]
+respuesta = "5/12"
+verificar = "2/3 - 1/4"
+
+[[ejercicios]]
+id = "n4-e07"
+angulo = "error"
+enunciado = "Luis sumó 1/2 + 1/3 = 2/5, porque sumó arriba con arriba y abajo con abajo. ¿Cuál es el resultado correcto? Explica en qué se equivocó Luis."
+respuesta = "5/6"
+verificar = "1/2 + 1/3"
+pide_explicacion = true
+criterio_explicacion = "Dice que no se pueden sumar los denominadores ni juntar pedazos de distinto tamaño; primero hay que convertir a un denominador común (1/2 = 3/6 y 1/3 = 2/6) y luego sumar los numeradores: 5/6. Puede notar que 2/5 es menos que 1/2, y eso no tiene sentido al sumar."
+claves_explicacion = [["denominador comun", "mismo denominador", "igual denominador", "equivalente", "convert", "sextos", "mcm"], ["no se suma", "no se suman", "no debe sumar", "distinto tamaño", "diferente tamaño", "distinto", "diferente"]]
+minimo_claves = 2
+tiempo_s = 200
+pistas = ["¿2/5 es más o es menos que 1/2? ¿Tiene sentido si le sumaste algo a 1/2?", "¿Medios y tercios son pedazos del mismo tamaño? ¿Qué tendrías que hacer antes de sumar?"]
+pista_grafica = { texto = "Compara 1/2 con 2/5: ¡2/5 es menos!", grafico = { tipo = "barras", filas = [{ partes = 2, sombreadas = 1, etiqueta = "1/2" }, { partes = 3, sombreadas = 1, etiqueta = "1/3" }, { partes = 5, sombreadas = 2, etiqueta = "2/5" }] } }
+[ejercicios.similar]
+enunciado = "Carla dice que 1/4 + 1/2 = 2/6. ¿Cuál es el resultado correcto?"
+pasos = ["Carla sumó arriba y abajo. Eso está mal: cuartos y medios son de distinto tamaño.", "El 4 está en la tabla del 2: uso cuartos. 1/2 = 2/4.", "Sumo: 1/4 + 2/4 = 3/4."]
+respuesta = "3/4"
+verificar = "1/4 + 1/2"
+
+[[ejercicios]]
+id = "n4-e08"
+angulo = "error"
+enunciado = "Ana dice que 3/4 - 1/2 = 1/4. ¿Verdadero o falso? Explica tu respuesta."
+opciones = ["Verdadero", "Falso"]
+respuesta = "Verdadero"
+verificar = "3/4 - 1/2 = 1/4"
+pide_explicacion = true
+criterio_explicacion = "Dice que es verdadero porque 1/2 es igual a 2/4, y 3/4 - 2/4 = 1/4 (usa un denominador común)."
+claves_explicacion = [["2/4", "equivalente", "denominador comun", "mismo denominador", "cuartos", "convert"], ["1/4", "3 - 2", "resta"]]
+minimo_claves = 1
+tiempo_s = 150
+pistas = ["¿Cuántos cuartos hay en 1/2?", "Si a 3 cuartos le quitas esos cuartos, ¿cuántos quedan?"]
+pista_grafica = { texto = "Compara 1/2 con los cuartos.", grafico = { tipo = "barras", filas = [{ partes = 4, sombreadas = 3, etiqueta = "3/4" }, { partes = 2, sombreadas = 1, etiqueta = "1/2" }, { partes = 4, sombreadas = 2, etiqueta = "2/4" }] } }
+[ejercicios.similar]
+enunciado = "¿Verdadero o falso? 2/3 - 1/6 = 1/3."
+pasos = ["El 6 está en la tabla del 3: uso sextos. 2/3 = 4/6.", "Resto: 4/6 - 1/6 = 3/6, que es 1/2.", "1/2 no es 1/3, así que es falso."]
+respuesta = "Falso"
+verificar = "2/3 - 1/6 = 1/3"
+
+[[ejercicios]]
+id = "n4-e09"
+angulo = "inverso"
+enunciado = "¿Qué fracción falta? 1/4 + ? = 5/8"
+respuesta = "3/8"
+verificar = "5/8 - 1/4"
+tiempo_s = 180
+pistas = ["¿Cuántos octavos hay en 1/4?", "Si ya tienes esos octavos, ¿cuántos octavos te faltan para llegar a 5/8?"]
+pista_grafica = { texto = "Pasa 1/4 a octavos y compáralo con 5/8.", grafico = { tipo = "barras", filas = [{ partes = 4, sombreadas = 1, etiqueta = "1/4" }, { partes = 8, sombreadas = 2, etiqueta = "2/8" }, { partes = 8, sombreadas = 5, etiqueta = "5/8" }] } }
+[ejercicios.similar]
+enunciado = "¿Qué fracción falta? 1/3 + ? = 5/6"
+pasos = ["Convierto 1/3 en sextos: 1/3 = 2/6.", "Lo que falta es 5/6 - 2/6 = 3/6.", "Falta 3/6, que es lo mismo que 1/2."]
+respuesta = "1/2"
+verificar = "5/6 - 1/3"
+
+[[ejercicios]]
+id = "n4-e10"
+angulo = "inverso"
+enunciado = "Pedro ya había pintado 1/2 de una pared. Hoy pintó otra parte y ahora tiene pintados 7/10 de la pared. ¿Qué parte pintó hoy?"
+respuesta = "1/5"
+verificar = "7/10 - 1/2"
+tiempo_s = 200
+pistas = ["Para saber lo que pintó hoy, ¿tienes que sumar o restar?", "¿Cuántos décimos hay en 1/2?"]
+pista_grafica = { texto = "Compara lo que tenía pintado con lo que tiene ahora.", grafico = { tipo = "barras", filas = [{ partes = 2, sombreadas = 1, etiqueta = "antes 1/2" }, { partes = 10, sombreadas = 5, etiqueta = "5/10" }, { partes = 10, sombreadas = 7, etiqueta = "ahora 7/10" }] } }
+[ejercicios.similar]
+enunciado = "Una jarra tenía 1/3 litro de agua. Le echaron más y ahora tiene 3/4 litro. ¿Cuánta agua le echaron?"
+pasos = ["Lo que echaron es lo que hay ahora menos lo que había: 3/4 - 1/3.", "El menor número en la tabla del 4 y del 3 es 12: 3/4 = 9/12 y 1/3 = 4/12.", "Resto: 9/12 - 4/12 = 5/12 litro."]
+respuesta = "5/12"
+verificar = "3/4 - 1/3"
+
+# ---------------------------------------------------------------- Simulación
+
+[[simulacion]]
+id = "n4-s1"
+enunciado = "Calcula 2/3 + 1/6."
+respuesta = "5/6"
+verificar = "2/3 + 1/6"
+tiempo_s = 150
+
+[[simulacion]]
+id = "n4-s2"
+enunciado = "Calcula 4/5 - 1/2."
+respuesta = "3/10"
+verificar = "4/5 - 1/2"
+tiempo_s = 150
+
+[[simulacion]]
+id = "n4-s3"
+enunciado = "Calcula 1/4 + 1/12 y escribe el resultado simplificado."
+respuesta = "1/3"
+forma = "simplificada"
+verificar = "1/4 + 1/12"
+tiempo_s = 180
+
+[[simulacion]]
+id = "n4-s4"
+enunciado = "Una receta usa 1/2 taza de leche y 2/5 taza de agua. ¿Cuántas tazas de líquido son en total?"
+respuesta = "9/10"
+verificar = "1/2 + 2/5"
+tiempo_s = 180

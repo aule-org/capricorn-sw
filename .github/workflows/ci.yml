@@ -92,6 +92,21 @@ jobs:
       - run: cargo fmt --check
       - run: cargo test --locked
 
+  engine:
+    name: Engine (Rust)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+      - run: cargo test --locked
+
   images:
     name: Images (${{ matrix.app }})
     runs-on: ubuntu-latest
@@ -105,7 +120,7 @@ jobs:
 
   required:
     name: Software CI
-    needs: [contracts, agent, platform, images]
+    needs: [contracts, agent, platform, engine, images]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
@@ -115,10 +130,12 @@ jobs:
           NODE_RESULT: ${{ needs.contracts.result }}
           PYTHON_RESULT: ${{ needs.agent.result }}
           RUST_RESULT: ${{ needs.platform.result }}
+          ENGINE_RESULT: ${{ needs.engine.result }}
           IMAGES_RESULT: ${{ needs.images.result }}
         run: |
-          printf 'Node=%s Python=%s Rust=%s Images=%s\n' "$NODE_RESULT" "$PYTHON_RESULT" "$RUST_RESULT" "$IMAGES_RESULT"
+          printf 'Node=%s Python=%s Rust=%s Engine=%s Images=%s\n' "$NODE_RESULT" "$PYTHON_RESULT" "$RUST_RESULT" "$ENGINE_RESULT" "$IMAGES_RESULT"
           test "$NODE_RESULT" = success
           test "$PYTHON_RESULT" = success
           test "$RUST_RESULT" = success
+          test "$ENGINE_RESULT" = success
           test "$IMAGES_RESULT" = success
