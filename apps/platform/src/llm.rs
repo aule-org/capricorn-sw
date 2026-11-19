@@ -138,6 +138,17 @@ impl Llm for Anthropic {
             return Err(LlmError::Status(status, reason));
         }
         let body: Value = response.json().await.map_err(|error| LlmError::Transport(error.to_string()))?;
+        // What each call cost, so a session's cost can be added up from the
+        // logs. Counts only: never what was asked or answered.
+        let tokens = |field: &str| body["usage"][field].as_u64().unwrap_or(0);
+        tracing::info!(
+            answer = request.answer,
+            model = %model,
+            input_tokens = tokens("input_tokens"),
+            output_tokens = tokens("output_tokens"),
+            cache_read_tokens = tokens("cache_read_input_tokens"),
+            "model call"
+        );
         anthropic_answer(&body).ok_or(LlmError::NoAnswer)
     }
 }
