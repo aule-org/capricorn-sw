@@ -2,7 +2,7 @@
 
 from collections.abc import AsyncIterable, Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 from livekit import rtc
 from livekit.agents import Agent, ModelSettings, StopResponse, function_tool, llm
@@ -13,6 +13,44 @@ from .safety import Gates
 
 # Sends one visual to the student's screen.
 Show = Callable[[dict[str, Any]], Awaitable[None]]
+
+
+class Checker(Protocol):
+    """Checks the student's answers without the model: the platform."""
+
+    async def pose(self, expression: str, skill_id: str | None, form: str | None) -> str | None: ...
+
+    async def answer(self, said: str) -> str | None: ...
+
+
+# The two checking tools as the model sees them. Written out by hand: a schema
+# derived from optional Python arguments declares them nullable, and the
+# model's API refuses an enum on a nullable type.
+POSE_EXERCISE: dict[str, Any] = {
+    "name": "pose_exercise",
+    "description": "Register the computation you are about to ask, e.g. '3/4 + 1/8'.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "expression": {"type": "string"},
+            "skill_id": {"type": "string"},
+            "form": {"type": "string", "enum": ["any", "simplified", "mixed"]},
+        },
+        "required": ["expression"],
+    },
+}
+CHECK_ANSWER: dict[str, Any] = {
+    "name": "check_answer",
+    "description": "Check the student's answer to the registered computation.",
+    "parameters": {
+        "type": "object",
+        "properties": {"said": {"type": "string"}},
+        "required": ["said"],
+    },
+}
+
+# What the model reads when an exercise or an answer could not be checked.
+UNCHECKED = "Not checked: carry on by yourself."
 
 # The longest typed message that is read. A spoken turn is rarely longer.
 MAX_TYPED_CHARS = 500
@@ -192,6 +230,14 @@ screen only has black, grey and white: name no other colour, and if the plan use
 the exercise with black ones and grey ones.""",
 }
 
+# Added to the instructions only when there is something to check answers with.
+CHECKING = {
+    "es": """Antes de pedirle un cálculo, llama a pose_exercise con la operación. Cuando \
+responda, llama a check_answer con sus palabras y haz lo que te indique.""",
+    "en": """Before you ask for a computation, call pose_exercise with the operation. When \
+they answer, call check_answer with their words and do what it tells you.""",
+}
+
 GREETING = {
     "es": "Saluda con calidez en una frase como Capri y hazle una sola pregunta corta para \
 romper el hielo, sobre cómo le fue hoy o esta semana. Todavía no empieces la actividad.",
@@ -276,10 +322,13 @@ class Tutor(Agent):
         context: str = "",
         show: Show | None = None,
         persona: Persona | None = None,
+        checker: Checker | None = None,
     ) -> None:
         # `context` is what the platform knows about this student and the
         # supervisor's plan for the session; empty when there is no platform.
         # `show` is given when the student has a screen to draw on.
+        # `checker` judges answers to computations, so the model neither has to
+        # work them out nor holds the answer of an exercise that is still open.
         # `persona` is the tutor's name, tone preset and (already-moderated)
         # family note; the default leaves the prompt exactly as written.
         persona = persona or Persona()
@@ -295,6 +344,33 @@ class Tutor(Agent):
                 return await present(raw_arguments, gates, show)
 
             tools.append(show_tool)
+        if checker is not None:
+            instructions = with_notes(instructions, CHECKING[language])
+
+            @function_tool(raw_schema=POSE_EXERCISE)
+            async def pose_exercise(raw_arguments: dict[str, object]) -> str:
+                expression, skill_id, form = (
+                    raw_arguments.get(key) for key in ("expression", "skill_id", "form")
+                )
+                if not isinstance(expression, str) or not expression.strip():
+                    return UNCHECKED
+                return (
+                    await checker.pose(
+                        expression,
+                        skill_id if isinstance(skill_id, str) else None,
+                        form if isinstance(form, str) else None,
+                    )
+                    or UNCHECKED
+                )
+
+            @function_tool(raw_schema=CHECK_ANSWER)
+            async def check_answer(raw_arguments: dict[str, object]) -> str:
+                said = raw_arguments.get("said")
+                if not isinstance(said, str) or not said.strip():
+                    return UNCHECKED
+                return await checker.answer(said) or UNCHECKED
+
+            tools += [pose_exercise, check_answer]
         # The persona's tone lines go last, after the teaching, the safety rules
         # and the supervisor's context, so they can never sit above a safety rule.
         self._base = with_notes(with_notes(instructions, context), persona_notes(language, persona))

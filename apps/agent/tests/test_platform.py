@@ -39,10 +39,48 @@ def test_a_job_belongs_to_a_platform_session_only_with_a_url_and_a_token():
     assert platform_session("not json", ENV) is None
 
 
-async def test_start_returns_the_instructions_or_nothing():
+async def test_start_returns_the_instructions_or_nothing(monkeypatch):
+    monkeypatch.setattr("capricorn_agent.platform.START_RETRY_SECONDS", 0)
     assert await Platform(SESSION, Recorder({"instructions": "Plan"})).start() == "Plan"
     assert await Platform(SESSION, Recorder({})).start() == ""
     assert await Platform(SESSION, Recorder(RuntimeError("down"))).start() == ""
+
+
+async def test_start_tries_once_more_when_the_platform_is_restarting(monkeypatch):
+    monkeypatch.setattr("capricorn_agent.platform.START_RETRY_SECONDS", 0)
+    send = Recorder(RuntimeError("down"), {"instructions": "Plan"})
+
+    assert await Platform(SESSION, send).start() == "Plan"
+    assert len(send.calls) == 2
+
+
+async def test_an_exercise_is_posed_and_its_answer_judged_by_the_platform():
+    send = Recorder(
+        {"exercise": 1, "stage": "practice", "say": "Ask it and wait."},
+        {"verdict": "incorrect", "say": "Give one hint.", "reveal": None},
+        {"verdict": "incorrect", "closed": True, "say": "Work it out together.", "reveal": "7/8"},
+    )
+    platform = Platform(SESSION, send)
+
+    assert await platform.pose("3/4 + 1/8", "fracciones.sumar", None) == "Ask it and wait."
+    assert await platform.answer("cuatro doceavos") == "Give one hint."
+    assert await platform.answer("no sé") == "Work it out together. The answer is 7/8."
+    assert send.calls == [
+        (
+            "POST",
+            "/v1/agent/session/exercises",
+            {"expression": "3/4 + 1/8", "skill_id": "fracciones.sumar"},
+        ),
+        ("POST", "/v1/agent/session/answers", {"said": "cuatro doceavos"}),
+        ("POST", "/v1/agent/session/answers", {"said": "no sé"}),
+    ]
+
+
+async def test_an_exercise_the_platform_cannot_check_is_not_an_error():
+    platform = Platform(SESSION, Recorder(RuntimeError("platform answered 400"), RuntimeError()))
+
+    assert await platform.pose("¿cuál es mayor?", None, None) is None
+    assert await platform.answer("la roja") is None
 
 
 async def test_turns_are_numbered_and_named_for_the_platform():
