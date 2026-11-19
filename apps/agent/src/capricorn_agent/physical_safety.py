@@ -31,7 +31,10 @@ logger = logging.getLogger("capricorn.agent.physical_safety")
 # evals/physical-safety). Changing any of them needs a new evaluation.
 MODEL = "jev-1.14.0"
 ENDPOINT = "https://api.typesafe.ai/v1/systemone"
-TIMEOUT_SECONDS = 0.6
+# The provider usually answers in about 150 ms, but one answer in a hundred
+# takes close to half a second. A deadline just above that turned harmless
+# turns into "unavailable"; this one leaves room and still bounds the wait.
+TIMEOUT_SECONDS = 1.2
 ALLOW_MAX_RISK = 0.10
 HELP_MIN_RISK = 0.25
 MAX_BYTES = 24_000
