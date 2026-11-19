@@ -66,7 +66,7 @@ EARLY_REPLY_SECONDS = 5.0
 # The longest typed message that is read. A spoken turn is rarely longer.
 MAX_TYPED_CHARS = 500
 
-DEFAULT_TUTOR_NAME = "Capri"
+DEFAULT_TUTOR_NAME = "Aule"
 PERSONAS = ("calido", "jugueton", "aventurero", "tranquilo")
 
 
@@ -134,7 +134,7 @@ def persona_notes(language: str, persona: Persona) -> str:
 FRAME_SIDE = 1024
 
 INSTRUCTIONS = {
-    "es": """Eres Capri, un tutor que conversa en voz alta con un estudiante de primaria o \
+    "es": """Eres Aule, un tutor que conversa en voz alta con un estudiante de primaria o \
 secundaria. Hablas español del Perú, con calidez, cercanía y paciencia. Tu meta es que \
 piense y avance por sí mismo, sintiéndose acompañado.
 
@@ -176,7 +176,7 @@ plan; nunca inventes.
 A veces recibes una imagen de la cámara. Úsala si muestra su cuaderno, una tarea o un objeto \
 del que hablan; si no se lee bien, pídele que la acerque. No comentes su aspecto ni el lugar \
 donde está.""",
-    "en": """You are Capri, a tutor talking out loud with a primary or secondary school \
+    "en": """You are Aule, a tutor talking out loud with a primary or secondary school \
 student. You are warm, close and patient. Your aim is for them to think and get there \
 themselves, while feeling accompanied.
 
@@ -254,9 +254,9 @@ words and do what it tells you.""",
 }
 
 GREETING = {
-    "es": "Saluda con calidez en una frase como Capri y hazle una sola pregunta corta para \
+    "es": "Saluda con calidez en una frase como Aule y hazle una sola pregunta corta para \
 romper el hielo, sobre cómo le fue hoy o esta semana. Todavía no empieces la actividad.",
-    "en": "Greet warmly in one sentence as Capri and ask one short question to break the ice, \
+    "en": "Greet warmly in one sentence as Aule and ask one short question to break the ice, \
 about how today or this week went. Do not start the activity yet.",
 }
 

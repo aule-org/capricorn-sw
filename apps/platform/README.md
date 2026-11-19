@@ -54,7 +54,7 @@ Devices do not use a bearer token: they sign with the key burned into them.
 | Route | What it does |
 |---|---|
 | `POST /v1/families/{id}/children` | A child's profile. `grade` is `P1` to `P6` or `S1` to `S5` |
-| `GET`, `PUT`, `DELETE /v1/children/{id}` | Read, replace or erase a child and everything derived from them. `tutor_name` (1 to 20 letters, default `Capri`), `tutor_persona` (`calido`, `jugueton`, `aventurero` or `tranquilo`) and `tutor_persona_note` (one line, up to 200 characters; empty removes it) say how the tutor presents itself, and keep their value when left out |
+| `GET`, `PUT`, `DELETE /v1/children/{id}` | Read, replace or erase a child and everything derived from them. `tutor_name` (1 to 20 letters, default `Aule`), `tutor_persona` (`calido`, `jugueton`, `aventurero` or `tranquilo`) and `tutor_persona_note` (one line, up to 200 characters; empty removes it) say how the tutor presents itself, and keep their value when left out |
 | `POST /v1/children/{id}/consents` | Grant or take back `voice`, `transcripts` or `memory` |
 | `GET /v1/children/{id}/skills` | What the child knows now, and what the model would work on next |
 | `POST /v1/children/{id}/attempts` | Answers reported by a guardian (the operator can also import past records) |
