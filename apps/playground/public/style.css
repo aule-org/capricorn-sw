@@ -474,3 +474,8 @@ label.check input {
 .report p {
   margin: 0 0 8px;
 }
+
+#report-next {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
