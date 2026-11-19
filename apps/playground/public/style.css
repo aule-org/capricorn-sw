@@ -479,3 +479,10 @@ label.check input {
   color: var(--muted);
   font-size: 0.875rem;
 }
+
+.supervisor h2 + ul,
+#checked {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: 0.875rem;
+}

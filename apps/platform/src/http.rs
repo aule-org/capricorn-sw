@@ -14,7 +14,7 @@ use crate::error::{ApiError, ApiResult};
 use crate::families::{self, child_for};
 use crate::learning::{self, NewAttempt, Skill, is_slug};
 use crate::state::AppState;
-use crate::{devices, memory, notices, push, sessions, signin};
+use crate::{devices, memory, notices, practice, push, sessions, signin};
 
 pub fn router(state: AppState) -> Router {
     Router::new()
@@ -59,6 +59,8 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/agent/session", get(sessions::agent_start))
         .route("/v1/agent/session/turns", post(sessions::agent_turns))
         .route("/v1/agent/session/end", post(sessions::agent_end))
+        .route("/v1/agent/session/exercises", post(practice::pose))
+        .route("/v1/agent/session/answers", post(practice::answer))
         .with_state(state)
 }
 
