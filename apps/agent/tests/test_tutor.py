@@ -1,3 +1,5 @@
+import asyncio
+import time
 from types import SimpleNamespace
 from unittest.mock import PropertyMock, patch
 
@@ -19,6 +21,11 @@ from capricorn_agent.tutor import (
     with_frame,
 )
 from capricorn_agent.worker import GOODBYE, language_of, persona_of
+
+
+@pytest.fixture(autouse=True)
+def no_waiting_for_a_missing_reply(monkeypatch):
+    monkeypatch.setattr("capricorn_agent.tutor.NO_REPLY_SECONDS", 0)
 
 
 def frame():
@@ -374,3 +381,31 @@ async def test_a_checking_call_without_its_text_is_not_sent_to_the_platform():
     assert await tool(tutor, "pose_exercise")({"skill_id": "a.b"}) == UNCHECKED
     assert await tool(tutor, "check_answer")({"said": 7}) == UNCHECKED
     assert checker.calls == []
+
+
+async def test_an_accepted_turn_without_a_reply_is_reported(caplog):
+    tutor = Tutor(language="es", gates=ScriptedGates(ALLOW))
+    session = Session()
+    session.agent_state = "listening"
+
+    with caplog.at_level("WARNING", logger="capricorn.agent.tutor"):
+        assert await hear(tutor, session)
+        with patch.object(Tutor, "session", new_callable=PropertyMock, return_value=session):
+            await asyncio.gather(*tutor._watches)
+
+    assert [record.message for record in caplog.records] == ["no reply after an accepted turn"]
+    assert caplog.records[0].model_answered is False
+
+
+async def test_an_answered_turn_is_not_reported(caplog):
+    tutor = Tutor(language="es", gates=ScriptedGates(ALLOW))
+    session = Session()
+    session.agent_state = "speaking"
+
+    with caplog.at_level("WARNING", logger="capricorn.agent.tutor"):
+        assert await hear(tutor, session)
+        tutor._model_done_at = time.monotonic()
+        with patch.object(Tutor, "session", new_callable=PropertyMock, return_value=session):
+            await asyncio.gather(*tutor._watches)
+
+    assert caplog.records == []
