@@ -53,7 +53,9 @@ function securityHeaders(settings: Settings): Record<string, string> {
     "Content-Security-Policy": [
       "default-src 'none'",
       `script-src 'self' ${GOOGLE}client`,
-      `style-src 'self' ${GOOGLE}style`,
+      // Google's button sizes itself with styles it writes into the page; without
+      // them it draws its logo across the whole screen. Scripts stay strict.
+      `style-src 'self' 'unsafe-inline' ${GOOGLE}style`,
       `connect-src 'self' ${signalling} ${http} ${GOOGLE}`,
       `frame-src ${GOOGLE}`,
       "media-src 'self' blob: mediastream:",
