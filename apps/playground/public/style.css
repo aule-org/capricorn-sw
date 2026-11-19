@@ -438,3 +438,39 @@ label.check input {
   cursor: not-allowed;
   border-style: dashed;
 }
+
+.type {
+  display: flex;
+  gap: 8px;
+  max-width: none;
+  margin-top: 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.type input {
+  flex: 1;
+  min-width: 0;
+}
+
+.report {
+  max-width: 560px;
+  margin-top: 20px;
+  padding: 16px 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.report h2 {
+  margin: 0 0 8px;
+  font-size: 0.8125rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.report p {
+  margin: 0 0 8px;
+}

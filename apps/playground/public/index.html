@@ -28,7 +28,8 @@
         </label>
         <label class="check">
           <input id="operator" type="checkbox" />
-          Show the supervisor's plan and notes (team only, not for a child's screen)
+          Show the supervisor's plan and notes, and the report for the family (team only, not
+          for a child's screen)
         </label>
         <button type="submit" id="start">Continue</button>
         <p class="note">
@@ -89,6 +90,25 @@
         </aside>
 
         <ol id="transcript" aria-label="Conversation" aria-live="polite"></ol>
+
+        <form id="type" class="type" autocomplete="off">
+          <input
+            id="typed"
+            type="text"
+            maxlength="500"
+            aria-label="Message for the tutor"
+            placeholder="Or type to the tutor…"
+          />
+          <button type="submit">Send</button>
+        </form>
+      </section>
+
+      <!-- After a session: what the family is told. For the team only. -->
+      <section id="report" class="report" hidden aria-live="polite">
+        <h2>Report for the family</h2>
+        <p id="report-summary"></p>
+        <p id="report-next" hidden></p>
+        <p id="report-note" class="note"></p>
       </section>
 
       <!-- The device's panel shows four greys; this snaps the drawing to them. -->

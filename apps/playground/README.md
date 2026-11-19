@@ -43,3 +43,6 @@ node --env-file=../../.env src/server.ts
 
 - **Device screen** (a switch in the session) shows the drawing as the device's panel would: 800 x 480, snapped to black, white and one grey, with a flash on every redraw. It does not imitate ghosting.
 - **Hold to talk** appears when the tutor sets the participant attribute `capricorn.turns` to `manual`. The microphone is then closed except while the button (or the space bar) is held: pressing calls the tutor's `start_turn`, letting go calls `end_turn`, and losing the button or the window calls `cancel_turn`. The microphone switch is the device's mute: while it is off nothing is sent.
+
+- **Typing** to the tutor works at any time, next to speaking. A typed message passes the same safety gates as a spoken one.
+- **Report for the family**: with the team box ticked and a platform, the page shows, after the session ends, the summary and next step the review wrote for the family.

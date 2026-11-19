@@ -28,6 +28,11 @@ const STATE_TEXT = {
 };
 
 const SUPERVISOR_POLL_MS = 3000;
+// The review is written after the session ends; it usually takes under a
+// minute. After this long the page stops asking.
+const REPORT_WAIT_MS = 120_000;
+// Typed messages go to the tutor on the topic LiveKit agents read.
+const CHAT_TOPIC = "lk.chat";
 
 const ERRORS = {
   wrong_code: "That access code is not right.",
@@ -58,6 +63,9 @@ let room = null;
 let clock = null;
 let tutorTimer = null;
 let supervisorTimer = null;
+let reportTimer = null;
+// The platform's id for the session being shown, when there is one.
+let sessionId = null;
 
 function showMessage(text) {
   message.textContent = text;
@@ -123,15 +131,19 @@ function item(text) {
 
 // Shows the supervisor's plan and the guidance it gives the tutor, when the
 // session was created by a platform.
-async function showSupervisor(sessionId) {
+async function supervisorView(id) {
+  const response = await fetch("api/supervisor", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code: $("code").value, session_id: id }),
+  });
+  return response.ok ? response.json() : null;
+}
+
+async function showSupervisor(id) {
   try {
-    const response = await fetch("api/supervisor", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: $("code").value, session_id: sessionId }),
-    });
-    if (!response.ok) return;
-    const view = await response.json();
+    const view = await supervisorView(id);
+    if (!view) return;
     $("supervisor").hidden = false;
     $("plan").textContent = view.brief?.goal ?? "No plan for this session.";
     $("plan-skills").replaceChildren(
@@ -141,6 +153,35 @@ async function showSupervisor(sessionId) {
   } catch {
     // The panel is a view of the session, not part of it.
   }
+}
+
+// After a session, shows what the review wrote for the family. The review
+// runs once the session has ended, so the page asks until it is there.
+function awaitReport(id) {
+  const started = Date.now();
+  $("report").hidden = false;
+  $("report-summary").textContent = "";
+  $("report-next").hidden = true;
+  $("report-note").textContent = "The session is being reviewed…";
+  const ask = async () => {
+    let view = null;
+    try {
+      view = await supervisorView(id);
+    } catch {
+      // Asked again on the next round.
+    }
+    if (view?.review) {
+      $("report-summary").textContent = view.review.guardian_summary;
+      $("report-next").textContent = view.review.next_step ? `Next: ${view.review.next_step}` : "";
+      $("report-next").hidden = !view.review.next_step;
+      $("report-note").textContent = "This is what the family reads. The plan and the conversation are not sent.";
+    } else if (Date.now() - started < REPORT_WAIT_MS) {
+      reportTimer = setTimeout(ask, SUPERVISOR_POLL_MS);
+    } else {
+      $("report-note").textContent = "No report was written for this session.";
+    }
+  };
+  ask();
 }
 
 // The tutor describes what to show; the page draws it.
@@ -267,6 +308,9 @@ async function join(session) {
   startClock(session.expiresInSeconds);
   // The supervisor's plan is for the team. It stays off the screen unless the
   // person asked for it, so a child never reads what the tutor is aiming at.
+  sessionId = session.session_id ?? null;
+  clearTimeout(reportTimer);
+  $("report").hidden = true;
   if (session.session_id && $("operator").checked) {
     showSupervisor(session.session_id);
     supervisorTimer = setInterval(() => showSupervisor(session.session_id), SUPERVISOR_POLL_MS);
@@ -387,6 +431,8 @@ function leave(reason) {
   lobby.hidden = true;
   entry.hidden = false;
   showMessage(reason ?? "");
+  if (sessionId && $("operator").checked) awaitReport(sessionId);
+  sessionId = null;
 }
 
 entry.addEventListener("submit", (event) => {
@@ -480,6 +526,24 @@ $("device").addEventListener("click", () => {
 $("cam").addEventListener("click", async () => {
   await room.localParticipant.setCameraEnabled(!room.localParticipant.isCameraEnabled);
   showCamera();
+});
+
+$("type").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const text = $("typed").value.trim();
+  if (!text || !room) return;
+  $("typed").value = "";
+  try {
+    await room.localParticipant.sendText(text, { topic: CHAT_TOPIC });
+    // Typed words are not transcribed back, so the page writes them itself.
+    const line = item(text);
+    line.dataset.who = "you";
+    line.dataset.name = "You (typed)";
+    $("transcript").append(line);
+    line.scrollIntoView({ block: "nearest" });
+  } catch {
+    showMessage("The message could not be sent.");
+  }
 });
 
 $("end").addEventListener("click", () => leave());

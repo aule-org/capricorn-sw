@@ -636,5 +636,15 @@ pub async fn supervisor_view(
         .into_iter()
         .map(|(id, after_seq, text, signals)| json!({ "id": id, "after_seq": after_seq, "text": text, "signals": signals.0 }))
         .collect();
-    Ok(Json(json!({ "status": status, "brief": brief, "guidance": guidance })))
+    // What the family is told once the session has been reviewed.
+    let review: Option<(String, Option<String>, Vec<String>)> = sqlx::query_as(
+        "select guardian_summary, next_step, flags from session_reviews where session_id = $1",
+    )
+    .bind(session_id)
+    .fetch_optional(&state.pool)
+    .await?;
+    let review = review.map(|(guardian_summary, next_step, flags)| {
+        json!({ "guardian_summary": guardian_summary, "next_step": next_step, "flags": flags })
+    });
+    Ok(Json(json!({ "status": status, "brief": brief, "guidance": guidance, "review": review })))
 }
