@@ -1,5 +1,8 @@
 """The tutor: what it is told to be, and where the gates and the camera plug in."""
 
+import asyncio
+import logging
+import time
 from collections.abc import AsyncIterable, Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -10,6 +13,8 @@ from livekit.agents import Agent, ModelSettings, StopResponse, function_tool, ll
 from . import visuals
 from .replies import ADULT_HELP_SEQUENCE, OFFERS, reply
 from .safety import Gates
+
+logger = logging.getLogger("capricorn.agent.tutor")
 
 # Sends one visual to the student's screen.
 Show = Callable[[dict[str, Any]], Awaitable[None]]
@@ -51,6 +56,12 @@ CHECK_ANSWER: dict[str, Any] = {
 
 # What the model reads when an exercise or an answer could not be checked.
 UNCHECKED = "Not checked: carry on by yourself."
+
+# How long after an accepted turn a missing reply is reported. A reply normally
+# starts within four seconds; the model may have begun it before the turn was
+# accepted, hence the allowance.
+NO_REPLY_SECONDS = 15.0
+EARLY_REPLY_SECONDS = 5.0
 
 # The longest typed message that is read. A spoken turn is rarely longer.
 MAX_TYPED_CHARS = 500
@@ -383,6 +394,8 @@ class Tutor(Agent):
         self._gates = gates
         self._camera = camera
         self._hazards_in_a_row = 0
+        self._model_done_at = 0.0
+        self._watches: set[asyncio.Task[None]] = set()
         greeting = GREETING[language]
         if persona.name != DEFAULT_TUTOR_NAME:
             greeting = greeting.replace(DEFAULT_TUTOR_NAME, persona.name)
@@ -404,6 +417,28 @@ class Tutor(Agent):
         if not await self._may_answer(turn_ctx, new_message):
             # The stopped turn never reaches the model: StopResponse discards it.
             raise StopResponse()
+        watch = asyncio.create_task(self._report_a_missing_reply(time.monotonic()))
+        self._watches.add(watch)
+        watch.add_done_callback(self._watches.discard)
+
+    async def _report_a_missing_reply(self, accepted_at: float) -> None:
+        """Says in the log when an accepted turn got nothing back.
+
+        A session that goes quiet leaves no error behind; this is the trace of
+        where it stopped: before the model answered, or between it and the voice.
+        """
+        await asyncio.sleep(NO_REPLY_SECONDS)
+        answered = self._model_done_at >= accepted_at - EARLY_REPLY_SECONDS
+        try:
+            state = self.session.agent_state
+        except RuntimeError:
+            # The session ended while waiting: there is nobody left to answer.
+            return
+        if not answered or state == "thinking":
+            logger.warning(
+                "no reply after an accepted turn",
+                extra={"seconds": NO_REPLY_SECONDS, "model_answered": answered, "state": state},
+            )
 
     async def typed(self, text: str) -> None:
         """A message typed instead of spoken.
@@ -448,5 +483,20 @@ class Tutor(Agent):
             # Buffering costs the time to the first word, so it is only paid
             # when there is a gate to wait for.
             stream = checked(stream, self._gates, self._language)
+        started = time.monotonic()
+        chars, called = 0, []
         async for chunk in stream:
+            chars += len(_text_of(chunk))
+            delta = getattr(chunk, "delta", None)
+            called += [call.name for call in (delta.tool_calls if delta else None) or []]
             yield chunk
+        self._model_done_at = time.monotonic()
+        # Counts only: what was said is never logged.
+        logger.info(
+            "tutor reply",
+            extra={
+                "chars": chars,
+                "tools": called,
+                "seconds": round(self._model_done_at - started, 1),
+            },
+        )
