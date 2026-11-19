@@ -541,6 +541,26 @@ pub async fn answer(
     })))
 }
 
+/// The exercise being worked on now, as the supervisor may know it: where it
+/// stands, never its answer.
+pub async fn open_exercise(pool: &PgPool, session_id: Uuid) -> Result<Option<Value>, sqlx::Error> {
+    let open: Option<(String, bool, i32, i32)> = sqlx::query_as(
+        "select expression, probe, attempts, hints from session_exercises
+         where session_id = $1 and status = 'open' order by id desc limit 1",
+    )
+    .bind(session_id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(open.map(|(expression, probe, attempts, hints)| {
+        json!({
+            "exercise": expression,
+            "step": if probe { "finding out what the student can do: no hints, no right or wrong" } else { "practice with hints" },
+            "tries": attempts,
+            "hints_given": hints,
+        })
+    }))
+}
+
 /// The session's exercises with their answers, for the team's view. Never for
 /// the student's screen.
 pub async fn exercises(pool: &PgPool, session_id: Uuid) -> Result<Vec<Value>, sqlx::Error> {

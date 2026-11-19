@@ -369,7 +369,8 @@ async fn watch(state: &AppState, session: &Session) -> ApiResult<()> {
         }
         _ => Vec::new(),
     };
-    let guidance = supervisor::watch(llm.as_ref(), &brief, &turns, &memories)
+    let open_exercise = crate::practice::open_exercise(&state.pool, session.id).await?;
+    let guidance = supervisor::watch(llm.as_ref(), &brief, &turns, &memories, open_exercise.as_ref())
         .await
         .map_err(|error| ApiError::Internal(error.to_string()))?;
     if !guidance.is_empty() {

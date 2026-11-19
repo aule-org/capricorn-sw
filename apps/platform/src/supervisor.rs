@@ -294,6 +294,7 @@ pub async fn watch(
     brief: &Brief,
     turns: &[Turn],
     memories: &[Memory],
+    open_exercise: Option<&Value>,
 ) -> Result<Guidance, LlmError> {
     let system = format!(
         "You watch a voice tutoring session between a tutor and a school student and advise the tutor. You \
@@ -301,13 +302,17 @@ see the plan, the latest turns and a few things remembered about the student. Mo
 needs to change: then return an empty text. Speak up when the student is frustrated or guessing, when the \
 tutor gave the answer away or explained before asking, when the task is clearly too easy or too hard, when \
 the conversation left schoolwork for more than a couple of turns, or when a memory offers a better example. \
-Say what to do next, not what went wrong. Write in English, for the tutor only. {UNTRUSTED}"
+Say what to do next, not what went wrong. When there is an open exercise, the tutor is following fixed \
+steps for it (finding out what the student can do, or hints after a wrong answer): do not tell it to change \
+task or go back to the plan until that exercise is closed; advise only on tone, or return an empty text. \
+Write in English, for the tutor only. {UNTRUSTED}"
     );
     let recent = &turns[turns.len().saturating_sub(WATCH_TURNS)..];
     let user = json!({
         "plan": brief,
         "latest_turns": transcript(recent),
         "memories": memories.iter().map(|memory| memory.content.as_str()).collect::<Vec<_>>(),
+        "open_exercise": open_exercise,
     })
     .to_string();
     let answer = llm
@@ -580,7 +585,7 @@ pub mod tests {
     async fn watching_reads_only_the_latest_turns_on_the_live_model() {
         let llm = FakeLlm::replying(json!({ "text": "", "signals": {} }));
 
-        let guidance = watch(&llm, &Brief::default(), &turns(30), &[]).await.unwrap();
+        let guidance = watch(&llm, &Brief::default(), &turns(30), &[], None).await.unwrap();
 
         assert!(guidance.is_empty());
         let asked = llm.asked.lock().unwrap();
@@ -590,10 +595,21 @@ pub mod tests {
     }
 
     #[tokio::test]
+    async fn the_supervisor_is_told_about_an_open_exercise() {
+        let llm = FakeLlm::replying(json!({ "text": "", "signals": {} }));
+        let open = json!({ "exercise": "1/2 + 1/6", "step": "finding out", "tries": 0, "hints_given": 0 });
+
+        watch(&llm, &Brief::default(), &turns(2), &[], Some(&open)).await.unwrap();
+
+        let asked = llm.asked.lock().unwrap();
+        assert!(asked[0].2.contains("1/2 + 1/6") && asked[0].2.contains("finding out"), "{}", asked[0].2);
+    }
+
+    #[tokio::test]
     async fn guidance_is_cut_to_size_and_carries_its_signals() {
         let llm = FakeLlm::replying(json!({ "text": "x".repeat(900), "signals": { "frustrated": true } }));
 
-        let guidance = watch(&llm, &Brief::default(), &turns(2), &[]).await.unwrap();
+        let guidance = watch(&llm, &Brief::default(), &turns(2), &[], None).await.unwrap();
 
         assert_eq!(guidance.text.len(), 400);
         assert!(guidance.signals.frustrated && !guidance.signals.off_task);
@@ -646,6 +662,6 @@ pub mod tests {
     async fn a_model_failure_is_an_error_the_caller_can_fall_back_from() {
         let llm = FakeLlm { reply: Err(()), asked: Mutex::new(Vec::new()) };
 
-        assert!(watch(&llm, &Brief::default(), &turns(2), &[]).await.is_err());
+        assert!(watch(&llm, &Brief::default(), &turns(2), &[], None).await.is_err());
     }
 }
