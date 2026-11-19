@@ -98,11 +98,13 @@ def prewarm(proc: JobProcess) -> None:
     proc.userdata["vad"] = silero.VAD.load()
 
 
-# One warm process is enough for a small server; each holds the VAD model.
+# A session takes a warm process and a new one takes seconds to start, so the
+# number kept warm is how many students can join at the same moment without
+# waiting. One is enough for a small server; each holds the VAD model.
 # The worker's health endpoint stays on loopback unless told otherwise.
 server = AgentServer(
     setup_fnc=prewarm,
-    num_idle_processes=1,
+    num_idle_processes=int(os.environ.get("CAPRICORN_IDLE_PROCESSES", "1")),
     host=os.environ.get("CAPRICORN_HEALTH_HOST", "127.0.0.1"),
     port=int(os.environ.get("CAPRICORN_HEALTH_PORT", "8081")),
 )
