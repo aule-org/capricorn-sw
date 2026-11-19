@@ -10,6 +10,7 @@ from capricorn_agent.replies import ADULT_HELP_SEQUENCE, REPLIES, reply
 from capricorn_agent.tutor import (
     INSTRUCTIONS,
     MAX_TYPED_CHARS,
+    UNCHECKED,
     Persona,
     Tutor,
     checked,
@@ -295,3 +296,53 @@ async def test_an_empty_typed_message_is_ignored_and_a_long_one_is_cut():
     await type_to(tutor, session, "a" * 2000)
     assert [len(text) for text in gates.heard_texts] == [MAX_TYPED_CHARS]
     assert [len(text) for text in session.replies_to] == [MAX_TYPED_CHARS]
+
+
+class ScriptedChecker:
+    """Stands in for the platform's exercise checker."""
+
+    def __init__(self, posed=None, judged=None):
+        self.posed, self.judged, self.calls = posed, judged, []
+
+    async def pose(self, expression, skill_id, form):
+        self.calls.append(("pose", expression, skill_id, form))
+        return self.posed
+
+    async def answer(self, said):
+        self.calls.append(("answer", said))
+        return self.judged
+
+
+def tool(tutor, name):
+    return next(tool for tool in tutor.tools if tool.info.name == name)
+
+
+def test_the_checking_tools_exist_only_with_something_to_check_with():
+    plain = Tutor(language="es", gates=ScriptedGates())
+    checking = Tutor(language="es", gates=ScriptedGates(), checker=ScriptedChecker())
+
+    assert [tool.info.name for tool in plain.tools] == []
+    assert "pose_exercise" not in plain.instructions
+    assert [tool.info.name for tool in checking.tools] == ["pose_exercise", "check_answer"]
+    assert "pose_exercise" in checking.instructions
+
+
+async def test_the_model_is_told_what_the_checker_said_and_nothing_else():
+    checker = ScriptedChecker(posed="Ask it and wait.", judged="Give one hint about the sign.")
+    tutor = Tutor(language="es", gates=ScriptedGates(), checker=checker)
+
+    assert await tool(tutor, "pose_exercise")(expression="3/4 + 1/8") == "Ask it and wait."
+    assert await tool(tutor, "check_answer")(said="me da cuatro doceavos") == (
+        "Give one hint about the sign."
+    )
+    assert checker.calls == [
+        ("pose", "3/4 + 1/8", None, None),
+        ("answer", "me da cuatro doceavos"),
+    ]
+
+
+async def test_an_exercise_that_cannot_be_checked_leaves_the_tutor_on_its_own():
+    tutor = Tutor(language="en", gates=ScriptedGates(), checker=ScriptedChecker())
+
+    assert await tool(tutor, "pose_exercise")(expression="which is bigger?") == UNCHECKED
+    assert await tool(tutor, "check_answer")(said="the red one") == UNCHECKED
