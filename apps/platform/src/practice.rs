@@ -377,7 +377,18 @@ pub async fn pose(
     let exercise = Exercise::parse(expression).ok_or_else(|| {
         ApiError::bad_request("expression is not arithmetic that can be checked; carry on without checking")
     })?;
-    let skill_id = body.skill_id.as_deref().map(str::trim).filter(|id| learning::is_slug(id));
+    // Only a skill of the curriculum counts. An id the tutor made up is
+    // treated as none, so it does not start a track of its own.
+    let skill_id = match body.skill_id.as_deref().map(str::trim).filter(|id| learning::is_slug(id)) {
+        Some(id) => {
+            sqlx::query_scalar::<_, String>("select id from skills where id = $1")
+                .bind(id)
+                .fetch_optional(&state.pool)
+                .await?
+        }
+        None => None,
+    };
+    let skill_id = skill_id.as_deref();
 
     // Stating the open exercise again (a retry, or "¿me repites?") changes
     // nothing: its tries and hints stay.
