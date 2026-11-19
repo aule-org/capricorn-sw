@@ -8,7 +8,6 @@ from livekit.agents import StopResponse, llm
 from capricorn_agent.moderation import Action, Decision
 from capricorn_agent.replies import ADULT_HELP_SEQUENCE, REPLIES, reply
 from capricorn_agent.tutor import (
-    GUIDANCE_NOTE,
     INSTRUCTIONS,
     MAX_TYPED_CHARS,
     UNCHECKED,
@@ -18,7 +17,6 @@ from capricorn_agent.tutor import (
     persona_from,
     persona_notes,
     with_frame,
-    with_guidance,
 )
 from capricorn_agent.worker import GOODBYE, language_of, persona_of
 
@@ -376,25 +374,3 @@ async def test_a_checking_call_without_its_text_is_not_sent_to_the_platform():
     assert await tool(tutor, "pose_exercise")({"skill_id": "a.b"}) == UNCHECKED
     assert await tool(tutor, "check_answer")({"said": 7}) == UNCHECKED
     assert checker.calls == []
-
-
-def test_guidance_rides_on_the_last_user_message_and_leaves_the_history_alone():
-    original = context()
-
-    advised = with_guidance(original, "  Ask for the unit.  ")
-
-    last = [item for item in advised.items if item.role == "user"][-1]
-    assert last.content[-1] == GUIDANCE_NOTE.format(guidance="Ask for the unit.")
-    assert all(GUIDANCE_NOTE[:10] not in str(item.content) for item in original.items)
-    assert with_guidance(original, "  ") is original
-
-
-async def test_new_guidance_replaces_the_old_and_never_touches_the_instructions():
-    tutor = Tutor(language="es", gates=ScriptedGates(), context="Plan")
-    before = tutor.instructions
-
-    await tutor.advise("first")
-    await tutor.advise("second")
-
-    assert tutor.instructions == before
-    assert tutor._guidance == "second"
