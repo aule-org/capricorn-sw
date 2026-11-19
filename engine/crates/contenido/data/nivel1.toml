@@ -1,0 +1,335 @@
+# [PROPUESTA] Contenido del nivel 1 escrito por Claude para la demo. El equipo debe refinarlo.
+nivel = 1
+titulo = "Leer, escribir y representar fracciones"
+subtema = "leer, escribir y representar fracciones"
+
+# ───────────────────────── Tamizaje ─────────────────────────
+
+[[tamizaje]]
+id = "n1-t1"
+enunciado = "Mira el círculo. ¿Qué fracción del círculo está pintada? Luego explica qué significa cada número de tu fracción."
+grafico = { tipo = "circulo", partes = 8, sombreadas = 3 }
+respuesta = "3/8"
+verificar = "3/8"
+criterio_explicacion = "Dice que el 8 (denominador, abajo) es el total de partes iguales en que se dividió el círculo y que el 3 (numerador, arriba) es la cantidad de partes pintadas."
+claves_explicacion = [["8", "ocho", "denominador", "abajo", "total", "todas"], ["3", "tres", "numerador", "arriba", "pintad"]]
+minimo_claves = 2
+tiempo_s = 90
+
+[[tamizaje]]
+id = "n1-t2"
+enunciado = "En una caja hay 12 pelotas y 5 son rojas. ¿Qué fracción de las pelotas son rojas? Explica cómo armaste la fracción."
+grafico = { tipo = "conjunto", total = 12, marcados = 5, icono = "⚽" }
+respuesta = "5/12"
+verificar = "5/12"
+criterio_explicacion = "Explica que el denominador es el total de pelotas (12) y el numerador las que son rojas (5)."
+claves_explicacion = [["12", "doce", "total", "todas", "denominador", "abajo"], ["5", "cinco", "rojas", "numerador", "arriba"]]
+minimo_claves = 2
+tiempo_s = 90
+
+# ───────────────────────── Etapa 1 ─────────────────────────
+
+[etapa1]
+
+[[etapa1.teoria]]
+texto = "Imagina que tienes una barra de chocolate y la quieres compartir con un amigo de forma justa. La partes en 2 partes iguales: cada uno recibe lo mismo. Eso es dividir un todo en partes iguales. Si las partes no son iguales, no es justo... y no sirve para hacer fracciones."
+grafico = { tipo = "barra", partes = 2, sombreadas = 1 }
+
+[[etapa1.teoria]]
+texto = "Cada parte igual tiene un nombre según en cuántas partes partiste el todo. En 2 partes son medios, en 3 son tercios, en 4 son cuartos, en 5 quintos. Esta pizza está partida en 4 partes iguales: cada parte es un cuarto, y se escribe 1/4."
+grafico = { tipo = "circulo", partes = 4, sombreadas = 1 }
+
+[[etapa1.teoria]]
+texto = "Una fracción tiene dos números. El de abajo es el denominador: dice en cuántas partes iguales se partió el todo. El de arriba es el numerador: dice cuántas de esas partes tomas o pintas. Aquí hay 5 partes iguales y 3 están pintadas: es 3/5, se lee tres quintos."
+grafico = { tipo = "barra", partes = 5, sombreadas = 3 }
+
+[[etapa1.teoria]]
+texto = "Así se leen: 1/2 un medio, 2/3 dos tercios, 3/4 tres cuartos, 2/5 dos quintos, 5/6 cinco sextos, 4/7 cuatro séptimos, 7/8 siete octavos, 2/9 dos novenos, 3/10 tres décimos. Desde el 11 se agrega «avos»: 5/12 se lee cinco doceavos. Esta barra muestra 3/10."
+grafico = { tipo = "barra", partes = 10, sombreadas = 3 }
+
+[[etapa1.teoria]]
+texto = "Una fracción también puede ser parte de un conjunto. Hay 6 pelotas y 2 están marcadas. El total de pelotas (6) va abajo y las marcadas (2) van arriba: 2/6 de las pelotas están marcadas."
+grafico = { tipo = "conjunto", total = 6, marcados = 2, icono = "⚽" }
+
+[[etapa1.no_asistidos]]
+enunciado = "Veamos juntos: ¿qué fracción de la barra está pintada?"
+grafico = { tipo = "barra", partes = 6, sombreadas = 5 }
+pasos = ["Cuento todas las partes iguales de la barra: son 6. Ese es el denominador, va abajo.", "Cuento solo las partes pintadas: son 5. Ese es el numerador, va arriba.", "La fracción pintada es 5/6. Se lee cinco sextos."]
+respuesta = "5/6"
+verificar = "5/6"
+
+[[etapa1.no_asistidos]]
+enunciado = "Otro ejemplo: en un estuche hay 8 lápices y 3 son azules. ¿Qué fracción de los lápices son azules?"
+grafico = { tipo = "conjunto", total = 8, marcados = 3, icono = "✏️" }
+pasos = ["El todo es el estuche completo: 8 lápices. El denominador es 8.", "Los que me preguntan son los azules: 3. El numerador es 3.", "Entonces 3/8 de los lápices son azules. Se lee tres octavos."]
+respuesta = "3/8"
+verificar = "3/8"
+
+[[etapa1.asistidos]]
+enunciado = "Ahora tú: ¿qué fracción del círculo está pintada?"
+grafico = { tipo = "circulo", partes = 5, sombreadas = 2 }
+secuencia = ["Contar todas las partes", "Contar las partes pintadas", "Escribir la fracción"]
+respuesta = "2/5"
+verificar = "2/5"
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 1: ¿en cuántas partes iguales está dividido el círculo?"
+respuesta = "5"
+ayuda = "¿Contaste todos los pedazos, los pintados y los blancos?"
+solucion = "El círculo tiene 5 partes iguales en total."
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 2: ¿cuántas partes están pintadas?"
+respuesta = "2"
+ayuda = "¿Cuántos pedazos tienen color?"
+solucion = "Hay 2 partes pintadas."
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 3: escribe la fracción pintada. Recuerda: el total va abajo y las pintadas arriba."
+respuesta = "2/5"
+ayuda = "¿Qué número va arriba: el de las pintadas o el del total?"
+solucion = "Pintadas arriba (2) y total abajo (5): 2/5."
+
+[[etapa1.asistidos]]
+enunciado = "Ahora tú: en una bolsa hay 9 caramelos y 4 son de fresa. ¿Qué fracción de los caramelos es de fresa?"
+grafico = { tipo = "conjunto", total = 9, marcados = 4, icono = "🍬" }
+secuencia = ["Contar el total", "Contar los que te piden", "Escribir la fracción"]
+respuesta = "4/9"
+verificar = "4/9"
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 1: ¿cuántos caramelos hay en total en la bolsa?"
+respuesta = "9"
+ayuda = "¿Cuántos caramelos hay si cuentas todos, de cualquier sabor?"
+solucion = "En total hay 9 caramelos."
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 2: ¿cuántos caramelos son de fresa?"
+respuesta = "4"
+ayuda = "¿Qué número dice el problema para los de fresa?"
+solucion = "Son 4 caramelos de fresa."
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 3: escribe la fracción de caramelos de fresa."
+respuesta = "4/9"
+ayuda = "¿Cuál es el total, que va abajo, y cuántos son de fresa, que van arriba?"
+solucion = "Fresa arriba (4) y total abajo (9): 4/9."
+
+[etapa1.explicar]
+pregunta = "Con tus propias palabras: en una fracción como 3/4, ¿qué significa el número de abajo y qué significa el número de arriba?"
+criterio = "Explica que el denominador (abajo) dice en cuántas partes iguales se dividió el todo y que el numerador (arriba) dice cuántas de esas partes se toman o se pintan."
+claves = [["abajo", "denominador"], ["partes iguales", "total", "divid", "partid", "en cuantas"], ["arriba", "numerador"], ["pint", "toma", "coge", "agarr", "comi", "se usan"]]
+minimo_claves = 3
+pistas = ["Si partes una pizza en 4 partes iguales, ¿qué número te dice en cuántas partes la partiste?", "Si te comes 3 de esas partes, ¿dónde escribes ese 3: arriba o abajo?"]
+pista_grafica = { texto = "Mira: la pizza tiene 4 partes iguales y 3 están pintadas.", grafico = { tipo = "circulo", partes = 4, sombreadas = 3 } }
+
+[[etapa1.repaso]]
+texto = "Vamos despacio. Primero, un todo (una pizza, una barra) se parte en partes iguales. Cuenta todas las partes: aquí hay 4. Ese número va abajo, es el denominador."
+grafico = { tipo = "barra", partes = 4, sombreadas = 3 }
+
+[[etapa1.repaso]]
+texto = "Ahora cuenta solo las partes pintadas: hay 3. Ese número va arriba, es el numerador. La fracción es 3/4: tres cuartos."
+grafico = { tipo = "barra", partes = 4, sombreadas = 3 }
+
+[[etapa1.repaso]]
+texto = "Un truco para recordar: abajo va el total de partes iguales; arriba van las partes que tomas. Abajo, todas. Arriba, las que tomas."
+
+# ───────────────────────── Etapa 2 ─────────────────────────
+
+[[ejercicios]]
+id = "n1-e01"
+angulo = "grafica"
+enunciado = "Mira la barra. ¿Qué fracción de la barra está pintada?"
+grafico = { tipo = "barra", partes = 8, sombreadas = 5 }
+respuesta = "5/8"
+verificar = "5/8"
+tiempo_s = 60
+pistas = ["¿En cuántas partes iguales está dividida la barra?", "¿Cuántas de esas partes tienen color?"]
+pista_grafica = { texto = "Cuenta las partes una por una: todas las partes van abajo, las pintadas van arriba.", grafico = { tipo = "barra", partes = 8, sombreadas = 5, etiqueta = "cuenta las partes" } }
+[ejercicios.similar]
+enunciado = "¿Qué fracción de esta barra está pintada?"
+grafico = { tipo = "barra", partes = 6, sombreadas = 1 }
+pasos = ["Cuento todas las partes: 6. El denominador es 6.", "Cuento las pintadas: 1. El numerador es 1.", "La fracción pintada es 1/6, un sexto."]
+respuesta = "1/6"
+verificar = "1/6"
+
+[[ejercicios]]
+id = "n1-e02"
+angulo = "grafica"
+enunciado = "Mira el círculo. ¿Qué fracción del círculo NO está pintada?"
+grafico = { tipo = "circulo", partes = 7, sombreadas = 4 }
+respuesta = "3/7"
+verificar = "3/7"
+tiempo_s = 75
+pistas = ["¿En cuántas partes iguales está dividido el círculo?", "¿Cuántas partes se quedaron en blanco?"]
+pista_grafica = { texto = "Esta vez cuenta las partes blancas, no las pintadas.", grafico = { tipo = "circulo", partes = 7, sombreadas = 4 } }
+[ejercicios.similar]
+enunciado = "¿Qué fracción de esta barra NO está pintada?"
+grafico = { tipo = "barra", partes = 5, sombreadas = 2 }
+pasos = ["La barra tiene 5 partes iguales: el denominador es 5.", "Hay 2 pintadas, así que en blanco quedan 5 − 2 = 3.", "La parte sin pintar es 3/5, tres quintos."]
+respuesta = "3/5"
+verificar = "3/5"
+
+[[ejercicios]]
+id = "n1-e03"
+angulo = "calculo"
+enunciado = "Escribe con números la fracción «siete novenos»."
+respuesta = "7/9"
+verificar = "7/9"
+tiempo_s = 60
+pistas = ["¿Qué palabra te dice en cuántas partes iguales se partió el todo?", "¿Cuántas partes se toman según la primera palabra?"]
+pista_grafica = { texto = "Novenos quiere decir que el todo está partido en 9 partes iguales.", grafico = { tipo = "barra", partes = 9, sombreadas = 0, etiqueta = "novenos" } }
+[ejercicios.similar]
+enunciado = "Escribe con números la fracción «cinco octavos»."
+pasos = ["«Octavos» dice que el todo se partió en 8 partes iguales: el denominador es 8.", "«Cinco» dice cuántas partes se toman: el numerador es 5.", "La fracción es 5/8."]
+respuesta = "5/8"
+verificar = "5/8"
+
+[[ejercicios]]
+id = "n1-e04"
+angulo = "calculo"
+enunciado = "Una fracción tiene denominador 10 y numerador 3. Escríbela con números."
+respuesta = "3/10"
+verificar = "3/10"
+tiempo_s = 60
+pistas = ["¿El denominador va arriba o abajo de la raya?", "¿Qué número queda arriba, entonces?"]
+pista_grafica = { texto = "Una barra partida en 10 partes iguales: el 10 va abajo.", grafico = { tipo = "barra", partes = 10, sombreadas = 0, etiqueta = "décimos" } }
+[ejercicios.similar]
+enunciado = "Una fracción tiene numerador 2 y denominador 7. Escríbela con números."
+pasos = ["El numerador va arriba: 2.", "El denominador va abajo: 7.", "La fracción es 2/7, dos séptimos."]
+respuesta = "2/7"
+verificar = "2/7"
+
+[[ejercicios]]
+id = "n1-e05"
+angulo = "contexto"
+enunciado = "Una barra de chocolate tiene 8 partes iguales. Te comiste 3. ¿Qué fracción de la barra te comiste?"
+contextos = { futbol = "Una cancha de fútbol se dividió en 8 partes iguales para entrenar. Tu equipo usa 3 de esas partes. ¿Qué fracción de la cancha usa tu equipo?", videojuegos = "El mapa de tu videojuego está dividido en 8 zonas iguales. Ya exploraste 3. ¿Qué fracción del mapa exploraste?", dinosaurios = "Un parque de dinosaurios se dividió en 8 zonas iguales. Los triceratops viven en 3 de ellas. ¿Qué fracción del parque es de los triceratops?", cocina = "Una torta se cortó en 8 tajadas iguales. Ya se sirvieron 3. ¿Qué fracción de la torta se sirvió?", musica = "Una canción se dividió en 8 partes iguales. Ya escuchaste 3. ¿Qué fracción de la canción escuchaste?" }
+respuesta = "3/8"
+verificar = "3/8"
+tiempo_s = 90
+pistas = ["¿En cuántas partes iguales está dividido el todo?", "¿Cuántas de esas partes son las que te preguntan?"]
+pista_grafica = { texto = "Imagina el todo como una barra de 8 partes y pinta las que se usaron.", grafico = { tipo = "barra", partes = 8, sombreadas = 3 } }
+[ejercicios.similar]
+enunciado = "Una pizza se cortó en 6 partes iguales y se comieron 5. ¿Qué fracción de la pizza se comieron?"
+grafico = { tipo = "circulo", partes = 6, sombreadas = 5 }
+pasos = ["La pizza tiene 6 partes iguales: el denominador es 6.", "Se comieron 5 partes: el numerador es 5.", "Se comieron 5/6 de la pizza."]
+respuesta = "5/6"
+verificar = "5/6"
+
+[[ejercicios]]
+id = "n1-e06"
+angulo = "contexto"
+enunciado = "Tienes 12 canicas y 5 son azules. ¿Qué fracción de tus canicas son azules?"
+contextos = { futbol = "Un equipo tiene 12 jugadores convocados y 5 son delanteros. ¿Qué fracción de los convocados son delanteros?", videojuegos = "En tu videojuego hay 12 cofres y ya abriste 5. ¿Qué fracción de los cofres abriste?", dinosaurios = "En un museo hay 12 fósiles de dinosaurio y 5 son de tiranosaurio. ¿Qué fracción de los fósiles son de tiranosaurio?", cocina = "En una bandeja hay 12 galletas y 5 son de chocolate. ¿Qué fracción de las galletas son de chocolate?", musica = "En la banda del colegio hay 12 instrumentos y 5 son tambores. ¿Qué fracción de los instrumentos son tambores?" }
+respuesta = "5/12"
+verificar = "5/12"
+tiempo_s = 90
+pistas = ["¿Cuántos objetos hay en total en el grupo?", "¿Cuántos cumplen lo que te preguntan?"]
+pista_grafica = { texto = "El total del grupo va abajo; los marcados van arriba.", grafico = { tipo = "conjunto", total = 12, marcados = 5 } }
+[ejercicios.similar]
+enunciado = "En una fiesta hay 10 globos y 7 son rojos. ¿Qué fracción de los globos son rojos?"
+grafico = { tipo = "conjunto", total = 10, marcados = 7, icono = "🎈" }
+pasos = ["El total de globos es 10: el denominador es 10.", "Los rojos son 7: el numerador es 7.", "Entonces 7/10 de los globos son rojos."]
+respuesta = "7/10"
+verificar = "7/10"
+
+[[ejercicios]]
+id = "n1-e07"
+angulo = "error"
+enunciado = "Luis mira esta barra y dice que la parte pintada es 5/2, porque «primero se escriben todas las partes». ¿Qué fracción está pintada en realidad? Escríbela y explica el error de Luis."
+grafico = { tipo = "barra", partes = 5, sombreadas = 2 }
+respuesta = "2/5"
+verificar = "2/5"
+pide_explicacion = true
+criterio_explicacion = "Explica que Luis puso los números al revés: el total de partes (5) va abajo como denominador y las partes pintadas (2) van arriba como numerador."
+claves_explicacion = [["al reves", "invirti", "cambi", "volte", "confund"], ["abajo", "denominador", "total"], ["arriba", "numerador", "pintad"]]
+minimo_claves = 2
+tiempo_s = 120
+pistas = ["¿Qué número dice cuántas partes hay en total: el de arriba o el de abajo?", "¿Dónde puso Luis el total de partes?"]
+pista_grafica = { texto = "Hay 5 partes en total y 2 pintadas. ¿Cuál va abajo?", grafico = { tipo = "barra", partes = 5, sombreadas = 2, etiqueta = "5 partes, 2 pintadas" } }
+[ejercicios.similar]
+enunciado = "Carla ve un círculo de 6 partes iguales con 1 parte pintada y dice que es 6/1. ¿Cuál es la fracción correcta?"
+grafico = { tipo = "circulo", partes = 6, sombreadas = 1 }
+pasos = ["El total de partes es 6: va abajo.", "La parte pintada es 1: va arriba.", "Carla lo puso al revés. Lo correcto es 1/6."]
+respuesta = "1/6"
+verificar = "1/6"
+
+[[ejercicios]]
+id = "n1-e08"
+angulo = "error"
+enunciado = "Hay 10 globos y 3 son rojos. Pedro dice: «3/7 de los globos son rojos». ¿Es verdadero o falso? Explica por qué."
+grafico = { tipo = "conjunto", total = 10, marcados = 3, icono = "🎈" }
+opciones = ["Verdadero", "Falso"]
+respuesta = "Falso"
+verificar = "3/7 = 3/10"
+pide_explicacion = true
+criterio_explicacion = "Explica que el denominador debe ser el total de globos (10), no los 7 que no son rojos; la fracción correcta es 3/10."
+claves_explicacion = [["10", "diez", "total", "todos"], ["7", "siete", "no son rojos", "los otros", "resto"], ["3/10", "tres decimos"]]
+minimo_claves = 2
+tiempo_s = 120
+pistas = ["¿Cuántos globos hay en total?", "¿El 7 de Pedro cuenta todos los globos o solo los que no son rojos?"]
+pista_grafica = { texto = "Cuenta todos los globos, los marcados y los no marcados.", grafico = { tipo = "conjunto", total = 10, marcados = 3, icono = "🎈" } }
+[ejercicios.similar]
+enunciado = "En una bolsa hay 9 caramelos y 2 son de limón. Rosa dice: «2/7 de los caramelos son de limón». ¿Es verdadero o falso?"
+grafico = { tipo = "conjunto", total = 9, marcados = 2, icono = "🍬" }
+pasos = ["El total de caramelos es 9, así que el denominador debe ser 9.", "Rosa usó 7, que son solo los que no son de limón.", "Lo correcto es 2/9. Lo que dice Rosa es falso."]
+respuesta = "Falso"
+verificar = "2/7 = 2/9"
+
+[[ejercicios]]
+id = "n1-e09"
+angulo = "inverso"
+enunciado = "Una barra está dividida en partes iguales. Tiene 3 partes pintadas y 5 partes sin pintar. ¿Qué fracción de la barra está pintada?"
+respuesta = "3/8"
+verificar = "3 / (3 + 5)"
+tiempo_s = 90
+pistas = ["¿Cuántas partes tiene la barra si juntas las pintadas y las sin pintar?", "¿Ese total va arriba o abajo de la fracción?"]
+pista_grafica = { texto = "Dibuja las pintadas y las blancas juntas en una sola barra.", grafico = { tipo = "barra", partes = 8, sombreadas = 3 } }
+[ejercicios.similar]
+enunciado = "Un círculo tiene 4 partes pintadas y 2 partes sin pintar, todas iguales. ¿Qué fracción está pintada?"
+grafico = { tipo = "circulo", partes = 6, sombreadas = 4 }
+pasos = ["Primero busco el total: 4 + 2 = 6 partes. El denominador es 6.", "Las pintadas son 4: el numerador es 4.", "La fracción pintada es 4/6."]
+respuesta = "4/6"
+verificar = "4 / (4 + 2)"
+
+[[ejercicios]]
+id = "n1-e10"
+angulo = "inverso"
+enunciado = "Una pizza se cortó en 8 partes iguales. Ahora quedan 5/8 de la pizza. ¿Qué fracción de la pizza ya se comieron?"
+respuesta = "3/8"
+verificar = "1 - 5/8"
+tiempo_s = 120
+pistas = ["¿Cuántas partes tenía la pizza entera?", "Si quedan 5 partes, ¿cuántas partes faltan?"]
+pista_grafica = { texto = "Las partes pintadas son las que quedan. ¿Cuántas están en blanco?", grafico = { tipo = "circulo", partes = 8, sombreadas = 5 } }
+[ejercicios.similar]
+enunciado = "Una barra de chocolate tiene 6 partes iguales. Quedan 2/6 de la barra. ¿Qué fracción ya se comieron?"
+grafico = { tipo = "barra", partes = 6, sombreadas = 2 }
+pasos = ["La barra entera tenía 6 partes.", "Quedan 2 partes, así que se comieron 6 − 2 = 4 partes.", "Ya se comieron 4/6 de la barra."]
+respuesta = "4/6"
+verificar = "1 - 2/6"
+
+# ───────────────────────── Simulación ─────────────────────────
+
+[[simulacion]]
+id = "n1-s1"
+enunciado = "Mira el círculo. ¿Qué fracción del círculo está pintada?"
+grafico = { tipo = "circulo", partes = 10, sombreadas = 7 }
+respuesta = "7/10"
+verificar = "7/10"
+tiempo_s = 60
+
+[[simulacion]]
+id = "n1-s2"
+enunciado = "Escribe con números la fracción «cuatro quintos»."
+respuesta = "4/5"
+verificar = "4/5"
+tiempo_s = 60
+
+[[simulacion]]
+id = "n1-s3"
+enunciado = "En un estante hay 11 libros y 6 son de cuentos. ¿Qué fracción de los libros son de cuentos?"
+respuesta = "6/11"
+verificar = "6/11"
+tiempo_s = 90
+
+[[simulacion]]
+id = "n1-s4"
+enunciado = "Una barra tiene 2 partes pintadas y 7 partes sin pintar, todas iguales. ¿Qué fracción de la barra está pintada?"
+respuesta = "2/9"
+verificar = "2 / (2 + 7)"
+tiempo_s = 90

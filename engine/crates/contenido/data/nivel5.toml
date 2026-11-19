@@ -1,0 +1,315 @@
+# [PROPUESTA] Nivel 5 de Fracciones (5to de primaria). Contenido escrito por Claude; el equipo debe revisarlo.
+nivel = 5
+titulo = "Problemas de varios pasos: fracción de una cantidad y operaciones combinadas"
+subtema = "resolver problemas de varios pasos con fracciones"
+
+# ---------------------------------------------------------------- Tamizaje
+[[tamizaje]]
+id = "n5-t1"
+enunciado = "Calcula 2/3 de 18. Luego explica cómo lo hiciste."
+respuesta = "12"
+verificar = "(2/3) * 18"
+criterio_explicacion = "Dice que divide 18 entre el denominador 3 (18 ÷ 3 = 6, cada tercio vale 6) y luego multiplica por el numerador 2 (2 × 6 = 12)."
+claves_explicacion = [["divid", "entre 3", "reparto", "grupos", "partes iguales", "cada tercio"], ["multiplic", "por 2", "2 veces", "dos veces", "tomo 2", "tomo dos"], ["denominador", "numerador"]]
+minimo_claves = 2
+tiempo_s = 90
+
+[[tamizaje]]
+id = "n5-t2"
+enunciado = "Luis tenía 32 canicas y regaló 3/8 de ellas. ¿Cuántas canicas le quedan? Luego explica cómo lo hiciste."
+respuesta = "20"
+verificar = "32 - (3/8) * 32"
+criterio_explicacion = "Calcula primero cuánto es 3/8 de 32 (32 ÷ 8 = 4; 3 × 4 = 12) y luego lo resta del total (32 − 12 = 20). También vale si dice que le quedan 5/8 de 32 = 20."
+claves_explicacion = [["divid", "entre 8", "reparto", "grupos", "cada octavo"], ["multiplic", "por 3", "3 veces", "tres veces", "por 5", "12"], ["rest", "quit", "menos", "quedan", "5/8"]]
+minimo_claves = 2
+tiempo_s = 150
+
+# ---------------------------------------------------------------- Etapa 1
+[etapa1]
+
+[[etapa1.teoria]]
+texto = "En el nivel anterior aprendiste a sumar y restar fracciones con distinto denominador. Por ejemplo, 1/3 + 1/4: pasas las dos a doceavos y te da 4/12 + 3/12 = 7/12. Ahora vas a usar todo eso para resolver problemas de la vida real, de varios pasos."
+grafico = { tipo = "barras", filas = [{ partes = 3, sombreadas = 1, etiqueta = "1/3" }, { partes = 4, sombreadas = 1, etiqueta = "1/4" }, { partes = 12, sombreadas = 7, etiqueta = "7/12" }] }
+
+[[etapa1.teoria]]
+texto = "Primera idea nueva: la fracción de una cantidad. ¿Cuánto es 3/4 de 20? El denominador 4 te dice que repartas 20 en 4 grupos iguales: 20 ÷ 4 = 5 en cada grupo. El numerador 3 te dice que tomes 3 grupos: 3 × 5 = 15. Entonces 3/4 de 20 es 15."
+grafico = { tipo = "conjunto", total = 20, marcados = 15, icono = "🍬" }
+
+[[etapa1.teoria]]
+texto = "Recuerda el truco: primero divides entre el denominador y después multiplicas por el numerador. Divido, luego multiplico."
+grafico = { tipo = "barra", partes = 4, sombreadas = 3, etiqueta = "3/4 de 20 = 15" }
+
+[[etapa1.teoria]]
+texto = "Segunda idea: ¿qué parte queda? Si alguien gasta 1/3 y luego 1/4 de su dinero, primero sumas lo que gastó: 1/3 + 1/4 = 7/12. Todo el dinero es 12/12. Entonces le queda 12/12 − 7/12 = 5/12."
+grafico = { tipo = "barras", filas = [{ partes = 12, sombreadas = 4, etiqueta = "gastó 1/3 = 4/12" }, { partes = 12, sombreadas = 3, etiqueta = "gastó 1/4 = 3/12" }, { partes = 12, sombreadas = 5, etiqueta = "queda 5/12" }] }
+
+[[etapa1.teoria]]
+texto = "Tercera idea: cuánto queda de una cantidad. De 24 figuritas, Diego regala 3/8. Calculo lo que regaló: 24 ÷ 8 = 3 y 3 × 3 = 9. Le quedan 24 − 9 = 15 figuritas. En el dibujo, las resaltadas son las 15 que le quedan."
+grafico = { tipo = "conjunto", total = 24, marcados = 15, icono = "🃏" }
+
+[[etapa1.no_asistidos]]
+enunciado = "Calculemos 2/5 de 30."
+grafico = { tipo = "conjunto", total = 30, marcados = 12, icono = "⭐" }
+pasos = ["El denominador es 5: reparto 30 en 5 grupos iguales. 30 ÷ 5 = 6, cada quinto vale 6.", "El numerador es 2: tomo 2 grupos. 2 × 6 = 12.", "Entonces 2/5 de 30 es 12. En el dibujo hay 12 estrellas resaltadas."]
+respuesta = "12"
+verificar = "(2/5) * 30"
+
+[[etapa1.no_asistidos]]
+enunciado = "Sofía come 1/2 de una pizza y su hermano come 1/3 de la misma pizza. ¿Qué parte de la pizza queda?"
+grafico = { tipo = "circulo", partes = 6, sombreadas = 5 }
+pasos = ["Sumo lo que comieron. Busco un denominador común para medios y tercios: 6. 1/2 = 3/6 y 1/3 = 2/6.", "3/6 + 2/6 = 5/6. Eso es lo que comieron (las 5 partes pintadas).", "La pizza entera es 6/6. Resto: 6/6 − 5/6 = 1/6.", "Queda 1/6 de la pizza."]
+respuesta = "1/6"
+verificar = "1 - (1/2 + 1/3)"
+
+[[etapa1.asistidos]]
+enunciado = "Ahora tú: calcula 3/4 de 28."
+grafico = { tipo = "conjunto", total = 28, marcados = 0, icono = "🍬" }
+secuencia = ["Dividir entre el denominador", "Multiplicar por el numerador"]
+respuesta = "21"
+verificar = "(3/4) * 28"
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 1: divide 28 entre el denominador 4. ¿Cuánto vale cada cuarto?"
+respuesta = "7"
+ayuda = "¿Qué número multiplicado por 4 te da 28?"
+solucion = "28 ÷ 4 = 7. Cada cuarto vale 7."
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 2: multiplica por el numerador 3. ¿Cuánto es 3 × 7?"
+respuesta = "21"
+ayuda = "Si tomas 3 grupos de 7, ¿cuántos tienes en total?"
+solucion = "3 × 7 = 21. Entonces 3/4 de 28 es 21."
+
+[[etapa1.asistidos]]
+enunciado = "Ahora tú: Martín gastó 1/2 de su propina en un cuaderno y 1/5 en un lápiz. ¿Qué parte de su propina le queda?"
+grafico = { tipo = "barras", filas = [{ partes = 10, sombreadas = 5, etiqueta = "cuaderno 1/2" }, { partes = 10, sombreadas = 2, etiqueta = "lápiz 1/5" }] }
+secuencia = ["Sumar lo gastado", "Escribir el total como fracción", "Restar"]
+respuesta = "3/10"
+verificar = "1 - (1/2 + 1/5)"
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 1: suma lo que gastó, 1/2 + 1/5. ¿Cuánto da?"
+respuesta = "7/10"
+ayuda = "¿Qué denominador común sirve para medios y quintos? ¿Cuántos décimos son 1/2 y cuántos son 1/5?"
+solucion = "1/2 = 5/10 y 1/5 = 2/10. Entonces 5/10 + 2/10 = 7/10."
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 2: toda la propina es 1 entero. ¿Cómo escribes 1 entero en décimos?"
+respuesta = "10/10"
+ayuda = "Si la propina está partida en 10 partes iguales, ¿cuántas partes tiene toda la propina?"
+solucion = "1 entero = 10/10."
+[[etapa1.asistidos.pasos]]
+indicacion = "Paso 3: resta 10/10 − 7/10. ¿Qué parte le queda?"
+respuesta = "3/10"
+ayuda = "Si tienes 10 décimos y quitas 7 décimos, ¿cuántos décimos quedan?"
+solucion = "10/10 − 7/10 = 3/10. Le queda 3/10 de su propina."
+
+[etapa1.explicar]
+pregunta = "Con tus propias palabras: ¿cómo calculas una fracción de una cantidad, por ejemplo 3/4 de 20?"
+criterio = "Explica que se reparte (divide) la cantidad entre el denominador para saber cuánto vale cada parte, y luego se multiplica por el numerador porque son las partes que se toman. Puede usar el ejemplo: 20 ÷ 4 = 5 y 3 × 5 = 15."
+claves = [["divid", "reparto", "repart", "grupos", "partes iguales", "entre 4"], ["multiplic", "por 3", "3 veces", "tres veces", "tomo 3", "tomo tres"], ["denominador", "abajo"], ["numerador", "arriba"]]
+minimo_claves = 2
+pistas = ["Si repartes 20 caramelos en 4 grupos iguales, ¿cuántos caramelos hay en cada grupo?", "Si te quedas con 3 de esos grupos, ¿cuántos caramelos tienes? ¿Qué operaciones hiciste?"]
+pista_grafica = { texto = "Mira: 20 caramelos repartidos en 4 grupos de 5. Hay 3 grupos resaltados.", grafico = { tipo = "conjunto", total = 20, marcados = 15, icono = "🍬" } }
+
+[[etapa1.repaso]]
+texto = "Repasemos con calma. En una fracción, el denominador (abajo) te dice en cuántas partes iguales repartes la cantidad. El numerador (arriba) te dice cuántas de esas partes tomas."
+grafico = { tipo = "barra", partes = 4, sombreadas = 3, etiqueta = "3/4" }
+
+[[etapa1.repaso]]
+texto = "Ejemplo: 3/4 de 12. Reparto 12 en 4 grupos: 12 ÷ 4 = 3 en cada grupo. Tomo 3 grupos: 3 × 3 = 9. Entonces 3/4 de 12 es 9."
+grafico = { tipo = "conjunto", total = 12, marcados = 9, icono = "🍎" }
+
+[[etapa1.repaso]]
+texto = "Para saber qué parte queda, piensa en el todo como un entero escrito con el mismo denominador: 8/8, 10/10, 12/12… y le restas lo que se usó. Si se usó 3/8, quedan 8/8 − 3/8 = 5/8."
+grafico = { tipo = "barra", partes = 8, sombreadas = 5, etiqueta = "quedan 5/8" }
+
+# ---------------------------------------------------------------- Etapa 2
+[[ejercicios]]
+id = "n5-e01"
+angulo = "grafica"
+enunciado = "La barra representa 24 soles, partida en 8 partes iguales. ¿Cuántos soles representan las partes pintadas?"
+grafico = { tipo = "barra", partes = 8, sombreadas = 3, etiqueta = "24 soles" }
+respuesta = "9"
+verificar = "(3/8) * 24"
+tiempo_s = 100
+pistas = ["Si 24 soles se reparten en 8 partes iguales, ¿cuántos soles vale cada parte?", "¿Cuántas partes están pintadas? ¿Cuánto valen todas juntas?"]
+pista_grafica = { texto = "Cada parte de la barra vale lo mismo. Aquí ves los 24 soles en 8 grupos, con las partes pintadas resaltadas.", grafico = { tipo = "conjunto", total = 24, marcados = 9, icono = "🪙" } }
+[ejercicios.similar]
+enunciado = "Una barra representa 30 soles, partida en 6 partes iguales, y 5 están pintadas. ¿Cuántos soles representan las partes pintadas?"
+grafico = { tipo = "barra", partes = 6, sombreadas = 5, etiqueta = "30 soles" }
+pasos = ["Cada parte vale 30 ÷ 6 = 5 soles.", "Hay 5 partes pintadas: 5 × 5 = 25.", "Las partes pintadas representan 25 soles."]
+respuesta = "25"
+verificar = "(5/6) * 30"
+
+[[ejercicios]]
+id = "n5-e02"
+angulo = "grafica"
+enunciado = "Carla está leyendo un libro. Las barras muestran lo que leyó el lunes y el martes. ¿Qué parte del libro le falta leer?"
+grafico = { tipo = "barras", filas = [{ partes = 4, sombreadas = 1, etiqueta = "lunes" }, { partes = 3, sombreadas = 1, etiqueta = "martes" }] }
+respuesta = "5/12"
+verificar = "1 - 1/4 - 1/3"
+tiempo_s = 150
+pistas = ["¿Qué fracción leyó cada día? ¿Qué denominador común te sirve para sumarlas?", "Si el libro entero son 12/12, ¿cuánto queda después de quitar lo que leyó?"]
+pista_grafica = { texto = "Pasa todo a doceavos: el lunes 3/12, el martes 4/12. Mira lo que falta.", grafico = { tipo = "barras", filas = [{ partes = 12, sombreadas = 3, etiqueta = "lunes 3/12" }, { partes = 12, sombreadas = 4, etiqueta = "martes 4/12" }, { partes = 12, sombreadas = 7, etiqueta = "leído" }] } }
+[ejercicios.similar]
+enunciado = "Pepe pintó una pared: las barras muestran lo que pintó en la mañana (1/2) y en la tarde (1/6). ¿Qué parte de la pared le falta pintar?"
+grafico = { tipo = "barras", filas = [{ partes = 2, sombreadas = 1, etiqueta = "mañana" }, { partes = 6, sombreadas = 1, etiqueta = "tarde" }] }
+pasos = ["Paso a sextos: 1/2 = 3/6.", "Sumo lo pintado: 3/6 + 1/6 = 4/6.", "La pared entera es 6/6: 6/6 − 4/6 = 2/6 = 1/3.", "Le falta pintar 1/3 de la pared."]
+respuesta = "1/3"
+verificar = "1 - 1/2 - 1/6"
+
+[[ejercicios]]
+id = "n5-e03"
+angulo = "calculo"
+enunciado = "Calcula 5/6 de 42."
+respuesta = "35"
+verificar = "(5/6) * 42"
+tiempo_s = 80
+pistas = ["¿Entre qué número tienes que dividir 42 para saber cuánto vale cada sexto?", "Cuando sepas cuánto vale un sexto, ¿por cuánto lo multiplicas?"]
+pista_grafica = { texto = "La barra es el 42 partido en 6 partes iguales; 5 partes están pintadas.", grafico = { tipo = "barra", partes = 6, sombreadas = 5, etiqueta = "42" } }
+[ejercicios.similar]
+enunciado = "Calcula 3/7 de 21."
+pasos = ["Divido entre el denominador: 21 ÷ 7 = 3.", "Multiplico por el numerador: 3 × 3 = 9.", "3/7 de 21 es 9."]
+respuesta = "9"
+verificar = "(3/7) * 21"
+
+[[ejercicios]]
+id = "n5-e04"
+angulo = "calculo"
+enunciado = "Calcula 3/8 de 40 y súmale 1/5 de 40. ¿Cuánto da?"
+respuesta = "23"
+verificar = "(3/8) * 40 + (1/5) * 40"
+tiempo_s = 130
+pistas = ["¿Cuánto es 3/8 de 40? ¿Entre qué divides primero?", "¿Cuánto es 1/5 de 40? ¿Qué te falta hacer con los dos resultados?"]
+pista_grafica = { texto = "Dos barras de 40: una en octavos con 3 pintadas y otra en quintos con 1 pintada.", grafico = { tipo = "barras", filas = [{ partes = 8, sombreadas = 3, etiqueta = "3/8 de 40" }, { partes = 5, sombreadas = 1, etiqueta = "1/5 de 40" }] } }
+[ejercicios.similar]
+enunciado = "Calcula 2/3 de 30 y réstale 1/6 de 30. ¿Cuánto da?"
+pasos = ["2/3 de 30: 30 ÷ 3 = 10 y 2 × 10 = 20.", "1/6 de 30: 30 ÷ 6 = 5.", "Resto: 20 − 5 = 15."]
+respuesta = "15"
+verificar = "(2/3) * 30 - (1/6) * 30"
+
+[[ejercicios]]
+id = "n5-e05"
+angulo = "contexto"
+enunciado = "Diego tenía 24 figuritas y regaló 3/8 a su hermano. ¿Cuántas figuritas le quedan?"
+contextos = { futbol = "Diego tenía 24 figuritas del álbum de fútbol y regaló 3/8 a su hermano. ¿Cuántas figuritas le quedan?", videojuegos = "En tu videojuego tienes 24 gemas y gastas 3/8 de ellas en una armadura. ¿Cuántas gemas te quedan?", dinosaurios = "Un museo tenía 24 fósiles de dinosaurio y prestó 3/8 a otro museo. ¿Cuántos fósiles le quedan?", cocina = "En una bandeja hay 24 galletas y la familia se comió 3/8 de ellas. ¿Cuántas galletas quedan?", musica = "Una banda preparó 24 canciones para su concierto y ya tocó 3/8 de ellas. ¿Cuántas canciones le faltan tocar?" }
+respuesta = "15"
+verificar = "24 - (3/8) * 24"
+tiempo_s = 130
+pistas = ["¿Cuántas son 3/8 de 24? ¿Entre qué número divides primero?", "Si sabes cuántas se fueron, ¿qué operación haces para saber cuántas quedan?"]
+pista_grafica = { texto = "24 figuritas en 8 grupos de 3. Las resaltadas son las que regaló.", grafico = { tipo = "conjunto", total = 24, marcados = 9, icono = "🃏" } }
+[ejercicios.similar]
+enunciado = "Ana tenía 30 stickers y regaló 2/5 a su amiga. ¿Cuántos stickers le quedan?"
+pasos = ["Calculo 2/5 de 30: 30 ÷ 5 = 6 y 2 × 6 = 12. Regaló 12.", "Resto del total: 30 − 12 = 18.", "Le quedan 18 stickers."]
+respuesta = "18"
+verificar = "30 - (2/5) * 30"
+
+[[ejercicios]]
+id = "n5-e06"
+angulo = "contexto"
+enunciado = "Lucía tenía 60 soles. Gastó 1/4 en un libro y 1/3 en un polo. ¿Cuántos soles le quedan?"
+contextos = { futbol = "Un club tenía 60 entradas para el partido. Vendió 1/4 el lunes y 1/3 el martes. ¿Cuántas entradas le quedan?", videojuegos = "Tienes 60 monedas en tu videojuego. Gastas 1/4 en una espada y 1/3 en un escudo. ¿Cuántas monedas te quedan?", dinosaurios = "Llegan 60 visitantes al parque de dinosaurios. 1/4 va a ver al tiranosaurio y 1/3 al triceratops. El resto va al museo. ¿Cuántos visitantes van al museo?", cocina = "Una panadería hizo 60 panes. Vendió 1/4 en la mañana y 1/3 al mediodía. ¿Cuántos panes le quedan?", musica = "Un coro tiene 60 integrantes. 1/4 son sopranos y 1/3 son tenores. El resto son barítonos. ¿Cuántos barítonos hay?" }
+respuesta = "25"
+verificar = "60 - (1/4) * 60 - (1/3) * 60"
+tiempo_s = 180
+pistas = ["¿Cuánto es 1/4 de 60? ¿Y cuánto es 1/3 de 60?", "Si sumas lo que gastó, ¿cuánto le falta para llegar a 60?"]
+pista_grafica = { texto = "Una barra de 60 soles en doceavos: 1/4 son 3 partes y 1/3 son 4 partes. Mira cuántas partes quedan sin pintar.", grafico = { tipo = "barras", filas = [{ partes = 12, sombreadas = 3, etiqueta = "libro 1/4" }, { partes = 12, sombreadas = 4, etiqueta = "polo 1/3" }, { partes = 12, sombreadas = 7, etiqueta = "gastado" }] } }
+[ejercicios.similar]
+enunciado = "Mateo tenía 40 soles. Gastó 1/2 en zapatillas y 1/8 en un helado. ¿Cuántos soles le quedan?"
+pasos = ["1/2 de 40 = 20 soles.", "1/8 de 40: 40 ÷ 8 = 5 soles.", "Gastó 20 + 5 = 25 soles.", "Le quedan 40 − 25 = 15 soles."]
+respuesta = "15"
+verificar = "40 - (1/2) * 40 - (1/8) * 40"
+
+[[ejercicios]]
+id = "n5-e07"
+angulo = "error"
+enunciado = "Pablo dice: 'Para calcular 3/4 de 32, divido 32 entre 3 y multiplico por 4'. ¿Qué hizo mal? Escribe el resultado correcto y explica."
+respuesta = "24"
+verificar = "(3/4) * 32"
+pide_explicacion = true
+criterio_explicacion = "Dice que Pablo confundió los números: hay que dividir entre el denominador 4 (32 ÷ 4 = 8) y multiplicar por el numerador 3 (3 × 8 = 24)."
+claves_explicacion = [["denominador", "entre 4", "dividir entre 4", "divide entre 4", "dividir por 4"], ["numerador", "por 3", "multiplica por 3", "multiplicar por 3", "3 veces"], ["al reves", "invirti", "cambio", "confund", "intercambi"]]
+minimo_claves = 2
+tiempo_s = 150
+pistas = ["En 3/4, ¿qué número te dice en cuántas partes iguales repartes el 32?", "¿Cuánto vale cada cuarto de 32? ¿Y cuánto valen 3 cuartos?"]
+pista_grafica = { texto = "La barra es el 32 partido en 4 partes iguales; 3 partes están pintadas.", grafico = { tipo = "barra", partes = 4, sombreadas = 3, etiqueta = "32" } }
+[ejercicios.similar]
+enunciado = "Rita dice: 'Para calcular 2/5 de 15, divido 15 entre 2 y multiplico por 5'. ¿Cuál es el resultado correcto?"
+pasos = ["Rita invirtió los pasos: se divide entre el denominador 5, no entre 2.", "15 ÷ 5 = 3.", "Multiplico por el numerador 2: 2 × 3 = 6.", "2/5 de 15 es 6."]
+respuesta = "6"
+verificar = "(2/5) * 15"
+
+[[ejercicios]]
+id = "n5-e08"
+angulo = "error"
+enunciado = "Ana gastó 1/2 de su propina en la mañana y 1/3 en la tarde. Ella dice: 'Gasté 1/2 + 1/3 = 2/5, así que me quedan 3/5'. ¿Qué parte de su propina le queda en realidad? Explica el error."
+respuesta = "1/6"
+verificar = "1 - (1/2 + 1/3)"
+pide_explicacion = true
+criterio_explicacion = "Explica que Ana sumó numeradores y denominadores (eso no se puede); hay que pasar a un denominador común: 1/2 = 3/6 y 1/3 = 2/6, gastó 5/6 y le queda 6/6 − 5/6 = 1/6."
+claves_explicacion = [["denominador comun", "mismo denominador", "sextos", "equivalent"], ["no se suman los denominadores", "sumo los de abajo", "sumo arriba y abajo", "sumo los denominadores", "denominadores", "abajo"], ["5/6", "1/6"]]
+minimo_claves = 2
+tiempo_s = 180
+pistas = ["¿Se pueden sumar medios y tercios directamente, o primero necesitas un denominador común?", "Si gastó 1/2 de la propina, ¿puede ser que en total haya gastado menos de la mitad, como 2/5?"]
+pista_grafica = { texto = "Pasa todo a sextos: 1/2 = 3/6 y 1/3 = 2/6. Mira cuánto gastó.", grafico = { tipo = "barras", filas = [{ partes = 6, sombreadas = 3, etiqueta = "mañana 3/6" }, { partes = 6, sombreadas = 2, etiqueta = "tarde 2/6" }, { partes = 6, sombreadas = 5, etiqueta = "gastó" }] } }
+[ejercicios.similar]
+enunciado = "Beto comió 1/4 de un queque y luego 1/2. Él dice: 'Comí 1/4 + 1/2 = 2/6'. ¿Qué parte del queque queda en realidad?"
+pasos = ["El error: sumó numeradores y denominadores. Hay que usar un denominador común: cuartos.", "1/2 = 2/4. Entonces 1/4 + 2/4 = 3/4.", "El queque entero es 4/4: 4/4 − 3/4 = 1/4.", "Queda 1/4 del queque."]
+respuesta = "1/4"
+verificar = "1 - (1/4 + 1/2)"
+
+[[ejercicios]]
+id = "n5-e09"
+angulo = "inverso"
+enunciado = "3/4 de un número es 15. ¿Cuál es el número?"
+respuesta = "20"
+verificar = "15 / (3/4)"
+tiempo_s = 150
+pistas = ["Si 3 cuartos son 15, ¿cuánto vale un solo cuarto?", "Si sabes cuánto vale un cuarto, ¿cuánto valen los 4 cuartos?"]
+pista_grafica = { texto = "La barra tiene 4 partes iguales. Las 3 pintadas juntas valen 15.", grafico = { tipo = "barra", partes = 4, sombreadas = 3, etiqueta = "3 partes = 15" } }
+[ejercicios.similar]
+enunciado = "2/5 de un número es 10. ¿Cuál es el número?"
+pasos = ["2 quintos son 10, entonces 1 quinto es 10 ÷ 2 = 5.", "El número completo son 5 quintos: 5 × 5 = 25.", "El número es 25. Compruebo: 2/5 de 25 = 10."]
+respuesta = "25"
+verificar = "10 / (2/5)"
+
+[[ejercicios]]
+id = "n5-e10"
+angulo = "inverso"
+enunciado = "Rosa gastó 2/5 de su dinero y le quedaron 18 soles. ¿Cuánto dinero tenía al inicio?"
+respuesta = "30"
+verificar = "18 / (1 - 2/5)"
+tiempo_s = 180
+pistas = ["Si gastó 2/5, ¿qué fracción de su dinero le quedó?", "Si esa fracción vale 18 soles, ¿cuánto vale un quinto? ¿Y los 5 quintos?"]
+pista_grafica = { texto = "El dinero de Rosa en 5 partes: 2 gastadas y 3 que le quedan. Esas 3 partes valen 18 soles.", grafico = { tipo = "barra", partes = 5, sombreadas = 3, etiqueta = "quedan 18 soles" } }
+[ejercicios.similar]
+enunciado = "Tito leyó 1/4 de un libro y le faltan 45 páginas. ¿Cuántas páginas tiene el libro?"
+pasos = ["Si leyó 1/4, le falta 4/4 − 1/4 = 3/4 del libro.", "3/4 son 45 páginas, entonces 1/4 son 45 ÷ 3 = 15 páginas.", "El libro entero: 4 × 15 = 60 páginas."]
+respuesta = "60"
+verificar = "45 / (1 - 1/4)"
+
+# ---------------------------------------------------------------- Simulación
+[[simulacion]]
+id = "n5-s1"
+enunciado = "Calcula 4/7 de 35."
+respuesta = "20"
+verificar = "(4/7) * 35"
+tiempo_s = 80
+
+[[simulacion]]
+id = "n5-s2"
+enunciado = "Juan tenía 48 caramelos. Regaló 1/4 a su prima y 1/6 a su amigo. ¿Cuántos caramelos le quedan?"
+respuesta = "28"
+verificar = "48 - (1/4) * 48 - (1/6) * 48"
+tiempo_s = 180
+
+[[simulacion]]
+id = "n5-s3"
+enunciado = "2/3 de un número es 16. ¿Cuál es el número?"
+respuesta = "24"
+verificar = "16 / (2/3)"
+tiempo_s = 150
+
+[[simulacion]]
+id = "n5-s4"
+enunciado = "Una cinta mide 1 metro. Se cortó 2/5 de la cinta y luego 1/4 del total. ¿Qué parte de la cinta queda?"
+respuesta = "7/20"
+verificar = "1 - 2/5 - 1/4"
+tiempo_s = 180
