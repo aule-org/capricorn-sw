@@ -266,34 +266,6 @@ def with_frame(chat_ctx: llm.ChatContext, frame: rtc.VideoFrame | None) -> llm.C
     return chat_ctx
 
 
-# How the supervisor's guidance is marked where the model reads it, so it is
-# never taken for something the student said.
-GUIDANCE_NOTE = "[Note from your supervisor, not said by the student: {guidance}]"
-
-
-def with_guidance(chat_ctx: llm.ChatContext, guidance: str) -> llm.ChatContext:
-    """A copy of the context whose last user message ends with the supervisor's
-    current guidance.
-
-    The guidance changes during a session. Kept out of the instructions, they
-    stay the same from the first turn to the last, and so does everything the
-    model's prompt cache already holds: the instructions and the earlier turns.
-    The session's own history is left alone, so only the newest guidance is in
-    play.
-    """
-    guidance = guidance.strip()
-    if not guidance:
-        return chat_ctx
-    items = list(chat_ctx.items)
-    for index in range(len(items) - 1, -1, -1):
-        item = items[index]
-        if item.type == "message" and item.role == "user":
-            note = GUIDANCE_NOTE.format(guidance=guidance)
-            items[index] = item.model_copy(update={"content": [*item.content, note]})
-            return llm.ChatContext(items)
-    return chat_ctx
-
-
 def with_notes(instructions: str, notes: str) -> str:
     notes = notes.strip()
     return f"{instructions}\n\n{notes}" if notes else instructions
@@ -407,7 +379,6 @@ class Tutor(Agent):
         self._gates = gates
         self._camera = camera
         self._hazards_in_a_row = 0
-        self._guidance = ""
         greeting = GREETING[language]
         if persona.name != DEFAULT_TUTOR_NAME:
             greeting = greeting.replace(DEFAULT_TUTOR_NAME, persona.name)
@@ -418,7 +389,7 @@ class Tutor(Agent):
 
         It replaces the previous guidance instead of piling up.
         """
-        self._guidance = guidance
+        await self.update_instructions(with_notes(self._base, guidance))
 
     async def on_enter(self) -> None:
         self.session.generate_reply(instructions=self._greeting)
@@ -468,8 +439,7 @@ class Tutor(Agent):
         self, chat_ctx: llm.ChatContext, tools: list[llm.Tool], model_settings: ModelSettings
     ) -> AsyncIterable[llm.ChatChunk | str]:
         frame = self._camera.latest() if self._camera is not None else None
-        chat_ctx = with_frame(with_guidance(chat_ctx, self._guidance), frame)
-        stream = Agent.default.llm_node(self, chat_ctx, tools, model_settings)
+        stream = Agent.default.llm_node(self, with_frame(chat_ctx, frame), tools, model_settings)
         if self._gates.checks_spoken:
             # Buffering costs the time to the first word, so it is only paid
             # when there is a gate to wait for.
