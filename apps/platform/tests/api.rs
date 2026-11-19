@@ -480,6 +480,7 @@ async fn a_session_is_planned_watched_and_reviewed(pool: PgPool) {
     assert_eq!(view["brief"]["skills"][0]["skill_id"], "fractions.add");
     assert_eq!(view["guidance"][0]["signals"]["frustrated"], true);
     assert_eq!(view["guidance"][0]["after_seq"], 1);
+    assert_eq!(view["review"], Value::Null, "nothing to tell the family until the review");
     let (_, third) = app
         .call(
             Method::POST,
@@ -506,6 +507,10 @@ async fn a_session_is_planned_watched_and_reviewed(pool: PgPool) {
     let (_, reviews) = app.admin(Method::GET, &format!("/v1/children/{child}/reviews"), None).await;
     assert_eq!(reviews["reviews"][0]["flags"], json!(["struggling"]));
     assert_eq!(reviews["reviews"][0]["session_id"], session.as_str());
+    let (_, view) = app.admin(Method::GET, &format!("/v1/sessions/{session}/supervisor"), None).await;
+    assert_eq!(view["status"], "ended");
+    assert_eq!(view["review"]["guardian_summary"], "Practicó sumas de fracciones y mejoró con una pista.");
+    assert_eq!(view["review"]["flags"], json!(["struggling"]));
     let (_, memories) =
         app.admin(Method::GET, &format!("/v1/children/{child}/memories?query=Likes%20what%3F"), None).await;
     assert_eq!(memories["memories"][0]["content"], "Likes football examples.", "closest in meaning first");

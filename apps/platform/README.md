@@ -86,7 +86,7 @@ Devices do not use a bearer token: they sign with the key burned into them.
 |---|---|
 | `POST /v1/families` | A family and its first guardian, without sign-in |
 | `PUT /v1/skills` | Loads skills into the catalog (`capricorn-platform import-skills <file>` does the same from a file) |
-| `GET /v1/sessions/{id}/supervisor` | The plan and guidance of one session |
+| `GET /v1/sessions/{id}/supervisor` | The plan and guidance of one session and, once it has been reviewed, `review`: the summary and next step written for the family |
 
 ### Agent
 
