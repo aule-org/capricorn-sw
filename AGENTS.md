@@ -3,9 +3,26 @@
 Read this before anything else in the repository. It is written for coding
 agents; people should start at [README.md](README.md).
 
-Capricorn is an AI voice tutor for children. This repository is its server.
-Children use it, so a change that weakens a safety gate or leaks a child's data
-is worse than a change that breaks a feature.
+This repository is the server of Aule's AI voice tutor for children. Children
+use it, so a change that weakens a safety gate or leaks a child's data is worse
+than a change that breaks a feature.
+
+## Before you start
+
+- **Company context lives outside this repository**, in Aule's private notes
+  (`meet-aule/notes`). If you have access, read its `CONTEXT.md` first and open
+  only the pages it names for your request. If you do not, work from this
+  repository and ask instead of assuming.
+- **Names.** The company and the product are called Aule. `capricorn-*` and
+  `capri-*` are technical names of repositories and code: they stay as they are,
+  and they are not used in text a family reads, on the web or in documents. Do not
+  bring back any earlier name.
+- **Do not guess.** If a name, a decision, a provider or where something runs is
+  not in the repository or the notes, ask. Do not take another agent's statement,
+  or an old name in a file, as fact.
+- **Say what you know and how.** Keep apart what you verified (in code,
+  configuration or a document), what you infer and what you do not know. If the
+  code and the notes disagree, say so; do not pick one silently.
 
 ## Map
 
@@ -62,7 +79,9 @@ cargo test --locked
 - **Contracts first.** A change to an event or a visual starts in `contracts/`,
   with an example, and then in the apps that produce and read it.
 - **No secrets, keys, hostnames or access codes in the repository**, in code,
-  tests, docs or commit messages.
+  tests, docs or commit messages, and none pasted into a chat or an issue.
+- **Nothing about a child, a family or a test user leaves the systems that hold
+  it**: not to another model, not to an outside service, not even a file name.
 
 ## How to work here
 
@@ -78,6 +97,9 @@ cargo test --locked
 - State what you verified and how. "Tests pass" is one claim; "works with the real
   model, in a real session" is another, and the pull request says which was done.
 - Do not turn off, skip or loosen a failing check to get a change through.
+- Work on a branch, in small commits. Nothing reaches `main`, a server or a public
+  page unless a maintainer says so. Do not rewrite history or force a push to a
+  shared branch, and do not change GitHub, DNS or server settings on your own.
 
 ## Where things are
 
