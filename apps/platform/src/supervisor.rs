@@ -189,8 +189,10 @@ pub async fn plan(llm: &dyn Llm, inputs: &PlanInputs<'_>) -> Result<Brief, LlmEr
         "You plan one tutoring session for a school student who will talk with a voice tutor for about {} \
 minutes. The tutor asks before it explains and does not hand out answers. Choose at most three skills from \
 the candidates: prefer a review that is due, then one skill in progress, and something new only if there is \
-room. A probability near 0.8 means the difficulty is right; lower means start easier. Write for the tutor, in \
-English, briefly and concretely. {UNTRUSTED}",
+room. A probability near 0.8 means the difficulty is right; lower means start easier. The student's screen \
+shows only black, grey and white, so never plan an activity that depends on telling colours apart: tell \
+things apart by kind, pattern or shade (black ones and grey ones, plain and striped), also when you build on \
+a past activity that used colours. Write for the tutor, in English, briefly and concretely. {UNTRUSTED}",
         inputs.minutes
     );
     let user = json!({

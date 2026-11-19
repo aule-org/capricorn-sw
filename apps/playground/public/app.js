@@ -172,9 +172,12 @@ function awaitReport(id) {
     }
     if (view?.review) {
       $("report-summary").textContent = view.review.guardian_summary;
-      $("report-next").textContent = view.review.next_step ? `Next: ${view.review.next_step}` : "";
+      // The next step is a note for whoever plans the next session, not for the family.
+      $("report-next").textContent = view.review.next_step
+        ? `Note for the next session's plan (not sent to the family): ${view.review.next_step}`
+        : "";
       $("report-next").hidden = !view.review.next_step;
-      $("report-note").textContent = "This is what the family reads. The plan and the conversation are not sent.";
+      $("report-note").textContent = "The summary above is what the family reads. The plan and the conversation are not sent.";
     } else if (Date.now() - started < REPORT_WAIT_MS) {
       reportTimer = setTimeout(ask, SUPERVISOR_POLL_MS);
     } else {
