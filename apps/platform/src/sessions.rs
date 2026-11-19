@@ -554,9 +554,18 @@ pub async fn review_session(state: &AppState, session_id: Uuid) -> ApiResult<()>
             .await?;
 
         let at = session.ended_at.unwrap_or(now);
+        // Skills the tutor's exercises were checked on already have their
+        // evidence, from the check; the review's reading of them is left out.
+        let checked: Vec<String> = sqlx::query_scalar(
+            "select distinct skill_id from attempts where session_id = $1 and source = 'tutor'",
+        )
+        .bind(session.id)
+        .fetch_all(&state.pool)
+        .await?;
         let attempts: Vec<learning::NewAttempt> = review
             .evidence
             .iter()
+            .filter(|item| !checked.contains(&item.skill_id))
             .map(|item| learning::NewAttempt {
                 skill_id: item.skill_id.clone(),
                 question_id: None,
@@ -646,5 +655,8 @@ pub async fn supervisor_view(
     let review = review.map(|(guardian_summary, next_step, flags)| {
         json!({ "guardian_summary": guardian_summary, "next_step": next_step, "flags": flags })
     });
-    Ok(Json(json!({ "status": status, "brief": brief, "guidance": guidance, "review": review })))
+    let exercises = crate::practice::exercises(&state.pool, session_id).await?;
+    Ok(Json(json!({
+        "status": status, "brief": brief, "guidance": guidance, "review": review, "exercises": exercises,
+    })))
 }

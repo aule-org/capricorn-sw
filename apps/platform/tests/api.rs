@@ -1466,3 +1466,153 @@ async fn a_family_names_its_tutor_and_the_agent_is_told(pool: PgPool) {
         app.call(Method::GET, "/v1/agent/session", dispatch["platform_token"].as_str(), None).await;
     assert_eq!(start["tutor"], json!({ "name": "Capri", "persona": "calido", "note": null }));
 }
+
+#[sqlx::test(migrator = "capricorn_platform::MIGRATOR")]
+async fn the_platform_checks_the_tutors_exercises_and_says_what_to_do_next(pool: PgPool) {
+    let app = app(pool);
+    let child = app.child().await;
+    app.consent(&child, "voice", true).await;
+    app.admin(
+        Method::PUT,
+        "/v1/skills",
+        Some(json!({ "skills": [{ "id": "fractions.add", "subject": "math", "name": "Adding fractions" }] })),
+    )
+    .await;
+    let (session, token) = app.session(&child).await;
+    let agent = Some(token.as_str());
+    let pose = |expression: &'static str| {
+        app.call(
+            Method::POST,
+            "/v1/agent/session/exercises",
+            agent,
+            Some(json!({ "expression": expression, "skill_id": "fractions.add", "form": "simplified" })),
+        )
+    };
+    let answer = |said: &'static str| {
+        app.call(Method::POST, "/v1/agent/session/answers", agent, Some(json!({ "said": said })))
+    };
+
+    // Only the session's own tutor may use these, and only on arithmetic.
+    assert_eq!(
+        app.call(Method::POST, "/v1/agent/session/answers", Some(ADMIN), Some(json!({ "said": "1" })))
+            .await
+            .0,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(answer("7/8").await.0, StatusCode::CONFLICT, "nothing has been asked yet");
+    assert_eq!(pose("cuántas pelotas hay en la bolsa").await.0, StatusCode::BAD_REQUEST);
+
+    // First it finds out: two questions, no hints, no right or wrong, and never the answer.
+    let (status, first) = pose("1/2 + 1/3").await;
+    assert_eq!(status, StatusCode::CREATED, "{first}");
+    assert_eq!((first["stage"].as_str(), first["probe"].as_bool()), (Some("diagnose"), Some(true)));
+    assert!(first.get("answer").is_none() && !first.to_string().contains("5/6"), "{first}");
+    let (_, unread) = answer("no sé, mmm").await;
+    assert_eq!(
+        (unread["verdict"].as_str(), unread["attempts"].as_i64(), unread["closed"].as_bool()),
+        (Some("unreadable"), Some(0), Some(false))
+    );
+    let (_, wrong) = answer("dos quintos").await;
+    assert_eq!((wrong["verdict"].as_str(), wrong["read"].as_str()), (Some("incorrect"), Some("2/5")));
+    assert_eq!(
+        (wrong["misconception"].as_str(), wrong["next"].as_str()),
+        (Some("added_across"), Some("probe"))
+    );
+    assert_eq!(wrong["reveal"], Value::Null);
+    assert_eq!(answer("5/6").await.0, StatusCode::CONFLICT, "a probe takes one answer");
+
+    pose("1/4 + 1/4").await;
+    // A probe accepts the right amount however it is written.
+    let (_, second) = answer("me da dos cuartos").await;
+    assert_eq!(
+        (second["verdict"].as_str(), second["stage"].as_str(), second["next"].as_str()),
+        (Some("correct"), Some("practice"), Some("teach"))
+    );
+
+    // Then practice: the same exercise until it is solved, with help that grows.
+    let (_, third) = pose("3/4 + 1/8").await;
+    assert_eq!((third["stage"].as_str(), third["probe"].as_bool()), (Some("practice"), Some(false)));
+    let (_, hint) = answer("cuatro doceavos").await;
+    assert_eq!(
+        (hint["misconception"].as_str(), hint["next"].as_str(), hint["hints"].as_i64()),
+        (Some("added_across"), Some("hint"), Some(1))
+    );
+    assert!(hint["say"].as_str().unwrap().contains("do not give the answer"));
+    let (_, solved) = answer("ah, es siete octavos").await;
+    assert_eq!(
+        (solved["verdict"].as_str(), solved["closed"].as_bool(), solved["next"].as_str()),
+        (Some("correct"), Some(true), Some("next_exercise"))
+    );
+
+    // Stuck to the end: hint, hint, worked example, and only then the answer, to work it out together.
+    pose("1/2 + 1/4").await;
+    let mut nexts = Vec::new();
+    let mut last = Value::Null;
+    for _ in 0..4 {
+        last = answer("2/6").await.1;
+        nexts.push(last["next"].as_str().unwrap().to_string());
+        if nexts.len() < 4 {
+            assert_eq!(last["reveal"], Value::Null, "{last}");
+        }
+    }
+    assert_eq!(nexts, ["hint", "hint", "worked_example", "teach"]);
+    assert_eq!((last["reveal"].as_str(), last["closed"].as_bool()), (Some("3/4"), Some(true)));
+
+    // Asking a new exercise leaves an unanswered one behind.
+    pose("1/3 + 1/3").await;
+    pose("2/5 + 1/5").await;
+    let (_, form) = answer("6/10").await;
+    // The right amount, not simplified as asked: no hint is spent on that.
+    assert_eq!(form["verdict"], "wrong_form");
+    assert_eq!((form["next"].as_str(), form["hints"].as_i64()), (Some("fix_form"), Some(0)));
+    let (_, done) = answer("3/5").await;
+    assert_eq!(done["verdict"], "correct");
+
+    // The team sees every exercise with its answer; the model got its evidence from the checks.
+    let (_, view) = app.admin(Method::GET, &format!("/v1/sessions/{session}/supervisor"), None).await;
+    let lines: Vec<(String, String, String)> = view["exercises"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|line| {
+            let text = |key: &str| line[key].as_str().unwrap().to_string();
+            (text("expression"), text("answer"), text("status"))
+        })
+        .collect();
+    let line = |expression: &str, answer: &str, status: &str| {
+        (expression.to_string(), answer.to_string(), status.to_string())
+    };
+    assert_eq!(
+        lines,
+        [
+            line("1/2 + 1/3", "5/6", "failed"),
+            line("1/4 + 1/4", "1/2", "correct"),
+            line("3/4 + 1/8", "7/8", "correct"),
+            line("1/2 + 1/4", "3/4", "failed"),
+            line("1/3 + 1/3", "2/3", "dropped"),
+            line("2/5 + 1/5", "3/5", "correct"),
+        ]
+    );
+    assert_eq!(view["exercises"][0]["misconception"], "added_across");
+    assert_eq!(
+        app.count("select count(*) from attempts where source = 'tutor'").await,
+        5,
+        "one per closed exercise"
+    );
+    assert_eq!(
+        app.count("select count(*) from attempts where source = 'tutor' and correct").await,
+        2,
+        "solved outright"
+    );
+    assert_eq!(app.count("select count(*) from attempts where source = 'tutor' and credit = 0.5").await, 1);
+
+    // The review's reading of the same skill is left out: the checks already counted.
+    assert_eq!(
+        app.call(Method::POST, "/v1/agent/session/end", agent, Some(json!({}))).await.0,
+        StatusCode::NO_CONTENT
+    );
+    assert!(jobs::work_once(&app.state).await.unwrap());
+    assert_eq!(app.count("select count(*) from attempts where source = 'review'").await, 0);
+    assert_eq!(app.count("select count(*) from attempts").await, 5);
+    assert_eq!(pose("1/2 + 1/2").await.0, StatusCode::CONFLICT, "the session has ended");
+}

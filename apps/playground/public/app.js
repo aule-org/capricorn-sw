@@ -150,6 +150,23 @@ async function showSupervisor(id) {
       ...(view.brief?.skills ?? []).map((skill) => item(`${skill.skill_id}: ${skill.start_with}`)),
     );
     $("notes").replaceChildren(...(view.guidance ?? []).map((note) => item(note.text)));
+    // What the platform worked out and checked. The answers are for the team.
+    const checked = view.exercises ?? [];
+    $("checked-title").hidden = checked.length === 0;
+    $("checked").replaceChildren(
+      ...checked.map((exercise) =>
+        item(
+          [
+            `${exercise.probe ? "Finding out" : "Practice"}: ${exercise.expression} = ${exercise.answer}`,
+            exercise.status,
+            `${exercise.attempts} ${exercise.attempts === 1 ? "try" : "tries"}, ${exercise.hints} ${exercise.hints === 1 ? "hint" : "hints"}`,
+            exercise.misconception ? `mistake: ${exercise.misconception.replaceAll("_", " ")}` : "",
+          ]
+            .filter(Boolean)
+            .join(" · "),
+        ),
+      ),
+    );
   } catch {
     // The panel is a view of the session, not part of it.
   }
