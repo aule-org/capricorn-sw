@@ -1575,6 +1575,22 @@ async fn the_platform_checks_the_tutors_exercises_and_says_what_to_do_next(pool:
     let (_, done) = answer("3/5").await;
     assert_eq!(done["verdict"], "correct");
 
+    // A skill id the tutor made up is not kept: the exercise counts for no skill.
+    let (status, _) = app
+        .call(
+            Method::POST,
+            "/v1/agent/session/exercises",
+            agent,
+            Some(json!({ "expression": "2 + 2", "skill_id": "fractions_add_unlike" })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(
+        app.count("select count(*) from session_exercises where skill_id = 'fractions_add_unlike'").await,
+        0
+    );
+    assert_eq!(answer("cuatro").await.1["verdict"], "correct");
+
     // The team sees every exercise with its answer; the model got its evidence from the checks.
     let (_, view) = app.admin(Method::GET, &format!("/v1/sessions/{session}/supervisor"), None).await;
     let lines: Vec<(String, String, String)> = view["exercises"]
@@ -1598,6 +1614,7 @@ async fn the_platform_checks_the_tutors_exercises_and_says_what_to_do_next(pool:
             line("1/2 + 1/4", "3/4", "failed"),
             line("1/3 + 1/3", "2/3", "dropped"),
             line("2/5 + 1/5", "3/5", "correct"),
+            line("2 + 2", "4", "correct"),
         ]
     );
     assert_eq!(view["exercises"][0]["misconception"], "added_across");
