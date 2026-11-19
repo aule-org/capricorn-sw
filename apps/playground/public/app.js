@@ -118,8 +118,9 @@ async function onTranscription(reader, participant) {
   let text = "";
   for await (const chunk of reader) {
     text += chunk;
+    // The page stays where the person left it: following every word pulled
+    // the view away from the microphone and camera buttons.
     line.textContent = text;
-    line.scrollIntoView({ block: "nearest" });
   }
 }
 
@@ -560,7 +561,6 @@ $("type").addEventListener("submit", async (event) => {
     line.dataset.who = "you";
     line.dataset.name = "You (typed)";
     $("transcript").append(line);
-    line.scrollIntoView({ block: "nearest" });
   } catch {
     showMessage("The message could not be sent.");
   }
