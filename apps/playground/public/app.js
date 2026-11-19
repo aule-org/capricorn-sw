@@ -2,6 +2,7 @@
 // asks the server for a room token, joins the room, and shows what the tutor
 // is doing.
 
+import { onEnter, sessionRequest } from "./signin.js";
 import { TOPIC as VISUAL_TOPIC, renderVisual } from "./visuals.js";
 
 const { Room, RoomEvent, Track, ParticipantKind, DisconnectReason } = LivekitClient;
@@ -47,10 +48,13 @@ const CHAT_TOPIC = "lk.chat";
 const ERRORS = {
   wrong_code: "That access code is not right.",
   too_many_attempts: "Too many wrong codes. Wait a minute and try again.",
+  daily_limit: "Ya usaste las sesiones de hoy. Vuelve mañana.",
+  not_signed_in: "Tu sesión se cerró. Vuelve a entrar con Google.",
 };
 
 const $ = (id) => document.getElementById(id);
-const entry = $("entry");
+// Everything shown before a session: signing in, and the team's access code.
+const entry = $("welcome");
 const lobby = $("lobby");
 const stage = $("stage");
 const message = $("message");
@@ -486,8 +490,14 @@ function leave(reason) {
   sessionId = null;
 }
 
-entry.addEventListener("submit", (event) => {
+$("entry").addEventListener("submit", (event) => {
   event.preventDefault();
+  showMessage("");
+  openLobby();
+});
+
+// A signed-in person who has chosen a student goes to the same lobby.
+onEnter(() => {
   showMessage("");
   openLobby();
 });
@@ -513,7 +523,7 @@ $("join").addEventListener("click", async () => {
     const response = await fetch("api/session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: $("code").value, language: $("language").value }),
+      body: JSON.stringify(sessionRequest({ code: $("code").value, language: $("language").value })),
     });
     const body = await response.json();
     if (!response.ok) {

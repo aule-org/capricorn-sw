@@ -16,6 +16,8 @@ export type Settings = {
   accessCode: string;
   agentName: string;
   sessionMinutes: number;
+  /** Sessions one signed-in account may start in a day. */
+  dailySessions: number;
   /** With a platform, sessions are created there and the supervisor takes part. */
   platform: { url: string; adminToken: string; childId: string | null } | null;
 };
@@ -57,6 +59,10 @@ export function readSettings(env: Record<string, string | undefined>): Settings 
   if (!Number.isInteger(sessionMinutes) || sessionMinutes < 1 || sessionMinutes > 120) {
     problems.push("PLAYGROUND_SESSION_MINUTES must be a whole number from 1 to 120");
   }
+  const dailySessions = Number(get("PLAYGROUND_DAILY_SESSIONS", "3"));
+  if (!Number.isInteger(dailySessions) || dailySessions < 1 || dailySessions > 100) {
+    problems.push("PLAYGROUND_DAILY_SESSIONS must be a whole number from 1 to 100");
+  }
 
   const platformUrl = get("CAPRICORN_PLATFORM_URL").replace(/\/+$/, "");
   const adminToken = get("CAPRICORN_ADMIN_TOKEN");
@@ -83,6 +89,7 @@ export function readSettings(env: Record<string, string | undefined>): Settings 
     accessCode,
     agentName: get("CAPRICORN_AGENT_NAME", "capricorn-tutor"),
     sessionMinutes,
+    dailySessions,
     platform: platformUrl ? { url: platformUrl, adminToken, childId: childId || null } : null,
   };
 }

@@ -490,3 +490,35 @@ label.check input {
   padding-left: 18px;
   font-size: 0.875rem;
 }
+
+/* Signing in */
+#google {
+  min-height: 44px;
+}
+
+.hello {
+  font-weight: 600;
+}
+
+#students {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+#team {
+  margin-top: 2rem;
+}
+
+#team summary {
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.7;
+}
+
+button.quiet {
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  opacity: 0.7;
+}
