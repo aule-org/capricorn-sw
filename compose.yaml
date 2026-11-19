@@ -47,7 +47,9 @@ services:
     build:
       context: .
       dockerfile: apps/agent/Dockerfile
-    mem_limit: 2g
+    # Each session in progress is its own process: about 110 MB on top of
+    # roughly 900 MB for the idle worker, so 2g holds eight to ten sessions.
+    mem_limit: ${CAPRICORN_AGENT_MEMORY:-2g}
 
   postgres:
     image: pgvector/pgvector:pg17
