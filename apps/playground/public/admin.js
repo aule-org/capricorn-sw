@@ -2,7 +2,7 @@
 // plan, and a plan granted for free. The platform decides who is on the team.
 
 const $ = (id) => document.getElementById(id);
-const PLANS = { trial: "Prueba", paid: "Pagado", granted: "Regalado", none: "Sin plan" };
+const PLANS = { trial: "Prueba", paid: "Pagado", granted: "Regalado", none: "Sin plan", team: "Equipo" };
 
 let families = [];
 
@@ -76,7 +76,8 @@ function planText(standing) {
   if (!standing) return "";
   const name = PLANS[standing.plan] ?? standing.plan;
   const until = standing.ends_at ? ` hasta ${day(standing.ends_at)}` : "";
-  const left = standing.plan === "none" ? "" : ` · quedan ${standing.left} de ${standing.allowed}`;
+  const left =
+    standing.left == null || standing.plan === "none" ? "" : ` · quedan ${standing.left} de ${standing.allowed}`;
   return `${name}${until}${left}`;
 }
 

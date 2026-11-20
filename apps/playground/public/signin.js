@@ -138,6 +138,7 @@ const date = (iso) => new Date(iso).toLocaleDateString("es-PE", { day: "numeric"
 /** What the family's plan allows now, in a line; and whether a session can start. */
 function planLine(plan) {
   if (!plan) return { text: "", open: true };
+  if (plan.plan === "team") return { text: "Equipo de Aule: sesiones sin límite.", open: true };
   const left = plan.left ?? 0;
   if (plan.plan === "trial" && !plan.ends_at) {
     return { text: "Prueba gratis de 7 días: empieza con tu primera sesión. Una sesión al día.", open: true };

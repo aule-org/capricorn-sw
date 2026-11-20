@@ -4,7 +4,8 @@
 //! day. After that it needs a plan, paid every month or granted by the team for
 //! as long as the team says, which gives three sessions in any seven days. A
 //! session counts once the tutor has started it, unless it ended within two
-//! minutes: a slip of the finger costs nothing.
+//! minutes: a slip of the finger costs nothing. The families of Aule's team
+//! (`AULE_ADMIN_EMAILS`) are not counted: they use Aule to try it.
 
 use axum::Json;
 use axum::extract::{Path, State};
@@ -40,6 +41,8 @@ pub enum Plan {
     Granted,
     /// The trial is over and there is no plan.
     None,
+    /// A family of Aule's team: no limit.
+    Team,
 }
 
 impl Plan {
@@ -49,6 +52,7 @@ impl Plan {
             Self::Paid => "paid",
             Self::Granted => "granted",
             Self::None => "none",
+            Self::Team => "team",
         }
     }
 }
@@ -70,12 +74,13 @@ impl Standing {
     }
 
     pub fn json(&self) -> Value {
+        let unlimited = self.plan == Plan::Team;
         json!({
             "plan": self.plan.name(),
             "ends_at": self.ends_at,
             "used": self.used,
-            "allowed": self.allowed,
-            "left": self.left(),
+            "allowed": (!unlimited).then_some(self.allowed),
+            "left": (!unlimited).then_some(self.left()),
             "period": self.period,
             "price": { "amount_cents": PRICE_CENTS, "currency": CURRENCY, "sessions_per_week": PLAN_PER_WEEK },
         })
@@ -83,10 +88,13 @@ impl Standing {
 
     /// Why no session can start now, for the page to say; none while one can.
     fn limit(&self) -> Option<&'static str> {
+        if self.plan == Plan::Team {
+            return None;
+        }
         (self.left() == 0).then_some(match self.plan {
             Plan::Trial => "trial_day_used",
             Plan::None => "trial_over",
-            Plan::Paid | Plan::Granted => "week_used",
+            Plan::Paid | Plan::Granted | Plan::Team => "week_used",
         })
     }
 }
@@ -125,12 +133,35 @@ async fn first_session(db: &impl ConnectionTrait, family_id: Uuid) -> ApiResult<
     Ok(row.map(|row| row.try_get::<Option<DateTime<Utc>>>("", "first")).transpose()?.flatten())
 }
 
-pub async fn standing(
-    db: &impl ConnectionTrait,
-    family_id: Uuid,
-    now: DateTime<Utc>,
-    offset_minutes: i32,
-) -> ApiResult<Standing> {
+/// Whether one of the family's guardians is on Aule's team.
+async fn is_team(db: &impl ConnectionTrait, family_id: Uuid, team: &[String]) -> ApiResult<bool> {
+    if team.is_empty() {
+        return Ok(false);
+    }
+    let row = db
+        .query_one_raw(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            // The addresses were checked at start: none has a comma.
+            "select exists(select 1 from guardians
+               where family_id = $1 and email = any(string_to_array($2, ','))) as team",
+            [family_id.into(), team.join(",").into()],
+        ))
+        .await?;
+    Ok(row.map(|row| row.try_get::<bool>("", "team")).transpose()?.unwrap_or(false))
+}
+
+pub async fn standing(state: &AppState, family_id: Uuid, now: DateTime<Utc>) -> ApiResult<Standing> {
+    let db = &state.db;
+    if is_team(db, family_id, &state.config.admin_emails).await? {
+        return Ok(Standing {
+            plan: Plan::Team,
+            ends_at: None,
+            used: counted(db, family_id, now - Duration::days(7)).await?,
+            allowed: 0,
+            period: "week",
+        });
+    }
+    let offset_minutes = state.config.timezone_offset_minutes;
     // A plan that holds now; with two, the one that lasts longer.
     let plan = subscription::Entity::find()
         .filter(subscription::Column::FamilyId.eq(family_id))
@@ -163,7 +194,7 @@ pub async fn standing(
 
 /// Whether the family may start a session now. A refusal says which limit.
 pub async fn admit(state: &AppState, family_id: Uuid) -> ApiResult<()> {
-    let standing = standing(&state.db, family_id, Utc::now(), state.config.timezone_offset_minutes).await?;
+    let standing = standing(&state, family_id, Utc::now()).await?;
     match standing.limit() {
         None => Ok(()),
         Some(reason) => Err(ApiError::PlanLimit(reason)),
@@ -173,8 +204,7 @@ pub async fn admit(state: &AppState, family_id: Uuid) -> ApiResult<()> {
 /// The signed-in family's plan and what is left of it, and whether the person
 /// is on Aule's team (the page then shows the way to the admin panel).
 pub async fn mine(guardian: Guardian, State(state): State<AppState>) -> ApiResult<Json<Value>> {
-    let standing =
-        standing(&state.db, guardian.family_id, Utc::now(), state.config.timezone_offset_minutes).await?;
+    let standing = standing(&state, guardian.family_id, Utc::now()).await?;
     let email: Option<String> = guardian::Entity::find_by_id(guardian.id)
         .select_only()
         .column(guardian::Column::Email)
@@ -219,7 +249,7 @@ pub async fn families(_: Staff, State(state): State<AppState>) -> ApiResult<Json
     let mut families = Vec::with_capacity(rows.len());
     for row in rows {
         let id: Uuid = row.try_get("", "id")?;
-        let standing = standing(&state.db, id, now, state.config.timezone_offset_minutes).await?;
+        let standing = standing(&state, id, now).await?;
         families.push(json!({
             "id": id,
             "name": row.try_get::<String>("", "name")?,
@@ -275,7 +305,7 @@ pub async fn grant(
     .exec_without_returning(&state.db)
     .await?;
     tracing::info!(%family_id, days = body.days, by = staff.email.as_deref().unwrap_or("operator"), "a plan was granted");
-    let standing = standing(&state.db, family_id, now, state.config.timezone_offset_minutes).await?;
+    let standing = standing(&state, family_id, now).await?;
     Ok((StatusCode::CREATED, Json(standing.json())))
 }
 
@@ -295,7 +325,7 @@ pub async fn ungrant(
         .exec(&state.db)
         .await?;
     tracing::info!(%family_id, by = staff.email.as_deref().unwrap_or("operator"), "a granted plan was ended");
-    let standing = standing(&state.db, family_id, now, state.config.timezone_offset_minutes).await?;
+    let standing = standing(&state, family_id, now).await?;
     Ok(Json(standing.json()))
 }
 
@@ -318,6 +348,7 @@ mod tests {
         assert_eq!(standing(Plan::Trial, 1, 1).limit(), Some("trial_day_used"));
         assert_eq!(standing(Plan::Granted, 3, 3).limit(), Some("week_used"));
         assert_eq!(standing(Plan::None, 0, 0).limit(), Some("trial_over"));
+        assert_eq!(standing(Plan::Team, 9, 0).limit(), None);
         assert_eq!(standing(Plan::Paid, 5, 3).left(), 0);
     }
 }
