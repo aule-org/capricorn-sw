@@ -190,12 +190,14 @@ class Gates:
         only a clear "ordinary" lets it through. Under them, two readers are
         asked at once, and a "concern" that the other reader does not contradict
         stops it with the line for a child in distress. Otherwise the
-        finding stays as it was. When the physical-safety gate could not judge
-        the turn at all, it is stopped anyway and is not read again.
+        finding stays as it was. A turn the physical-safety gate stopped for a
+        hazard keeps that gate's own line, which fits a curious child ("I'm
+        going to stick a fork in the socket" scores as faint self-harm too);
+        one it could not judge at all is stopped anyway. Neither is read again.
         """
         if not (finding.faint_self_harm or finding.unsure) or self._second_opinion is None:
             return finding
-        if verdict in (Verdict.UNAVAILABLE, Verdict.CONTEXT_LIMIT):
+        if verdict not in (None, Verdict.ALLOW, Verdict.UNCERTAIN):
             return finding
         tutor = _last_said_by_the_tutor(context)
         if finding.categories:
