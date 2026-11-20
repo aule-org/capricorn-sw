@@ -62,7 +62,7 @@
       "id": "numeros.contar-hasta-100",
       "subject": "math",
       "name": "Contar hasta 100",
-      "grade": "P1",
+      "grade": "P2",
       "description": "Cuenta de uno en uno y de diez en diez hasta 100, y dice el número que sigue a cualquier número de dos cifras. Ejemplo: «Cuenta de diez en diez desde el 10 hasta el 100». «¿Qué número viene después del 39?» (40).",
       "prerequisites": [
         "numeros.decena-y-unidades-hasta-20"
@@ -388,7 +388,7 @@
       "id": "multiplicacion.sumas-repetidas",
       "subject": "math",
       "name": "Entender la multiplicación como suma repetida",
-      "grade": "P2",
+      "grade": "P3",
       "description": "Reconoce grupos iguales y dice el total sumando varias veces la misma cantidad, usando la palabra «veces». Ejemplo: «Hay 4 platos y en cada plato hay 2 panes. ¿Cuántos panes hay en total?» (8). «¿Cuánto es 3 veces 5?» (15).",
       "prerequisites": [
         "suma-resta.sumar-hasta-20",
@@ -432,7 +432,7 @@
       "id": "tiempo.leer-horas-en-punto-y-media",
       "subject": "math",
       "name": "Leer la hora en punto y la media hora",
-      "grade": "P2",
+      "grade": "P4",
       "description": "Dice la hora en punto y «y media» a partir de la posición de las agujas, y ordena actividades del día por su hora. Ejemplo: «La aguja corta está en el 3 y la larga en el 12. ¿Qué hora es?» (las 3 en punto). «Son las 7 y media. ¿En qué número está la aguja larga?» (en el 6).",
       "prerequisites": [
         "numeros.contar-hasta-20"
@@ -518,7 +518,7 @@
       "id": "longitud.metro-y-centimetro",
       "subject": "math",
       "name": "Medir y estimar en metros y centímetros",
-      "grade": "P2",
+      "grade": "P3",
       "description": "Elige entre metro y centímetro para medir un objeto, estima largos y compara medidas dadas en la misma unidad. Ejemplo: «¿Mides el largo de tu lápiz en metros o en centímetros?» (centímetros). «Una cinta mide 35 centímetros y otra 53. ¿Cuál es más larga?» (la de 53).",
       "prerequisites": [
         "longitud.medir-con-pasos-y-cuartas",
@@ -529,7 +529,7 @@
       "id": "capacidad.comparar-recipientes",
       "subject": "math",
       "name": "Comparar cuánto cabe en distintos recipientes",
-      "grade": "P2",
+      "grade": "P3",
       "description": "Compara la capacidad de recipientes usando «cabe más», «cabe menos» y unidades no convencionales como vasos o tazas. Ejemplo: «¿Dónde cabe más agua, en un balde o en una taza?» (en el balde). «Una jarra se llena con 6 vasos y una botella con 4. ¿A cuál le cabe más?» (a la jarra).",
       "prerequisites": []
     },
@@ -537,7 +537,7 @@
       "id": "datos.leer-pictograma",
       "subject": "math",
       "name": "Leer un pictograma sencillo",
-      "grade": "P2",
+      "grade": "P1",
       "description": "Interpreta un pictograma en el que cada dibujo vale uno y responde preguntas de cuántos, cuál tiene más y cuántos más. Ejemplo: «En el pictograma, perros tiene 6 caritas, gatos 4 y loros 2. ¿Cuántos niños más tienen perro que gato?» (2). «¿Cuántos niños respondieron en total?» (12).",
       "prerequisites": [
         "datos.leer-tabla-de-conteo",
@@ -548,11 +548,11 @@
       "id": "datos.leer-grafico-de-barras-simple",
       "subject": "math",
       "name": "Leer un gráfico de barras sencillo",
-      "grade": "P2",
+      "grade": "P1",
       "description": "Interpreta un gráfico de barras descrito en voz alta o mostrado en su cuaderno: lee el valor de cada barra, cuál es la más alta y la diferencia entre dos barras. Ejemplo: «La barra de lunes llega a 15, la de martes a 20 y la de miércoles a 10. ¿Qué día se vendió más?» (martes). «¿Cuánto más que el miércoles?» (10).",
       "prerequisites": [
         "datos.leer-tabla-de-conteo",
-        "numeros.comparar-y-ordenar-hasta-100"
+        "numeros.comparar-hasta-20"
       ]
     },
     {
@@ -742,7 +742,7 @@
       "id": "fracciones.mitad-tercio-cuarto",
       "subject": "math",
       "name": "Reconocer medios, tercios y cuartos",
-      "grade": "P3",
+      "grade": "P4",
       "description": "Entiende la mitad, la tercera parte y la cuarta parte como partes iguales de una unidad, y sabe cuántas forman el entero. Ejemplo: «Partes una pizza en 4 partes iguales y te comes una. ¿Qué parte de la pizza comiste?» (un cuarto). «¿Cuántos medios forman una naranja entera?» (2).",
       "prerequisites": [
         "numeros.dobles-y-mitades",
@@ -764,7 +764,7 @@
       "id": "tiempo.leer-horas-y-minutos",
       "subject": "math",
       "name": "Leer la hora con minutos",
-      "grade": "P3",
+      "grade": "P4",
       "description": "Lee la hora con minutos, usa «y cuarto» y «menos cuarto», y sabe que una hora tiene 60 minutos. Ejemplo: «La aguja larga está en el 3 y la corta acaba de pasar el 8. ¿Qué hora es?» (las 8 y cuarto, o 8 y 15). «¿Cuántos minutos hay en media hora?» (30).",
       "prerequisites": [
         "tiempo.leer-horas-en-punto-y-media",
@@ -775,7 +775,7 @@
       "id": "masa.kilogramos-y-gramos",
       "subject": "math",
       "name": "Usar kilogramos y gramos",
-      "grade": "P3",
+      "grade": "P4",
       "description": "Elige entre kilogramo y gramo para expresar un peso, sabe que un kilo tiene 1000 gramos y usa medio kilo y un cuarto de kilo. Ejemplo: «¿Cuántos gramos hay en medio kilo de arroz?» (500). «¿Pesas una sandía en gramos o en kilogramos?» (kilogramos).",
       "prerequisites": [
         "masa.comparar-pesos",
@@ -830,7 +830,7 @@
       "id": "geometria.prismas-caras-aristas-vertices",
       "subject": "math",
       "name": "Contar caras, aristas y vértices de cubos y cajas",
-      "grade": "P3",
+      "grade": "P4",
       "description": "Describe el cubo y el prisma rectangular por sus caras, aristas y vértices, usando un objeto real como apoyo. Ejemplo: «Toma una caja. ¿Cuántas caras tiene?» (6). «¿Cuántos vértices tiene un cubo?» (8). «¿Qué forma tienen las caras de un dado?» (cuadrados).",
       "prerequisites": [
         "geometria.cuerpos-geometricos-basicos"
@@ -852,7 +852,7 @@
       "id": "longitud.convertir-metros-y-centimetros",
       "subject": "math",
       "name": "Convertir entre metros y centímetros",
-      "grade": "P3",
+      "grade": "P4",
       "description": "Sabe que un metro tiene 100 centímetros y convierte medidas sencillas entre ambas unidades. Ejemplo: «¿Cuántos centímetros hay en 3 metros?» (300). «Una mesa mide 1 metro y 20 centímetros. ¿Cuántos centímetros son?» (120).",
       "prerequisites": [
         "longitud.metro-y-centimetro",
@@ -863,7 +863,7 @@
       "id": "capacidad.litros",
       "subject": "math",
       "name": "Medir capacidad en litros",
-      "grade": "P3",
+      "grade": "P4",
       "description": "Usa el litro, el medio litro y el cuarto de litro para expresar y comparar capacidades. Ejemplo: «¿Cuántas botellas de medio litro necesito para llenar una jarra de 2 litros?» (4). «¿Qué tiene más, una botella de 1 litro o dos vasos de un cuarto de litro?» (la botella).",
       "prerequisites": [
         "capacidad.comparar-recipientes",
@@ -874,7 +874,7 @@
       "id": "ubicacion.cuadricula-filas-y-columnas",
       "subject": "math",
       "name": "Ubicarse y moverse en una cuadrícula",
-      "grade": "P3",
+      "grade": "P2",
       "description": "Ubica casilleros por fila y columna y describe desplazamientos en una cuadrícula con cuántos casilleros y hacia dónde. Ejemplo: «Estás en la fila 2, columna 3. Avanzas 2 casilleros hacia la derecha. ¿En qué columna estás ahora?» (en la 5, misma fila 2).",
       "prerequisites": [
         "ubicacion.seguir-recorridos"
@@ -1046,7 +1046,7 @@
       "id": "fracciones.fraccion-de-una-cantidad",
       "subject": "math",
       "name": "Calcular la fracción de una cantidad",
-      "grade": "P4",
+      "grade": "P5",
       "description": "Calcula la mitad, la tercera parte, la cuarta parte u otra fracción sencilla de un conjunto de objetos. Ejemplo: «¿Cuánto es un tercio de 18 canicas?» (6). «Tres cuartos de los 20 alumnos fueron al paseo. ¿Cuántos fueron?» (15).",
       "prerequisites": [
         "fracciones.concepto-numerador-y-denominador",
@@ -1100,7 +1100,7 @@
       "id": "masa.convertir-kilogramos-y-gramos",
       "subject": "math",
       "name": "Convertir entre kilogramos y gramos",
-      "grade": "P4",
+      "grade": "P5",
       "description": "Convierte entre kilogramos y gramos y suma pesos dados en ambas unidades. Ejemplo: «¿Cuántos gramos son 3 kilogramos?» (3000). «Compras 750 gramos de queso y 250 gramos de jamón. ¿Cuántos kilos llevas?» (1 kilo).",
       "prerequisites": [
         "masa.kilogramos-y-gramos",
@@ -1220,7 +1220,7 @@
       "id": "longitud.kilometros-y-metros",
       "subject": "math",
       "name": "Usar kilómetros, metros y milímetros",
-      "grade": "P4",
+      "grade": "P5",
       "description": "Elige la unidad adecuada entre kilómetro, metro, centímetro y milímetro, y convierte entre kilómetros y metros. Ejemplo: «¿Cuántos metros hay en 2 kilómetros?» (2000). «¿En qué unidad medirías la distancia de Lima a Cusco?» (kilómetros).",
       "prerequisites": [
         "longitud.convertir-metros-y-centimetros",
@@ -1242,7 +1242,7 @@
       "id": "datos.grafico-de-barras-con-escala",
       "subject": "math",
       "name": "Leer gráficos de barras con escala",
-      "grade": "P4",
+      "grade": "P3",
       "description": "Interpreta gráficos de barras cuya escala va de 2 en 2, de 5 en 5 o de 10 en 10, y saca conclusiones. Ejemplo: «La escala va de 10 en 10. La barra de enero llega a 40 y la de febrero queda a la mitad entre 20 y 30. ¿Cuánto se vendió en febrero?» (25). «¿Cuánto en total?» (65).",
       "prerequisites": [
         "datos.tabla-de-frecuencias",
@@ -1304,7 +1304,7 @@
       "id": "numeros.multiplos-y-divisores",
       "subject": "math",
       "name": "Encontrar múltiplos y divisores de un número",
-      "grade": "P5",
+      "grade": "P6",
       "description": "Dice múltiplos de un número y encuentra todos los divisores de números hasta 100. Ejemplo: «Dime los cinco primeros múltiplos de 6» (6, 12, 18, 24, 30). «¿Cuáles son los divisores de 12?» (1, 2, 3, 4, 6 y 12). «¿El 45 es múltiplo de 9?» (sí).",
       "prerequisites": [
         "multiplicacion.tablas-7-8-9",
@@ -1350,8 +1350,7 @@
       "grade": "P5",
       "description": "Obtiene fracciones equivalentes multiplicando o dividiendo numerador y denominador por un mismo número, y simplifica hasta la fracción irreducible. Ejemplo: «Simplifica doce dieciochoavos» (dos tercios). «Dime una fracción equivalente a tres quintos con denominador 20» (doce veinteavos).",
       "prerequisites": [
-        "fracciones.equivalentes-simples",
-        "numeros.multiplos-y-divisores"
+        "fracciones.equivalentes-simples"
       ]
     },
     {
@@ -1500,7 +1499,7 @@
       "id": "geometria.clasificar-triangulos",
       "subject": "math",
       "name": "Clasificar triángulos por sus lados y por sus ángulos",
-      "grade": "P5",
+      "grade": "P6",
       "description": "Clasifica triángulos en equilátero, isósceles y escaleno, y en acutángulo, rectángulo y obtusángulo. Ejemplo: «Un triángulo tiene lados de 5, 5 y 8 centímetros. ¿Cómo se llama?» (isósceles). «¿Cómo se llama el triángulo que tiene un ángulo recto?» (triángulo rectángulo).",
       "prerequisites": [
         "geometria.triangulos-y-cuadrilateros"
@@ -1542,7 +1541,7 @@
       "id": "geometria.area-triangulo",
       "subject": "math",
       "name": "Calcular el área de un triángulo",
-      "grade": "P5",
+      "grade": "P6",
       "description": "Entiende que el área de un triángulo es la mitad de la de un rectángulo con la misma base y altura, y la calcula. Ejemplo: «Un triángulo tiene 10 centímetros de base y 6 de altura. ¿Cuál es su área?» (30 centímetros cuadrados).",
       "prerequisites": [
         "geometria.area-rectangulo-y-cuadrado",
@@ -1553,7 +1552,7 @@
       "id": "geometria.prismas-y-piramides",
       "subject": "math",
       "name": "Describir prismas y pirámides",
-      "grade": "P5",
+      "grade": "S2",
       "description": "Distingue prismas de pirámides y los describe por la forma de su base y su número de caras, aristas y vértices. Ejemplo: «¿Cuántas caras tiene una pirámide de base cuadrada?» (5). «¿Qué forma tienen las caras laterales de una pirámide?» (triángulos). «¿Y las de un prisma?» (rectángulos).",
       "prerequisites": [
         "geometria.prismas-caras-aristas-vertices",
@@ -1564,10 +1563,10 @@
       "id": "geometria.volumen-contando-cubos",
       "subject": "math",
       "name": "Medir el volumen contando cubos unidad",
-      "grade": "P5",
+      "grade": "P6",
       "description": "Entiende el volumen como la cantidad de cubitos que llenan un cuerpo y lo calcula en construcciones con forma de caja contando capas. Ejemplo: «Armas una caja con cubitos: cada piso tiene 3 filas de 4 cubitos y hay 2 pisos. ¿Cuántos cubitos usaste?» (24).",
       "prerequisites": [
-        "geometria.prismas-y-piramides",
+        "geometria.prismas-caras-aristas-vertices",
         "geometria.area-en-unidades-cuadradas"
       ]
     },
@@ -1638,7 +1637,7 @@
       "id": "numeros.millones",
       "subject": "math",
       "name": "Leer y comparar números de más de seis cifras",
-      "grade": "P6",
+      "grade": "S1",
       "description": "Lee, escribe, compara y redondea números de siete o más cifras. Ejemplo: «¿Cómo se lee un 3 seguido de seis ceros?» (tres millones). «¿Cuál es mayor, 2 millones 450 mil o 2 millones 405 mil?» (2 millones 450 mil). «¿Cuántas unidades de millar hay en un millón?» (mil).",
       "prerequisites": [
         "numeros.comparar-y-redondear-hasta-un-millon"
@@ -1701,7 +1700,7 @@
       "id": "fracciones.dividir",
       "subject": "math",
       "name": "Dividir con fracciones",
-      "grade": "P6",
+      "grade": "S1",
       "description": "Divide un número natural entre una fracción y una fracción entre un número natural, apoyándose en la idea de «cuántas veces cabe». Ejemplo: «¿Cuántos vasos de un cuarto de litro salen de 2 litros?» (8). «Repartes medio queque entre 3 personas. ¿Qué fracción del queque recibe cada una?» (un sexto).",
       "prerequisites": [
         "fracciones.multiplicar"
@@ -1711,7 +1710,7 @@
       "id": "decimales.milesimos",
       "subject": "math",
       "name": "Leer y comparar decimales hasta los milésimos",
-      "grade": "P6",
+      "grade": "S1",
       "description": "Lee, escribe, compara y redondea decimales hasta los milésimos. Ejemplo: «¿Cómo se lee 0 coma 125?» (ciento veinticinco milésimos). «¿Cuál es mayor, 0 coma 3 o 0 coma 298?» (0 coma 3). «Redondea 4 coma 76 al décimo más cercano» (4 coma 8).",
       "prerequisites": [
         "decimales.comparar-y-ordenar"
@@ -1787,7 +1786,7 @@
       "id": "porcentajes.calcular-porcentaje-de-una-cantidad",
       "subject": "math",
       "name": "Calcular cualquier porcentaje de una cantidad",
-      "grade": "P6",
+      "grade": "S1",
       "description": "Calcula un porcentaje cualquiera de una cantidad multiplicando por el decimal o la fracción equivalente. Ejemplo: «¿Cuánto es el 15 por ciento de 200?» (30). «En un salón de 40 estudiantes, el 30 por ciento usa lentes. ¿Cuántos son?» (12).",
       "prerequisites": [
         "porcentajes.porcentajes-usuales",
@@ -1798,7 +1797,7 @@
       "id": "porcentajes.descuentos-y-aumentos",
       "subject": "math",
       "name": "Resolver problemas de descuentos y aumentos",
-      "grade": "P6",
+      "grade": "S1",
       "description": "Calcula el precio final después de un descuento o un aumento en porcentaje. Ejemplo: «Unas zapatillas cuestan 120 soles y tienen 25 por ciento de descuento. ¿Cuánto pagas?» (90 soles). «Un pasaje de 2 soles sube 10 por ciento. ¿Cuánto cuesta ahora?» (2 soles con 20 céntimos).",
       "prerequisites": [
         "porcentajes.calcular-porcentaje-de-una-cantidad",
@@ -1951,7 +1950,7 @@
       "id": "datos.grafico-circular-con-porcentajes",
       "subject": "math",
       "name": "Leer gráficos circulares con porcentajes",
-      "grade": "P6",
+      "grade": "S1",
       "description": "Interpreta un gráfico circular con sectores en porcentajes y calcula cuántos corresponden a cada sector. Ejemplo: «De 200 estudiantes, el gráfico dice 50 por ciento a pie, 30 por ciento en bus y el resto en bicicleta. ¿Qué porcentaje va en bicicleta?» (20 por ciento). «¿Cuántos estudiantes son?» (40).",
       "prerequisites": [
         "porcentajes.calcular-porcentaje-de-una-cantidad",
