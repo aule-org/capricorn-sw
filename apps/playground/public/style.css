@@ -1495,57 +1495,98 @@ button[aria-pressed="true"]:not(.talk) {
   white-space: nowrap;
 }
 
-/* Cuyes dance on a manta at the foot of the page: six of them, drawn in
-   pixels, each with a coat of its own and two in a chullo, hop, sway and turn
-   on the beat, out of step with each other, on a band of tocapus. Not during
-   a session, and still for anyone who asks the system for less motion. */
+/* Cuyes dance on a manta at the foot of the page: twelve of them, drawn in
+   pixels, each with a coat of its own, some in a chullo, half facing the
+   other way. As many as the width holds jig, hop, sway and turn, out of step
+   with each other, on a band of tocapus. Not during a session, and still for
+   anyone who asks the system for less motion. */
 .dancers {
   display: flex;
   justify-content: center;
   align-items: flex-end;
   gap: 8px;
   height: 84px;
-  margin: 28px auto 0;
+  overflow: hidden;
   /* Their feet stand a little into the manta. */
   padding-bottom: 18px;
   background: url("manta.png") center bottom / 96px 27px repeat-x;
-  max-width: 460px;
+  max-width: 720px;
+  margin: 28px auto 0;
   image-rendering: pixelated;
 }
 
 .dancers i {
+  flex: none;
   width: 48px;
   height: 48px;
-  background: url("dancers.png") 0 0 / 288px 48px;
+  background: url("dancers.png") 0 0 / 576px 48px;
   animation: jig 0.84s steps(1, end) infinite;
 }
 
-.dancers i:nth-child(2) {
+.dancers i:nth-child(12n + 2) {
   background-position: -48px 0;
-  animation-name: hop;
-  animation-delay: -0.21s;
 }
 
-.dancers i:nth-child(3) {
+.dancers i:nth-child(12n + 3) {
   background-position: -96px 0;
-  animation-delay: -0.42s;
 }
 
-.dancers i:nth-child(4) {
+.dancers i:nth-child(12n + 4) {
   background-position: -144px 0;
+}
+
+.dancers i:nth-child(12n + 5) {
+  background-position: -192px 0;
+}
+
+.dancers i:nth-child(12n + 6) {
+  background-position: -240px 0;
+}
+
+.dancers i:nth-child(12n + 7) {
+  background-position: -288px 0;
+}
+
+.dancers i:nth-child(12n + 8) {
+  background-position: -336px 0;
+}
+
+.dancers i:nth-child(12n + 9) {
+  background-position: -384px 0;
+}
+
+.dancers i:nth-child(12n + 10) {
+  background-position: -432px 0;
+}
+
+.dancers i:nth-child(12n + 11) {
+  background-position: -480px 0;
+}
+
+.dancers i:nth-child(12n + 12) {
+  background-position: -528px 0;
+}
+
+/* Four dances along the line, and three beats, so neighbours never match. */
+.dancers i:nth-child(4n + 2) {
+  animation-name: hop;
+}
+
+.dancers i:nth-child(4n + 3) {
+  animation-name: sway;
+}
+
+.dancers i:nth-child(4n) {
   animation-name: spin;
   animation-duration: 1.68s;
 }
 
-.dancers i:nth-child(5) {
-  background-position: -192px 0;
-  animation-name: hop;
-  animation-delay: -0.63s;
+.dancers i:nth-child(3n + 2) {
+  animation-delay: -0.21s;
 }
 
-.dancers i:nth-child(6) {
-  background-position: -240px 0;
-  animation-delay: -0.21s;
+.dancers i:nth-child(3n) {
+  animation-delay: -0.42s;
 }
 
 /* A jig: up and lean, down and turn. */
@@ -1583,6 +1624,22 @@ button[aria-pressed="true"]:not(.talk) {
   }
 }
 
+/* A sway: side to side, leaning into it. */
+@keyframes sway {
+  0% {
+    transform: translateX(0) rotate(0);
+  }
+  25% {
+    transform: translateX(-4px) rotate(-10deg);
+  }
+  50% {
+    transform: translateX(0) rotate(0) translateY(-5px);
+  }
+  75% {
+    transform: translateX(4px) rotate(10deg);
+  }
+}
+
 /* A turn on the spot, in quarter turns. */
 @keyframes spin {
   0% {
@@ -1604,4 +1661,3 @@ button[aria-pressed="true"]:not(.talk) {
     animation: none;
   }
 }
-
