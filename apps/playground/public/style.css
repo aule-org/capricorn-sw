@@ -243,6 +243,21 @@ button.danger {
   opacity: 0.4;
 }
 
+/* Aule's face, in place of the dot when the browser can draw it. */
+.mascot {
+  display: none;
+  width: 132px;
+  height: 132px;
+}
+
+.tutor.has-mascot .mascot {
+  display: block;
+}
+
+.tutor.has-mascot .orb {
+  display: none;
+}
+
 .tutor[data-state="reconnecting"] .tile-state {
   font-weight: 600;
 }

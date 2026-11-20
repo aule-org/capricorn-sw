@@ -37,6 +37,9 @@ import { DailyLimit, guardianToken, signedInCookie, signedOutCookie } from "./si
 
 const publicDir = new URL("../public/", import.meta.url);
 // The browser build that ships inside the livekit-client package.
+// Aule's animated face: one file with no imports and no network calls of its own.
+const mascot = join(dirname(createRequire(import.meta.url).resolve("wobnimo/package.json")), "dist", "wobnimo.js");
+
 const livekitClient = join(
   dirname(createRequire(import.meta.url).resolve("livekit-client")),
   "livekit-client.umd.js",
@@ -59,6 +62,7 @@ const STATIC: Record<string, { file: string | URL; type: string }> = {
   "/fonts/serif.woff2": { file: join(serif, "source-serif-4-latin-wght-normal.woff2"), type: "font/woff2" },
   "/fonts/serif-italic.woff2": { file: join(serif, "source-serif-4-latin-wght-italic.woff2"), type: "font/woff2" },
   "/livekit-client.js": { file: livekitClient, type: "text/javascript; charset=utf-8" },
+  "/wobnimo.js": { file: mascot, type: "text/javascript; charset=utf-8" },
 };
 
 const MAX_BODY_BYTES = 2_000;

@@ -34,6 +34,7 @@ test("serves the page and its scripts with a strict policy", async () => {
     "/visuals.js",
     "/style.css",
     "/livekit-client.js",
+    "/wobnimo.js",
     "/fonts/serif.woff2",
     "/fonts/serif-italic.woff2",
   ]) {
