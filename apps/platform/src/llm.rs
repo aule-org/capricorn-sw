@@ -4,8 +4,8 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
+use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Statement};
 use serde_json::{Value, json};
-use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::config::Supervisor;
@@ -64,7 +64,7 @@ pub struct Anthropic {
     client: reqwest::Client,
     settings: Supervisor,
     base_url: String,
-    usage: Option<PgPool>,
+    usage: Option<DatabaseConnection>,
 }
 
 tokio::task_local! {
@@ -85,16 +85,18 @@ impl Anthropic {
     }
 
     /// Adds each call's usage to its session's counts in this database.
-    pub fn with_usage(mut self, pool: PgPool) -> Self {
-        self.usage = Some(pool);
+    pub fn with_usage(mut self, db: DatabaseConnection) -> Self {
+        self.usage = Some(db);
         self
     }
 
     async fn record(&self, model: &str, tokens: impl Fn(&str) -> u64) {
-        let (Some(pool), Ok(session)) = (&self.usage, SESSION.try_with(|id| *id)) else { return };
+        let (Some(db), Ok(session)) = (&self.usage, SESSION.try_with(|id| *id)) else { return };
         let count = |field: &str| i64::try_from(tokens(field)).unwrap_or(i64::MAX);
-        let recorded = sqlx::query(
-            "insert into session_model_usage
+        let recorded = db
+            .execute_raw(Statement::from_sql_and_values(
+                DbBackend::Postgres,
+                "insert into session_model_usage
                (session_id, model, calls, input_tokens, cache_read_tokens, cache_write_tokens, output_tokens)
              values ($1, $2, 1, $3, $4, $5, $6)
              on conflict (session_id, model) do update set
@@ -103,15 +105,16 @@ impl Anthropic {
                cache_read_tokens = session_model_usage.cache_read_tokens + excluded.cache_read_tokens,
                cache_write_tokens = session_model_usage.cache_write_tokens + excluded.cache_write_tokens,
                output_tokens = session_model_usage.output_tokens + excluded.output_tokens",
-        )
-        .bind(session)
-        .bind(model)
-        .bind(count("input_tokens"))
-        .bind(count("cache_read_input_tokens"))
-        .bind(count("cache_creation_input_tokens"))
-        .bind(count("output_tokens"))
-        .execute(pool)
-        .await;
+                [
+                    session.into(),
+                    model.into(),
+                    count("input_tokens").into(),
+                    count("cache_read_input_tokens").into(),
+                    count("cache_creation_input_tokens").into(),
+                    count("output_tokens").into(),
+                ],
+            ))
+            .await;
         if let Err(error) = recorded {
             // A count missed is a smaller cost estimate, never a failed answer.
             tracing::warn!(%session, %error, "model usage not recorded");

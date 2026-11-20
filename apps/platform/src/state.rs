@@ -41,10 +41,11 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(pool: PgPool, config: Config) -> Self {
+        let db = sea_orm::SqlxPostgresConnector::from_sqlx_postgres_pool(pool.clone());
         let llm = config
             .supervisor
             .clone()
-            .map(|settings| Arc::new(Anthropic::new(settings).with_usage(pool.clone())) as Arc<dyn Llm>);
+            .map(|settings| Arc::new(Anthropic::new(settings).with_usage(db.clone())) as Arc<dyn Llm>);
         let embedder = config
             .embeddings
             .clone()
@@ -74,7 +75,7 @@ impl AppState {
         let google =
             config.google_client_id.clone().map(|id| Arc::new(Google::new(id)) as Arc<dyn IdentityProvider>);
         Self {
-            db: sea_orm::SqlxPostgresConnector::from_sqlx_postgres_pool(pool.clone()),
+            db,
             pool,
             config: Arc::new(config),
             llm,
