@@ -194,7 +194,7 @@ pub async fn standing(state: &AppState, family_id: Uuid, now: DateTime<Utc>) -> 
 
 /// Whether the family may start a session now. A refusal says which limit.
 pub async fn admit(state: &AppState, family_id: Uuid) -> ApiResult<()> {
-    let standing = standing(&state, family_id, Utc::now()).await?;
+    let standing = standing(state, family_id, Utc::now()).await?;
     match standing.limit() {
         None => Ok(()),
         Some(reason) => Err(ApiError::PlanLimit(reason)),
