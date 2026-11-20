@@ -1759,6 +1759,12 @@ async fn a_family_s_sessions_are_what_its_plan_allows_and_the_team_can_grant_one
         StatusCode::FORBIDDEN
     );
     let team = app.sign_in("team@example.org", "Team").await;
+    // The team's own family is not counted.
+    let (_, own) = app.call(Method::GET, "/v1/me/plan", Some(team.as_str()), None).await;
+    assert_eq!(
+        (own["plan"].as_str(), own["team"].as_bool(), &own["left"]),
+        (Some("team"), Some(true), &Value::Null)
+    );
     let (status, families) = app.call(Method::GET, "/v1/admin/families", Some(team.as_str()), None).await;
     assert_eq!(status, StatusCode::OK, "{families}");
     let quispe = families["families"]
