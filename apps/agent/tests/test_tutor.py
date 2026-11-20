@@ -409,3 +409,24 @@ async def test_an_answered_turn_is_not_reported(caplog):
             await asyncio.gather(*tutor._watches)
 
     assert caplog.records == []
+
+
+async def test_a_late_plan_joins_the_student_context_and_keeps_the_guidance():
+    tutor = Tutor(
+        language="es",
+        gates=ScriptedGates(),
+        context="The student is Liam.",
+        persona=persona_from("Aule", "jugueton", None),
+    )
+    seen: list[str] = []
+
+    async def update(instructions):
+        seen.append(instructions)
+
+    with patch.object(Tutor, "update_instructions", side_effect=update):
+        await tutor.advise("Slow down.")
+        await tutor.plan("Plan: fractions.")
+
+    final = seen[-1]
+    assert final.index("The student is Liam.") < final.index("Plan: fractions.")
+    assert final.index("Plan: fractions.") < final.index("divertido.") < final.index("Slow down.")

@@ -93,6 +93,10 @@ class Platform:
         self._next_seq = 0
         self._after_guidance = 0
         self._wake = asyncio.Event()
+        # The plan, when the platform sends it after the session began; and
+        # whether the tutor already has it.
+        self._late_plan: str | None = None
+        self._plan_given = False
 
     async def _http(
         self, method: str, path: str, body: dict[str, Any] | None, timeout: float
@@ -233,18 +237,30 @@ class Platform:
             # cancelled during the request. New arrivals have larger seq values.
             if batch:
                 self._pending = [turn for turn in self._pending if turn["seq"] > batch[-1]["seq"]]
+            plan = answer.get("plan")
+            if isinstance(plan, str) and plan.strip() and self._late_plan is None:
+                self._late_plan = plan
             for item in answer.get("guidance") or []:
                 if isinstance(item.get("id"), int) and isinstance(item.get("instructions"), str):
                     self._after_guidance = max(self._after_guidance, item["id"])
                     newest = item["instructions"]
         return newest
 
-    async def run(self, advise: Callable[[str], Awaitable[None]]) -> None:
-        """Reports turns as they come and hands guidance to the tutor. Runs until cancelled."""
+    async def run(
+        self,
+        advise: Callable[[str], Awaitable[None]],
+        plan: Callable[[str], Awaitable[None]] | None = None,
+    ) -> None:
+        """Reports turns as they come and hands the plan, once, and guidance to
+        the tutor. Runs until cancelled."""
         while True:
             await self._wake.wait()
             self._wake.clear()
             guidance = await self.report_once()
+            if plan and self._late_plan and not self._plan_given:
+                # Before the guidance of the same answer, which builds on it.
+                self._plan_given = True
+                await plan(self._late_plan)
             if guidance:
                 await advise(guidance)
             if self._pending:
