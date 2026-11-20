@@ -9,10 +9,14 @@
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
+use sea_orm::ActiveValue::Set;
+use sea_orm::sea_query::{Expr, OnConflict};
+use sea_orm::{ColumnTrait, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::auth::Guardian;
+use crate::entity::{child, guardian, notice, session_review};
 use crate::error::{ApiError, ApiResult};
 use crate::events::{SAFETY_FLAGGED, SESSION_REVIEWED, SESSION_STOPPED};
 use crate::state::AppState;
@@ -79,32 +83,38 @@ fn summary_title(language: &str, nickname: &str) -> String {
 }
 
 /// The platform's own consumer of events. Safe to run twice for one event.
-pub async fn on_event(state: &AppState, event: &Value) -> Result<(), sqlx::Error> {
+pub async fn on_event(state: &AppState, event: &Value) -> Result<(), DbErr> {
     let data = &event["data"];
     let ids = |field: &str| data[field].as_str().and_then(|id| id.parse::<Uuid>().ok());
     let (Some(session_id), Some(child_id)) = (ids("session_id"), ids("child_id")) else { return Ok(()) };
 
-    let child: Option<(Uuid, String)> =
-        sqlx::query_as("select family_id, nickname from children where id = $1")
-            .bind(child_id)
-            .fetch_optional(&state.pool)
-            .await?;
+    let child: Option<(Uuid, String)> = child::Entity::find_by_id(child_id)
+        .select_only()
+        .column(child::Column::FamilyId)
+        .column(child::Column::Nickname)
+        .into_tuple()
+        .one(&state.db)
+        .await?;
     // The child was erased between the event and now: nothing to tell anyone.
     let Some((family_id, nickname)) = child else { return Ok(()) };
-    let language: String =
-        sqlx::query_scalar("select language from guardians where family_id = $1 order by created_at limit 1")
-            .bind(family_id)
-            .fetch_optional(&state.pool)
-            .await?
-            .unwrap_or_else(|| "es".to_string());
+    let language: String = guardian::Entity::find()
+        .filter(guardian::Column::FamilyId.eq(family_id))
+        .order_by_asc(guardian::Column::CreatedAt)
+        .select_only()
+        .column(guardian::Column::Language)
+        .into_tuple()
+        .one(&state.db)
+        .await?
+        .unwrap_or_else(|| "es".to_string());
 
     let (kind, title, body) = match event["type"].as_str() {
         Some(SESSION_REVIEWED) => {
-            let summary: Option<String> =
-                sqlx::query_scalar("select guardian_summary from session_reviews where session_id = $1")
-                    .bind(session_id)
-                    .fetch_optional(&state.pool)
-                    .await?;
+            let summary: Option<String> = session_review::Entity::find_by_id(session_id)
+                .select_only()
+                .column(session_review::Column::GuardianSummary)
+                .into_tuple()
+                .one(&state.db)
+                .await?;
             let Some(summary) = summary else { return Ok(()) };
             ("session_summary", summary_title(&language, &nickname), summary)
         }
@@ -123,35 +133,43 @@ pub async fn on_event(state: &AppState, event: &Value) -> Result<(), sqlx::Error
         _ => return Ok(()),
     };
 
-    let created: Option<Uuid> = sqlx::query_scalar(
-        "insert into notices (id, family_id, child_id, session_id, kind, title, body)
-         values ($1, $2, $3, $4, $5, $6, $7)
-         on conflict (session_id, kind) do nothing returning id",
+    let notice_id = Uuid::now_v7();
+    let inserted = notice::Entity::insert(notice::ActiveModel {
+        id: Set(notice_id),
+        family_id: Set(family_id),
+        child_id: Set(Some(child_id)),
+        session_id: Set(Some(session_id)),
+        kind: Set(kind.to_string()),
+        title: Set(title.clone()),
+        body: Set(body.clone()),
+        ..Default::default()
+    })
+    .on_conflict(
+        OnConflict::columns([notice::Column::SessionId, notice::Column::Kind]).do_nothing().to_owned(),
     )
-    .bind(Uuid::now_v7())
-    .bind(family_id)
-    .bind(child_id)
-    .bind(session_id)
-    .bind(kind)
-    .bind(&title)
-    .bind(&body)
-    .fetch_optional(&state.pool)
+    .exec_without_returning(&state.db)
     .await?;
+    // Already told about this session in this way: the event came twice.
+    let created = (inserted > 0).then_some(notice_id);
 
     if let (Some(notice_id), Some(pusher)) = (created, &state.pusher)
-        && crate::push::announce(&state.pool, pusher.as_ref(), family_id, notice_id, kind).await?
+        && crate::push::announce(&state.db, pusher.as_ref(), family_id, notice_id, kind).await?
     {
-        sqlx::query("update notices set pushed_at = now() where id = $1")
-            .bind(notice_id)
-            .execute(&state.pool)
+        notice::Entity::update_many()
+            .col_expr(notice::Column::PushedAt, Expr::current_timestamp())
+            .filter(notice::Column::Id.eq(notice_id))
+            .exec(&state.db)
             .await?;
     }
     if let (Some(notice_id), Some(mailer)) = (created, &state.mailer) {
-        let recipients: Vec<String> =
-            sqlx::query_scalar("select email::text from guardians where family_id = $1 and notices_by_email")
-                .bind(family_id)
-                .fetch_all(&state.pool)
-                .await?;
+        let recipients: Vec<String> = guardian::Entity::find()
+            .filter(guardian::Column::FamilyId.eq(family_id))
+            .filter(guardian::Column::NoticesByEmail.eq(true))
+            .select_only()
+            .column(guardian::Column::Email)
+            .into_tuple()
+            .all(&state.db)
+            .await?;
         let mut sent = false;
         for email in recipients {
             match mailer.send(&email, &title, &body).await {
@@ -161,16 +179,17 @@ pub async fn on_event(state: &AppState, event: &Value) -> Result<(), sqlx::Error
             }
         }
         if sent {
-            sqlx::query("update notices set emailed_at = now() where id = $1")
-                .bind(notice_id)
-                .execute(&state.pool)
+            notice::Entity::update_many()
+                .col_expr(notice::Column::EmailedAt, Expr::current_timestamp())
+                .filter(notice::Column::Id.eq(notice_id))
+                .exec(&state.db)
                 .await?;
         }
     }
     Ok(())
 }
 
-#[derive(serde::Serialize, sqlx::FromRow)]
+#[derive(serde::Serialize)]
 struct Notice {
     id: Uuid,
     child_id: Option<Uuid>,
@@ -183,13 +202,24 @@ struct Notice {
 }
 
 pub async fn list(guardian: Guardian, State(state): State<AppState>) -> ApiResult<Json<Value>> {
-    let notices: Vec<Notice> = sqlx::query_as(
-        "select id, child_id, session_id, kind, title, body, created_at, read_at from notices
-         where family_id = $1 order by created_at desc limit 50",
-    )
-    .bind(guardian.family_id)
-    .fetch_all(&state.pool)
-    .await?;
+    let notices: Vec<Notice> = notice::Entity::find()
+        .filter(notice::Column::FamilyId.eq(guardian.family_id))
+        .order_by_desc(notice::Column::CreatedAt)
+        .limit(50)
+        .all(&state.db)
+        .await?
+        .into_iter()
+        .map(|row| Notice {
+            id: row.id,
+            child_id: row.child_id,
+            session_id: row.session_id,
+            kind: row.kind,
+            title: row.title,
+            body: row.body,
+            created_at: row.created_at,
+            read_at: row.read_at,
+        })
+        .collect();
     Ok(Json(json!({ "notices": notices })))
 }
 
@@ -198,13 +228,13 @@ pub async fn mark_read(
     State(state): State<AppState>,
     Path(notice_id): Path<Uuid>,
 ) -> ApiResult<StatusCode> {
-    let updated =
-        sqlx::query("update notices set read_at = coalesce(read_at, now()) where id = $1 and family_id = $2")
-            .bind(notice_id)
-            .bind(guardian.family_id)
-            .execute(&state.pool)
-            .await?;
-    if updated.rows_affected() == 0 {
+    let updated = notice::Entity::update_many()
+        .col_expr(notice::Column::ReadAt, Expr::cust("coalesce(read_at, now())"))
+        .filter(notice::Column::Id.eq(notice_id))
+        .filter(notice::Column::FamilyId.eq(guardian.family_id))
+        .exec(&state.db)
+        .await?;
+    if updated.rows_affected == 0 {
         return Err(ApiError::NotFound("notice"));
     }
     Ok(StatusCode::NO_CONTENT)

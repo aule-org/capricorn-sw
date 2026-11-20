@@ -13,10 +13,14 @@ pub mod family;
 pub mod firmware;
 pub mod guardian;
 pub mod guardian_child;
+pub mod guardian_session;
 pub mod item_difficulty;
 pub mod job;
+pub mod login_code;
 pub mod memory;
+pub mod notice;
 pub mod outbox;
+pub mod push_token;
 pub mod session;
 pub mod session_brief;
 pub mod session_exercise;
@@ -52,4 +56,8 @@ pub fn schema() -> sea_orm::SchemaBuilder {
         .register(device::Entity)
         .register(device_claim::Entity)
         .register(firmware::Entity)
+        .register(login_code::Entity)
+        .register(guardian_session::Entity)
+        .register(notice::Entity)
+        .register(push_token::Entity)
 }
