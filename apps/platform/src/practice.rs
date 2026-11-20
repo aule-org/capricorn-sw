@@ -245,10 +245,13 @@ pub fn judge(current: Current<'_>, past: &[Past], reading: &Reading) -> Outcome 
         let status = if right_value { Status::Correct } else { Status::Failed };
         let after = with(status);
         let (next, say) = match after {
+            // Right, the next probe reaches a little higher to find where they are.
             Stage::Diagnose => (
                 Next::Probe,
-                "Do not say if it was right. Say 'anotado' and ask one more of the same kind. No hints."
-                    .to_string(),
+                format!(
+                    "Do not say if it was right. Say 'anotado' and ask one more of the same kind, {}. No hints.",
+                    if right_value { "a little harder" } else { "no harder" }
+                ),
             ),
             Stage::Done => (
                 Next::MoveOn,
@@ -294,6 +297,9 @@ pub fn judge(current: Current<'_>, past: &[Past], reading: &Reading) -> Outcome 
             .take_while(|item| item.status == Status::Correct)
             .count()
             + 1;
+        // Right at once: the next one is a step harder. Right with help: the
+        // same level again, until it comes at once.
+        let first_try = attempts == 1 && current.hints == 0;
         let (next, say) = if after == Stage::Done {
             (
                 Next::MoveOn,
@@ -301,16 +307,24 @@ pub fn judge(current: Current<'_>, past: &[Past], reading: &Reading) -> Outcome 
                     .to_string(),
             )
         } else {
+            let level = if first_try {
+                "a step harder (bigger numbers or one more step)"
+            } else {
+                "at the same level"
+            };
             (
                 Next::NextExercise,
-                format!("Correct. Say so briefly, then another one as {}.", ANGLES[solved % ANGLES.len()]),
+                format!(
+                    "Correct. Say so briefly, then another one {level}, as {}.",
+                    ANGLES[solved % ANGLES.len()]
+                ),
             )
         };
         return Outcome {
             status: Status::Correct,
             attempts,
             hints: current.hints,
-            first_try: Some(attempts == 1 && current.hints == 0),
+            first_try: Some(first_try),
             directive: Directive { stage: after, next, say, reveal: None },
         };
     }
@@ -492,6 +506,13 @@ pub async fn pose(
     let expression = body.expression.trim();
     if expression.is_empty() || expression.chars().count() > 120 {
         return Err(ApiError::bad_request("expression must have 1 to 120 characters"));
+    }
+    // A number alone is an answer, not an exercise ("100" for "how many
+    // hundredths make a whole"). A fraction alone still is one: to simplify.
+    if expression.chars().all(|c| c.is_ascii_digit() || matches!(c, '.' | ',' | ' ')) {
+        return Err(ApiError::bad_request(
+            "expression is only a number: give the calculation the child does, like 1 : 0.01, or carry on without checking",
+        ));
     }
     let Some(exercise) = Posed::parse(expression) else {
         // Counted, never quoted: how often the tutor asks for something this cannot check.
@@ -840,6 +861,8 @@ mod tests {
             (Status::Correct, Some(true), Next::NextExercise)
         );
         assert!(first.directive.say.contains("word problem"));
+        // Right at once: a step harder. Right with help: the same level.
+        assert!(first.directive.say.contains("a step harder"), "{}", first.directive.say);
         // Solved after a hint is solved, but not at the first try.
         let helped = judge(practice(1, 1), &[PROBE_WRONG, PROBE_WRONG, SOLVED], &right);
         assert_eq!(
@@ -847,6 +870,16 @@ mod tests {
             (Some(false), 2, Next::NextExercise)
         );
         assert!(helped.directive.say.contains("one mistake in it"));
+        assert!(helped.directive.say.contains("at the same level"), "{}", helped.directive.say);
+        for outcome in [&first, &helped] {
+            assert!(outcome.directive.say.split_whitespace().count() <= 30, "{}", outcome.directive.say);
+        }
+        // In the diagnosis, a right answer is followed by a harder question, a wrong one by one no harder.
+        let probed = judge(PROBE, &[], &right);
+        assert_eq!(probed.directive.next, Next::Probe);
+        assert!(probed.directive.say.contains("a little harder"), "{}", probed.directive.say);
+        let missed = judge(PROBE, &[], &reading(Verdict::Incorrect, None));
+        assert!(missed.directive.say.contains("no harder"), "{}", missed.directive.say);
         let last = judge(practice(0, 0), &[PROBE_WRONG, PROBE_WRONG, SOLVED, SOLVED], &right);
         assert_eq!((last.directive.stage, last.directive.next), (Stage::Done, Next::MoveOn));
     }
