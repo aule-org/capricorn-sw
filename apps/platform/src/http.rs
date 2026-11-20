@@ -70,7 +70,7 @@ pub fn router(state: AppState) -> Router {
 }
 
 async fn health(State(state): State<AppState>) -> ApiResult<Json<Value>> {
-    sqlx::query("select 1").execute(&state.pool).await?;
+    state.db.ping().await?;
     Ok(Json(json!({
         "ok": true,
         "supervisor": state.llm.is_some(),
@@ -187,10 +187,9 @@ async fn forget_memory(
     }
 }
 
-#[derive(serde::Serialize, sqlx::FromRow)]
+#[derive(serde::Serialize)]
 struct ReviewRow {
     session_id: Uuid,
-    #[sqlx(rename = "guardian_summary")]
     summary: String,
     next_step: Option<String>,
     flags: Vec<String>,
@@ -203,13 +202,23 @@ async fn child_reviews(
     Path(child_id): Path<Uuid>,
 ) -> ApiResult<Json<Value>> {
     child_for(&state.db, &caller, child_id).await?;
-    let reviews: Vec<ReviewRow> = sqlx::query_as(
-        "select session_id, guardian_summary, next_step, flags, created_at from session_reviews
-         where child_id = $1 order by created_at desc limit 20",
-    )
-    .bind(child_id)
-    .fetch_all(&state.pool)
-    .await?;
+    use crate::entity::session_review;
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+    let reviews: Vec<ReviewRow> = session_review::Entity::find()
+        .filter(session_review::Column::ChildId.eq(child_id))
+        .order_by_desc(session_review::Column::CreatedAt)
+        .limit(20)
+        .all(&state.db)
+        .await?
+        .into_iter()
+        .map(|row| ReviewRow {
+            session_id: row.session_id,
+            summary: row.guardian_summary,
+            next_step: row.next_step,
+            flags: row.flags,
+            created_at: row.created_at,
+        })
+        .collect();
     Ok(Json(json!({ "reviews": reviews })))
 }
 
