@@ -219,7 +219,7 @@ fn an_engine_rebuilt_from_its_inputs_is_the_same_engine() {
     student.says("saltos de estrella");
     student.now += 6 * 60_000;
     let back = student.says("ya volví");
-    assert!(said_by_tutor(&back).contains("Se terminó la Pausa activa"), "{back:?}");
+    assert!(said_by_tutor(&back).contains("seguimos"), "{back:?}");
     assert_eq!(student.at(), "etapa2:2:1");
     student.now += 10 * 60_000;
     let late = student.says("mmm espera");
@@ -579,7 +579,7 @@ fn a_typed_answer_is_an_answer_and_nothing_else() {
     // Not a number: the engine asks for it again, with no model and no hint.
     student.now += 1000;
     let turn = student.flow.said(student.now, "hola", None, true);
-    assert!(said_by_tutor(&turn).contains("No logré leer tu respuesta"), "{turn:?}");
+    assert!(said_by_tutor(&turn).contains("No te entendí la respuesta"), "{turn:?}");
     assert_eq!((student.at(), turn.converse), (at.clone(), None));
     // "Estoy cansado" in the answer box is not a request for a break.
     let turn = student.flow.said(student.now, "estoy cansado", None, true);
@@ -786,7 +786,7 @@ fn a_screening_left_half_way_is_taken_up_where_it_stopped() {
     let started = second.says("sí");
     let said = said_by_tutor(&started);
     assert!(said.contains("La vez pasada empezamos el Tamizaje"), "{said}");
-    assert!(said.contains("Pregunta 1 de 5") && !said.contains("Es el Tamizaje: son 5 preguntas"), "{said}");
+    assert!(said.contains("Pregunta 1 de 5") && !said.contains("son 5 preguntas, de la más fácil"), "{said}");
     assert_ne!(second.flow.card().unwrap().id, Some("n1-t1".to_string()), "another question of that level");
 
     // Closed by the agent in the middle of the screening: the same.
@@ -934,7 +934,7 @@ fn time_acts_without_the_student_speaking() {
     student.now += 61_000;
     let back = student.flow.pass(student.now);
     let back = student.keep(back);
-    assert!(said_by_tutor(&back).contains("Se terminó la Pausa activa"), "{back:?}");
+    assert!(said_by_tutor(&back).contains("seguimos"), "{back:?}");
     assert_eq!(back.lines.last().unwrap().say, student.flow.card().unwrap().enunciado);
     assert!(student.at().starts_with("etapa2"));
     let rebuilt = Flow::replay(setup(Goal::Homework), bank().unwrap(), &student.records);
