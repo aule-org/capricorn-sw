@@ -1,13 +1,13 @@
 // The playground's HTTP server: a static page and one endpoint that trades the
 // access code for a room token. It keeps no state and stores nothing.
 
-import { readFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { GuessLimiter, sameCode } from "./access.ts";
+import { type Asset, cacheFor, loadAssets, stillFresh } from "./assets.ts";
 import { ConfigError, LANGUAGES, readSettings, type Language, type Settings } from "./config.ts";
 import {
   account,
@@ -178,8 +178,15 @@ function targetOf(request: IncomingMessage): URL | null {
   }
 }
 
+// The page's own scripts: their imports of each other are rewritten to the
+// fingerprinted addresses. The packages' bundles are versioned but left as they are.
+const OWN_SCRIPTS = new Set(["/app.js", "/students.js", "/signin.js", "/visuals.js", "/admin.js"]);
+
 export function createPlayground(settings: Settings): Server {
   const headers = securityHeaders(settings);
+  // Read once, on the first request, and kept in memory.
+  let assets: Promise<Map<string, Asset>> | undefined;
+  const assetFor = async (path: string) => (await (assets ??= loadAssets(STATIC, OWN_SCRIPTS))).get(path);
   const limiter = new GuessLimiter();
   const daily = new DailyLimit(settings.dailySessions);
 
@@ -566,9 +573,19 @@ export function createPlayground(settings: Settings): Server {
         if (path === "/api/session" && guardianToken(request)) return signedIn(path, request, response);
         return session(path, request, response);
       }
-      const asset = STATIC[path];
-      if (asset && request.method === "GET") {
-        return send(response, 200, asset.type, await readFile(asset.file));
+      const asset = request.method === "GET" ? await assetFor(path) : undefined;
+      if (asset) {
+        // A fingerprinted address is kept for a year; anything else, the page
+        // included, is checked against its ETag on every load.
+        const version = new URL(request.url ?? "/", "http://playground").searchParams.get("v");
+        const etag = `"${asset.hash}"`;
+        const cache = { ...headers, "Cache-Control": cacheFor(asset, version), ETag: etag };
+        if (stillFresh(request.headers["if-none-match"], etag)) {
+          response.writeHead(304, cache);
+          return response.end();
+        }
+        response.writeHead(200, { ...cache, "Content-Type": asset.type });
+        return response.end(asset.body);
       }
       return json(response, 404, { error: "not_found" });
     };

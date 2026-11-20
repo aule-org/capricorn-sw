@@ -41,7 +41,9 @@ test("serves the page and its scripts with a strict policy", async () => {
     const response = await fetch(base + path);
     assert.equal(response.status, 200, path);
     assert.match(response.headers.get("content-security-policy") ?? "", /default-src 'none'/);
-    assert.equal(response.headers.get("cache-control"), "no-store");
+    // Without a fingerprint a file is checked on every load (see assets.test.ts).
+    assert.equal(response.headers.get("cache-control"), "no-cache");
+    assert.match(response.headers.get("etag") ?? "", /^"[0-9a-f]{12}"$/);
     await response.arrayBuffer();
   }
   const policy = (await fetch(`${base}/`)).headers.get("content-security-policy") ?? "";
