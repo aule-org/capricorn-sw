@@ -55,7 +55,7 @@ services:
     cpu_shares: 2048
 
   postgres:
-    image: pgvector/pgvector:pg17
+    image: pgvector/pgvector:pg17@sha256:b513c48566e4777cd3370451400000c78eda6a08131d68f4c31d4a76f27bd8fd
     env_file:
       - ${AULE_ENV_FILE:-.env}
     ports:
@@ -71,7 +71,7 @@ services:
 
   # Embeddings for the children's memories, computed on this machine.
   embeddings:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.40.16@sha256:910d0d8107b538fb0894e63163eb195de0cc7aefcbc666dc62d3b18f71124592
     ports:
       - "127.0.0.1:${AULE_EMBEDDINGS_PORT:-11435}:11434"
     volumes:

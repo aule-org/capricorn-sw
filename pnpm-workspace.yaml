@@ -2,3 +2,15 @@ packages:
   - contracts
   - curriculum
   - apps/playground
+
+# A package version must be a week old before pnpm installs it, may not lose
+# the provenance its earlier versions had, and may not pull a dependency from
+# outside the registry (git or a tarball URL).
+minimumReleaseAge: 10080
+trustPolicy: no-downgrade
+blockExoticSubdeps: true
+# Already in use when the rule came in (published 14 and 16 November 2026);
+# only these exact versions, and the lines can go once they are a week old.
+minimumReleaseAgeExclude:
+  - livekit-client@2.24.1
+  - livekit-server-sdk@2.20.0

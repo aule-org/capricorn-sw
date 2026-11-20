@@ -1,3 +1,5 @@
+# Weekly updates, each one at least a week old (cooldown): time for a
+# compromised release to be found and pulled before it is proposed here.
 version: 2
 updates:
   - package-ecosystem: cargo
@@ -6,6 +8,8 @@ updates:
     directory: /apps/platform
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       platform-compatible:
         update-types: [minor, patch]
@@ -15,6 +19,8 @@ updates:
     directory: /apps/agent
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       agent-compatible:
         update-types: [minor, patch]
@@ -24,6 +30,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     ignore:
       - dependency-name: typescript
         update-types: [version-update:semver-major]
@@ -38,6 +46,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       github-actions:
         patterns: ['*']
@@ -57,9 +67,30 @@ updates:
         update-types: [version-update:semver-major]
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
   - package-ecosystem: docker-compose
     commit-message:
       prefix: "build(compose)"
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
+  # The images the services are built from and run, pinned by digest.
+  - package-ecosystem: docker
+    commit-message:
+      prefix: "chore(images)"
+    directories: [/apps/agent, /apps/platform, /apps/playground]
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+  - package-ecosystem: docker-compose
+    commit-message:
+      prefix: "chore(images)"
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
