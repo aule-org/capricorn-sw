@@ -26,6 +26,7 @@ use serde_json::{Value, json};
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::algebra::{Problem, Shape};
 use crate::auth::{Agent, Input, Session};
 use crate::error::{ApiError, ApiResult};
 use crate::exercise::{Exercise, Form, Misconception, Reading, Verdict, check, is_about_something_else};
@@ -161,6 +162,18 @@ fn aimed_at(misconception: Option<Misconception>) -> &'static str {
         }
         Some(Misconception::DividedInstead) => "They divided: ask what 'of' or 'times' means here.",
         Some(Misconception::WrongSign) => "They did the opposite operation: have them read it again aloud.",
+        Some(Misconception::TransposedSign) => {
+            "A term crossed the '=' without changing its sign: ask what undoes '+ 3' on the other side."
+        }
+        Some(Misconception::DividedBackwards) => {
+            "They divided the wrong way round: ask what number times the coefficient gives the other side."
+        }
+        Some(Misconception::ForgotCrossTerms) => {
+            "The middle products are missing: have them multiply each term of the first bracket by each of the second."
+        }
+        Some(Misconception::MissingSolution) => {
+            "Only part of the solution: ask whether another value works too."
+        }
         None => "Ask one short question that points at the first step.",
     }
 }
@@ -180,7 +193,7 @@ pub fn judge(current: Current<'_>, past: &[Past], reading: &Reading) -> Outcome 
     if reading.verdict == Verdict::Unreadable {
         return keep(
             Next::AskAgain,
-            "No number was understood. Ask them to say just their answer again.",
+            "No answer was understood. Ask them to say just their answer again.",
             now,
         );
     }
@@ -236,8 +249,12 @@ pub fn judge(current: Current<'_>, past: &[Past], reading: &Reading) -> Outcome 
     }
 
     if reading.verdict == Verdict::WrongForm {
-        let form =
-            if current.form == Form::Mixed { "a whole number and a fraction" } else { "the simplest form" };
+        let form = match current.form {
+            Form::Mixed => "a whole number and a fraction",
+            Form::Expanded => "a sum with like terms together, no brackets",
+            Form::Factored => "a product whose factors cannot be split further",
+            Form::Any | Form::Simplified => "the simplest form",
+        };
         let say =
             format!("Right amount. Say so and ask them to write it as {form}. Do not write it for them.");
         return keep(Next::FixForm, &say, Stage::Practice);
@@ -330,10 +347,61 @@ struct Row {
     hints: i32,
 }
 
+/// An exercise the platform can check: arithmetic, or the algebra of secondary school.
+#[derive(Debug, PartialEq)]
+enum Posed {
+    Arithmetic(Exercise),
+    Algebra(Problem),
+}
+
+impl Posed {
+    fn parse(expression: &str) -> Option<Self> {
+        Exercise::parse(expression)
+            .map(Self::Arithmetic)
+            .or_else(|| Problem::parse(expression).map(Self::Algebra))
+    }
+
+    fn answer(&self) -> String {
+        match self {
+            Self::Arithmetic(exercise) => exercise.answer.to_string(),
+            Self::Algebra(problem) => problem.answer(),
+        }
+    }
+
+    /// How the answer must be written. Algebra says it by itself: an
+    /// expanded polynomial is to be factored, anything else to be expanded.
+    fn form(&self, asked: Form) -> Form {
+        match self {
+            Self::Arithmetic(_) => asked,
+            Self::Algebra(problem) => match problem.shape() {
+                Shape::Expanded => Form::Expanded,
+                Shape::Factored => Form::Factored,
+                Shape::Any => Form::Any,
+            },
+        }
+    }
+
+    fn check(&self, form: Form, said: &str) -> Reading {
+        match self {
+            Self::Arithmetic(exercise) => check(exercise, form, said),
+            Self::Algebra(problem) => problem.check(said),
+        }
+    }
+
+    fn is_given_away_by(&self, expression: &str, said: &str) -> bool {
+        match self {
+            Self::Arithmetic(exercise) => exercise.is_given_away_by(expression, said),
+            Self::Algebra(problem) => problem.is_given_away_by(said),
+        }
+    }
+}
+
 fn form_of(name: &str) -> Form {
     match name {
         "simplified" => Form::Simplified,
         "mixed" => Form::Mixed,
+        "expanded" => Form::Expanded,
+        "factored" => Form::Factored,
         _ => Form::Any,
     }
 }
@@ -387,15 +455,15 @@ pub async fn pose(
     if expression.is_empty() || expression.chars().count() > 120 {
         return Err(ApiError::bad_request("expression must have 1 to 120 characters"));
     }
-    let Some(exercise) = Exercise::parse(expression) else {
+    let Some(exercise) = Posed::parse(expression) else {
         // Counted, never quoted: how often the tutor asks for something this cannot check.
-        tracing::info!(session_id = %session.id, "exercise not checked: not plain arithmetic");
+        tracing::info!(session_id = %session.id, "exercise not checked: not arithmetic or algebra it can work out");
         sqlx::query("update sessions set unchecked_exercises = unchecked_exercises + 1 where id = $1")
             .bind(session.id)
             .execute(&state.pool)
             .await?;
         return Err(ApiError::bad_request(
-            "expression is not arithmetic that can be checked; carry on without checking",
+            "expression is not arithmetic or algebra that can be checked; carry on without checking",
         ));
     };
     // Only a skill of the curriculum counts. An id the tutor made up is
@@ -421,7 +489,7 @@ pub async fn pose(
     .fetch_optional(&state.pool)
     .await?;
     if let Some((id, open_expression, probe)) = open
-        && Exercise::parse(&open_expression).is_some_and(|open| open == exercise)
+        && Posed::parse(&open_expression).is_some_and(|open| open == exercise)
     {
         let stage = if probe { Stage::Diagnose } else { Stage::Practice };
         let say = "Same exercise as before: carry on with it.";
@@ -437,7 +505,7 @@ pub async fn pose(
         .await?;
     let stage = stage(&past(&state.pool, session.id, skill_id, 0).await?);
     let probe = stage == Stage::Diagnose;
-    let form = if probe { Form::Any } else { body.form };
+    let form = exercise.form(if probe { Form::Any } else { body.form });
     let id: i64 = sqlx::query_scalar(
         "insert into session_exercises (session_id, skill_id, expression, answer, form, probe)
          values ($1, $2, $3, $4, $5, $6) returning id",
@@ -445,7 +513,7 @@ pub async fn pose(
     .bind(session.id)
     .bind(skill_id)
     .bind(expression)
-    .bind(exercise.answer.to_string())
+    .bind(exercise.answer())
     .bind(
         serde_json::to_value(form)
             .ok()
@@ -491,11 +559,14 @@ pub async fn answer(
     .await?;
     let row = row.ok_or(ApiError::Conflict("no exercise is open; state one first"))?;
     let exercise =
-        Exercise::parse(&row.expression).ok_or(ApiError::Conflict("the open exercise cannot be checked"))?;
+        Posed::parse(&row.expression).ok_or(ApiError::Conflict("the open exercise cannot be checked"))?;
     let form = form_of(&row.form);
-    let mut reading = check(&exercise, form, &body.said);
+    let mut reading = exercise.check(form, &body.said);
     // A wrong number is a try only when it was said about this exercise.
-    if reading.verdict == Verdict::Incorrect && is_about_something_else(&row.expression, &body.said) {
+    if reading.verdict == Verdict::Incorrect
+        && matches!(exercise, Posed::Arithmetic(_))
+        && is_about_something_else(&row.expression, &body.said)
+    {
         reading = Reading { read: None, verdict: Verdict::NotAnAnswer, misconception: None };
     }
     let history = past(&state.pool, session.id, row.skill_id.as_deref(), row.id).await?;
@@ -587,7 +658,7 @@ pub async fn note_answer_said(
     .fetch_optional(pool)
     .await?;
     let Some((id, expression)) = open else { return Ok(()) };
-    let Some(exercise) = Exercise::parse(&expression) else { return Ok(()) };
+    let Some(exercise) = Posed::parse(&expression) else { return Ok(()) };
     if tutor_said.iter().any(|said| exercise.is_given_away_by(&expression, said)) {
         sqlx::query("update session_exercises set answer_said = true where id = $1")
             .bind(id)
