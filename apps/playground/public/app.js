@@ -126,21 +126,40 @@ async function onTranscription(reader, participant) {
   if (!line) {
     line = document.createElement("li");
     line.dataset.who = mine ? "you" : "tutor";
-    line.dataset.name = mine ? "You" : "Aule";
+    line.dataset.name = mine ? "Tú" : "Aule";
     lines.set(id, line);
     $("transcript").append(line);
+    followTranscript();
   }
   // The person's speech arrives as whole revisions; the tutor's as increments.
   let text = "";
   for await (const chunk of reader) {
     text += chunk;
-    // The page stays where the person left it; only the conversation's own
-    // column follows, and only while it is already at its end.
-    const list = $("transcript");
-    const atEnd = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
     line.textContent = text;
-    if (atEnd) list.scrollTop = list.scrollHeight;
+    followTranscript();
   }
+}
+
+// The page stays where the person left it; only the conversation's own column
+// follows the newest words. It stops following when the person scrolls up to
+// read something earlier, and starts again when they come back to the end.
+let following = true;
+let followFrame = 0;
+
+$("transcript").addEventListener("scroll", () => {
+  const list = $("transcript");
+  following = list.scrollHeight - list.scrollTop - list.clientHeight < 48;
+});
+
+function followTranscript(always = false) {
+  if (always) following = true;
+  if (!following || followFrame) return;
+  // Once per frame, after the new words have their height.
+  followFrame = requestAnimationFrame(() => {
+    followFrame = 0;
+    const list = $("transcript");
+    list.scrollTop = list.scrollHeight;
+  });
 }
 
 function item(text) {
@@ -326,7 +345,21 @@ function showCamera() {
 }
 
 async function join(session) {
-  room = new Room({ adaptiveStream: true, dynacast: true });
+  room = new Room({
+    adaptiveStream: true,
+    dynacast: true,
+    // At home there is a television and other people. The browser's own
+    // clean-up costs nothing; voice isolation only acts where the system has it.
+    audioCaptureDefaults: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+      voiceIsolation: true,
+    },
+    // The camera is for showing work: the one facing the table when there are
+    // two, and sharp enough to read handwriting.
+    videoCaptureDefaults: { facingMode: "environment", resolution: { width: 1280, height: 720 } },
+  });
 
   room
     .on(RoomEvent.ParticipantConnected, watchTutor)
@@ -377,6 +410,9 @@ async function join(session) {
   }
   lobby.hidden = true;
   stage.hidden = false;
+  // The layout of a session hangs on this class, not on :has(), which older
+  // Firefox and Safari do not know.
+  document.querySelector("main").classList.toggle("in-session", true);
 
   await syncMicrophone();
   setToggle($("mic"), "Micrófono", wanted.mic);
@@ -441,12 +477,17 @@ async function openLobby() {
   $("join").disabled = true;
   let usable = true;
   try {
-    preview = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+    preview = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      video: { facingMode: { ideal: "environment" } },
+    });
   } catch {
     // No camera, or only the camera was refused: try the microphone alone.
     wanted.cam = false;
     try {
-      preview = await navigator.mediaDevices.getUserMedia({ audio: true });
+      preview = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
       $("lobby-note").textContent = "No se encontró o no se permitió la cámara. Igual puedes entrar con voz.";
     } catch {
       wanted.mic = false;
@@ -488,6 +529,7 @@ function leave(reason) {
   $("board").replaceChildren();
   $("board").hidden = true;
   stage.hidden = true;
+  document.querySelector("main").classList.toggle("in-session", false);
   lobby.hidden = true;
   entry.hidden = false;
   showMessage(reason ?? "");
@@ -523,6 +565,7 @@ $("back").addEventListener("click", closeLobby);
 $("join").addEventListener("click", async () => {
   $("join").disabled = true;
   $("transcript").replaceChildren();
+  following = true;
   lines.clear();
   try {
     const response = await fetch("api/session", {
@@ -604,9 +647,10 @@ $("type").addEventListener("submit", async (event) => {
     // Typed words are not transcribed back, so the page writes them itself.
     const line = item(text);
     line.dataset.who = "you";
-    line.dataset.name = "You (typed)";
+    line.dataset.name = "Tú (escrito)";
     $("transcript").append(line);
-    $("transcript").scrollTop = $("transcript").scrollHeight;
+    // Their own message: back to the end, wherever they had scrolled to.
+    followTranscript(true);
   } catch {
     showMessage("No se pudo enviar el mensaje.");
   }
