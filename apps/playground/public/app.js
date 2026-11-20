@@ -102,6 +102,16 @@ function showMessage(text) {
   message.hidden = !text;
 }
 
+// For something that went wrong once and can be tried again: it does not stay
+// on the screen for the rest of the session.
+const PASSING_MS = 8000;
+function showPassingMessage(text) {
+  showMessage(text);
+  setTimeout(() => {
+    if (message.textContent === text) showMessage("");
+  }, PASSING_MS);
+}
+
 function setTutorState(state) {
   $("tutor").dataset.state = state;
   $("tutor-state").textContent = STATE_TEXT[state] ?? state;
@@ -519,7 +529,7 @@ async function showWork() {
     followTranscript(true);
     await new Promise((resolve) => setTimeout(resolve, SHOWN_MS));
   } catch {
-    showMessage("Aule no pudo ver la cámara. Acerca la hoja e inténtalo otra vez.");
+    showPassingMessage("Aule no pudo ver la cámara. Acerca la hoja e inténtalo otra vez.");
   } finally {
     showing = false;
     await room?.localParticipant.setCameraEnabled(false).catch(() => undefined);

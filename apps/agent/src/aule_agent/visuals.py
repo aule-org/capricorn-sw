@@ -31,7 +31,8 @@ DESCRIPTION = (
     "polygon draws any straight-sided shape and needs exactly one of: regular (how many "
     "equal sides: 6 is a hexagon; side is their length), sides (a triangle from three "
     "lengths: base, left, right) or points (the corners in order, for a trapezoid or any "
-    "other shape); labels can replace a length with ? or a name. "
+    "other shape); labels can replace a length with ? or a name; clock draws a clock face "
+    "and needs hour (1 to 12; minute is optional). "
     "title is optional for every kind."
 )
 

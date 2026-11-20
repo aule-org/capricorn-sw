@@ -20,7 +20,8 @@
         "table",
         "bar_chart",
         "rectangle",
-        "polygon"
+        "polygon",
+        "clock"
       ]
     },
     "title": {
@@ -277,6 +278,18 @@
         }
       },
       "description": "polygon: any other shape (a trapezoid, a parallelogram, an L), as its corners in order around it, each [x, y] in the shape's own units with y upwards. Drawn to scale."
+    },
+    "hour": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 12,
+      "description": "clock: the hour the short hand shows, 1 to 12. The hand is drawn between two numbers when minute is not 0, as on a real clock."
+    },
+    "minute": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 59,
+      "description": "clock: the minutes the long hand shows; 0 when left out."
     }
   },
   "allOf": [
@@ -466,6 +479,23 @@
               "points"
             ]
           }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "clock"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "required": [
+          "hour"
         ]
       }
     }

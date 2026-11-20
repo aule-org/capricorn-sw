@@ -399,6 +399,34 @@ function polygon(v, top) {
   return out;
 }
 
+// A clock face with its two hands. The short hand moves with the minutes, as
+// on a real clock: at 3:30 it is halfway between the 3 and the 4.
+function clock(v, top) {
+  const cx = W / 2;
+  const cy = top + (H - top) / 2;
+  const r = Math.min((H - top) / 2 - 14, 190);
+  const at = (turn, length) => [cx + Math.sin(turn * 2 * Math.PI) * length, cy - Math.cos(turn * 2 * Math.PI) * length];
+  const minute = v.minute ?? 0;
+  let out = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="#fff" stroke="${INK}" stroke-width="4"/>`;
+  for (let tick = 0; tick < 60; tick += 1) {
+    const [x1, y1] = at(tick / 60, r - (tick % 5 === 0 ? 14 : 7));
+    const [x2, y2] = at(tick / 60, r - 2);
+    out += line(x1, y1, x2, y2, tick % 5 === 0 ? 3 : 1);
+  }
+  for (let n = 1; n <= 12; n += 1) {
+    const [x, y] = at(n / 12, r - 36);
+    out += text(x, y + 9, n, { size: 26, weight: 600, room: 60 });
+  }
+  const hand = (turn, length, width) => {
+    const [x, y] = at(turn, length);
+    return `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="${INK}" stroke-width="${width}" stroke-linecap="round"/>`;
+  };
+  // Both hands stop short of the numbers, so none is covered.
+  out += hand(((v.hour % 12) + minute / 60) / 12, r * 0.45, 9);
+  out += hand(minute / 60, r - 62, 5);
+  return out + `<circle cx="${cx}" cy="${cy}" r="8" fill="${INK}"/>`;
+}
+
 const KINDS = {
   exercise,
   fraction_bars: fractionBars,
@@ -410,6 +438,7 @@ const KINDS = {
   bar_chart: barChart,
   rectangle,
   polygon,
+  clock,
 };
 
 /** The visual as an SVG document. Throws on a kind it does not know. */

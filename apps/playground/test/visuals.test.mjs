@@ -159,6 +159,18 @@ test("long text is made smaller until it fits, never cut", () => {
   assert.match(renderVisual({ kind: "exercise", lines: ["3/4 + 1/4 = ?"] }), /font-size="44"/);
 });
 
+test("a clock shows its twelve numbers and moves the short hand with the minutes", () => {
+  const hands = (svg) => [...svg.matchAll(/<line x1="400" y1="[\d.]+" x2="([\d.]+)" y2="([\d.]+)"[^>]*stroke-linecap="round"/g)].map((m) => [Number(m[1]), Number(m[2])]);
+  const three = renderVisual({ kind: "clock", hour: 3 });
+  for (let n = 1; n <= 12; n += 1) assert.match(three, new RegExp(`>${n}</text>`));
+  const [[hourX, hourY], [minuteX, minuteY]] = hands(three);
+  // At three o'clock the short hand points right and the long one straight up.
+  assert.ok(hourX > 400 && Math.abs(hourY - minuteY) > 50 && Math.abs(minuteX - 400) < 0.01);
+  // At half past three the long hand points down and the short one has moved below the 3.
+  const [[, halfHourY], [, halfMinuteY]] = hands(renderVisual({ kind: "clock", hour: 3, minute: 30 }));
+  assert.ok(halfHourY > hourY && halfMinuteY > halfHourY);
+});
+
 test("a polygon is built from equal sides, three lengths or corners, and drawn the same way", () => {
   const edges = (svg) => svg.match(/<path d="M [^"]*Z"/)[0].split(" L ").length;
 
