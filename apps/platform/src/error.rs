@@ -20,6 +20,9 @@ pub enum ApiError {
     Conflict(&'static str),
     #[error("{0}")]
     Unavailable(&'static str),
+    /// The family's plan has no session left now; says which limit, for the page.
+    #[error("{0}")]
+    PlanLimit(&'static str),
     #[error("internal error")]
     Internal(String),
 }
@@ -37,6 +40,7 @@ impl ApiError {
             Self::NotFound(_) => (StatusCode::NOT_FOUND, "not_found"),
             Self::Conflict(_) => (StatusCode::CONFLICT, "conflict"),
             Self::Unavailable(_) => (StatusCode::SERVICE_UNAVAILABLE, "unavailable"),
+            Self::PlanLimit(_) => (StatusCode::PAYMENT_REQUIRED, "plan_limit"),
             Self::Internal(_) => (StatusCode::INTERNAL_SERVER_ERROR, "internal"),
         }
     }

@@ -105,6 +105,35 @@ impl FromRequestParts<AppState> for Caller {
     }
 }
 
+/// Someone on Aule's team: the operator's token, or a signed-in guardian whose
+/// address is one of the team's (the admin panel signs in like a family).
+pub struct Staff {
+    /// The team member's address; none for the operator's token.
+    pub email: Option<String>,
+}
+
+impl FromRequestParts<AppState> for Staff {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
+        use sea_orm::{EntityTrait, QuerySelect};
+        let id = match Caller::from_request_parts(parts, state).await? {
+            Caller::Operator => return Ok(Self { email: None }),
+            Caller::Guardian { id, .. } => id,
+        };
+        let email: Option<String> = crate::entity::guardian::Entity::find_by_id(id)
+            .select_only()
+            .column(crate::entity::guardian::Column::Email)
+            .into_tuple()
+            .one(&state.db)
+            .await?;
+        match email {
+            Some(email) if state.config.admin_emails.contains(&email) => Ok(Self { email: Some(email) }),
+            _ => Err(ApiError::Forbidden("this route is for Aule's team")),
+        }
+    }
+}
+
 /// A signed-in guardian, for the routes that only make sense for one.
 pub struct Guardian {
     pub id: Uuid,

@@ -50,6 +50,13 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/auth/apple", post(signin::apple))
         .route("/v1/auth/signout", post(signin::sign_out))
         .route("/v1/me", get(signin::me).put(signin::update_me).delete(signin::erase_family))
+        .route("/v1/me/plan", get(crate::plans::mine))
+        // Aule's team: the families and their plans
+        .route("/v1/admin/families", get(crate::plans::families))
+        .route(
+            "/v1/admin/families/{family_id}/grant",
+            post(crate::plans::grant).delete(crate::plans::ungrant),
+        )
         .route("/v1/notices", get(notices::list))
         .route("/v1/notices/{notice_id}/read", post(notices::mark_read))
         .route("/v1/push/tokens", put(push::register).delete(push::unregister))

@@ -185,7 +185,6 @@ button.danger {
   align-items: start;
 }
 
-
 .tile {
   position: relative;
   aspect-ratio: 4 / 3;
@@ -349,38 +348,6 @@ button.danger {
   color: var(--danger);
 }
 
-.supervisor {
-  margin-top: 20px;
-  padding: 12px 16px;
-  border: 1px dashed var(--line);
-  border-radius: 12px;
-  font-size: 0.875rem;
-}
-
-.supervisor h2 {
-  margin: 0 0 6px;
-  font-size: 0.75rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.supervisor .plan {
-  margin: 0;
-  font-weight: 600;
-}
-
-.supervisor ul,
-.supervisor ol {
-  margin: 6px 0 0;
-  padding-left: 18px;
-  color: var(--muted);
-}
-
-.supervisor ol li {
-  color: var(--accent);
-}
-
 /* What the tutor shows: a sheet pinned to the desk, always black on white,
    like the device's screen. */
 .board {
@@ -537,39 +504,6 @@ label.check input {
   min-width: 0;
 }
 
-.report {
-  max-width: 560px;
-  margin-top: 20px;
-  padding: 16px 20px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-}
-
-.report h2 {
-  margin: 0 0 8px;
-  font-size: 0.8125rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.report p {
-  margin: 0 0 8px;
-}
-
-#report-next {
-  color: var(--muted);
-  font-size: 0.875rem;
-}
-
-.supervisor h2 + ul,
-#checked {
-  margin: 4px 0 0;
-  padding-left: 18px;
-  font-size: 0.875rem;
-}
-
 /* Signing in */
 #google {
   min-height: 44px;
@@ -577,18 +511,6 @@ label.check input {
 
 .hello {
   font-weight: 600;
-}
-
-#team {
-  margin-top: 2rem;
-  position: relative;
-  padding-top: 26px;
-}
-
-#team summary {
-  cursor: pointer;
-  color: inherit;
-  opacity: 0.7;
 }
 
 button.quiet {
@@ -627,15 +549,8 @@ button.quiet {
   font-size: 1.35rem;
 }
 
-#team form {
-  box-shadow: none;
-  border: 1.5px solid var(--line);
-}
-
 .tile,
-.board,
-.supervisor,
-.report {
+.board {
   border-radius: 16px;
 }
 
@@ -988,18 +903,6 @@ button[type="submit"].danger:hover:not(:disabled) {
    A craftsman's page: paper with a grain, ink, and a little worked copper.
    Drawn here, by us; nothing is taken from anyone's book or film.
    ------------------------------------------------------------------------ */
-/* A small mark between parts of the page, as on the corner of a map. */
-#team::before {
-  content: "";
-  position: absolute;
-  top: 6px;
-  left: 50%;
-  width: 7px;
-  height: 7px;
-  transform: translateX(-50%) rotate(45deg);
-  border: 1.5px solid var(--copper);
-}
-
 /* Icons: one thin line, the same weight as the letters next to them. */
 button[data-icon] {
   display: inline-flex;
@@ -1111,10 +1014,6 @@ button[aria-pressed="true"]:not(.talk) {
 .work > .board,
 .work > .board-empty {
   order: 3;
-}
-
-.work > .supervisor {
-  order: 4;
 }
 
 /* A session the engine runs: where it is, and the exercise in hand. */
@@ -1295,4 +1194,77 @@ button[aria-pressed="true"]:not(.talk) {
 
 .provider[hidden] {
   display: none;
+}
+
+/* The family's plan, under the greeting. */
+.plan-line {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.team-panel {
+  justify-self: start;
+  font-size: 0.875rem;
+  opacity: 0.7;
+}
+
+/* The team's panel: wide tables on paper. */
+.admin {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.admin table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  background: var(--surface);
+}
+
+.admin th,
+.admin td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.admin th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.admin .figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 12px 0 24px;
+}
+
+.admin .figure {
+  min-width: 140px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+}
+
+.admin .figure strong {
+  display: block;
+  font-size: 1.5rem;
+}
+
+.admin .scroll {
+  overflow-x: auto;
+}
+
+.admin input[type="search"] {
+  max-width: 320px;
+  margin: 8px 0 12px;
+}
+
+.admin td button {
+  padding: 4px 10px;
+  font-size: 0.8125rem;
 }

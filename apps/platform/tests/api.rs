@@ -202,6 +202,7 @@ fn app_with(pool: PgPool, events_webhook: Option<EventsWebhook>) -> App {
         events_webhook,
         fcm_service_account: None,
         google_client_id: Some(GOOGLE_CLIENT.into()),
+        admin_emails: vec!["team@example.org".into()],
         github: None,
         meta: None,
         apple: None,
@@ -1698,6 +1699,113 @@ async fn a_guardian_signs_in_with_github_into_the_family_of_that_address(pool: P
     assert_eq!((status, luis["new_account"].as_bool()), (StatusCode::OK, Some(true)));
     let (_, me) = app.call(Method::GET, "/v1/me", luis["token"].as_str(), None).await;
     assert_eq!(me["guardian"]["name"], "Luis");
+}
+
+#[sqlx::test(migrator = "aule_platform::MIGRATOR")]
+async fn a_family_s_sessions_are_what_its_plan_allows_and_the_team_can_grant_one(pool: PgPool) {
+    let app = app(pool);
+    let child = app.child().await;
+    app.consent(&child, "voice", true).await;
+    let ana = app.sign_in("ana@example.org", "Ana").await;
+    let start = || {
+        let body = json!({ "child_id": child, "audience": "child" });
+        app.call(Method::POST, "/v1/sessions", Some(ana.as_str()), Some(body))
+    };
+    let plan = || app.call(Method::GET, "/v1/me/plan", Some(ana.as_str()), None);
+    let set = |sql: &'static str| sqlx::query(sql).execute(&app.state.pool);
+
+    // A new family is on the trial, not yet started: one session today.
+    let (_, standing) = plan().await;
+    assert_eq!((standing["plan"].as_str(), standing["left"].as_i64()), (Some("trial"), Some(1)));
+    assert_eq!(standing["team"], false);
+    assert_eq!(standing["ends_at"], Value::Null);
+
+    // A session that ended within two minutes does not count.
+    assert_eq!(start().await.0, StatusCode::CREATED);
+    set("update sessions set started_at = now() - interval '5 minutes', ended_at = now() - interval '4 minutes'")
+        .await
+        .unwrap();
+    assert_eq!(plan().await.1["left"], 1);
+
+    // One that lasted uses the day, and starts the seven days.
+    assert_eq!(start().await.0, StatusCode::CREATED);
+    set("update sessions set started_at = now() - interval '30 minutes', ended_at = now() - interval '10 minutes'
+         where started_at is null")
+        .await
+        .unwrap();
+    let (_, standing) = plan().await;
+    assert_eq!((standing["used"].as_i64(), standing["left"].as_i64()), (Some(1), Some(0)));
+    assert!(standing["ends_at"].is_string());
+    let (status, refused) = start().await;
+    assert_eq!(status, StatusCode::PAYMENT_REQUIRED, "{refused}");
+    assert_eq!(
+        (refused["error"]["code"].as_str(), refused["error"]["message"].as_str()),
+        (Some("plan_limit"), Some("trial_day_used"))
+    );
+
+    // Eight days later the trial is over.
+    set("update sessions set started_at = started_at - interval '8 days', ended_at = ended_at - interval '8 days'")
+        .await
+        .unwrap();
+    assert_eq!(plan().await.1["plan"], "none");
+    assert_eq!(start().await.1["error"]["message"], "trial_over");
+
+    // Only the team sees the families and grants a plan.
+    assert_eq!(
+        app.call(Method::GET, "/v1/admin/families", Some(ana.as_str()), None).await.0,
+        StatusCode::FORBIDDEN
+    );
+    let team = app.sign_in("team@example.org", "Team").await;
+    let (status, families) = app.call(Method::GET, "/v1/admin/families", Some(team.as_str()), None).await;
+    assert_eq!(status, StatusCode::OK, "{families}");
+    let quispe = families["families"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|family| family["emails"].as_str() == Some("ana@example.org"))
+        .unwrap()
+        .clone();
+    assert_eq!((quispe["children"].as_i64(), quispe["standing"]["plan"].as_str()), (Some(1), Some("none")));
+    let grant = format!("/v1/admin/families/{}/grant", quispe["id"].as_str().unwrap());
+    let (status, _) = app.call(Method::POST, &grant, Some(ana.as_str()), Some(json!({ "days": 30 }))).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    for bad in [json!({ "days": 0 }), json!({ "days": 400 }), json!({ "days": 30, "note": "x".repeat(501) })]
+    {
+        assert_eq!(
+            app.call(Method::POST, &grant, Some(team.as_str()), Some(bad)).await.0,
+            StatusCode::BAD_REQUEST
+        );
+    }
+    let (status, granted) = app
+        .call(Method::POST, &grant, Some(team.as_str()), Some(json!({ "days": 30, "note": "pilot" })))
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{granted}");
+    assert_eq!((granted["plan"].as_str(), granted["left"].as_i64()), (Some("granted"), Some(3)));
+    assert_eq!(
+        app.count("select count(*) from subscriptions where granted_by = 'team@example.org'").await,
+        1
+    );
+
+    // A granted plan gives three sessions in any seven days.
+    assert_eq!(start().await.0, StatusCode::CREATED);
+    set("update sessions set started_at = now() - interval '1 hour' where started_at is null").await.unwrap();
+    assert_eq!(plan().await.1["left"], 2);
+
+    // The team sees how the family uses Aule, and the daily figures.
+    let (_, families) = app.call(Method::GET, "/v1/admin/families", Some(team.as_str()), None).await;
+    assert!(families["families"].as_array().unwrap().iter().any(|family| family["sessions_7d"] == 1));
+    assert_eq!(
+        app.call(Method::GET, "/v1/metrics/daily?days=3", Some(team.as_str()), None).await.0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        app.call(Method::GET, "/v1/metrics/daily?days=3", Some(ana.as_str()), None).await.0,
+        StatusCode::FORBIDDEN
+    );
+
+    // Ending the grant leaves the family where the trial left it.
+    let (status, ended) = app.call(Method::DELETE, &grant, Some(team.as_str()), None).await;
+    assert_eq!((status, ended["plan"].as_str()), (StatusCode::OK, Some("none")));
 }
 
 #[sqlx::test(migrator = "aule_platform::MIGRATOR")]

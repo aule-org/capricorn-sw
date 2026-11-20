@@ -8,7 +8,7 @@ use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, DbErr, Statement};
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
-use crate::auth::Operator;
+use crate::auth::Staff;
 use crate::error::ApiResult;
 use crate::state::AppState;
 
@@ -187,7 +187,7 @@ pub struct DailyQuery {
 
 /// One object per day, newest first, in the server's configured local time.
 pub async fn daily(
-    _: Operator,
+    _: Staff,
     State(state): State<AppState>,
     Query(query): Query<DailyQuery>,
 ) -> ApiResult<Json<Value>> {

@@ -131,6 +131,37 @@ function showStudents(preferred) {
   showSubject();
 }
 
+const DAY_MS = 86_400_000;
+const sessions = (n) => (n === 1 ? "1 sesión" : `${n} sesiones`);
+const date = (iso) => new Date(iso).toLocaleDateString("es-PE", { day: "numeric", month: "long" });
+
+/** What the family's plan allows now, in a line; and whether a session can start. */
+function planLine(plan) {
+  if (!plan) return { text: "", open: true };
+  const left = plan.left ?? 0;
+  if (plan.plan === "trial" && !plan.ends_at) {
+    return { text: "Prueba gratis de 7 días: empieza con tu primera sesión. Una sesión al día.", open: true };
+  }
+  if (plan.plan === "trial") {
+    const days = Math.max(1, Math.ceil((new Date(plan.ends_at) - Date.now()) / DAY_MS));
+    const today = left > 0 ? "hoy tienes tu sesión" : "la sesión de hoy ya la usaste: vuelve mañana";
+    return { text: `Prueba gratis: te ${days === 1 ? "queda 1 día" : `quedan ${days} días`}, y ${today}.`, open: left > 0 };
+  }
+  if (plan.plan === "paid" || plan.plan === "granted") {
+    const kind = plan.plan === "paid" ? "Plan Aule" : "Plan Aule (regalado)";
+    const week =
+      left > 0
+        ? `te ${left === 1 ? "queda" : "quedan"} ${sessions(left)} de ${plan.allowed} en estos 7 días`
+        : `ya usaste las ${plan.allowed} sesiones de estos 7 días; cada una vuelve a los 7 días de usarla`;
+    return { text: `${kind} hasta el ${date(plan.ends_at)}: ${week}.`, open: left > 0 };
+  }
+  const price = (plan.price?.amount_cents ?? 5900) / 100;
+  return {
+    text: `Tu prueba gratis terminó. El plan Aule cuesta S/${price} al mes, con 3 sesiones por semana. Muy pronto podrás suscribirte aquí; mientras tanto, escríbenos a admin@meetaule.com.`,
+    open: false,
+  };
+}
+
 function show(account, preferred) {
   const signedIn = account.signed_in === true;
   const providers = account.providers ?? [];
@@ -147,6 +178,11 @@ function show(account, preferred) {
   // A name that already ends in a full stop ("Gonzalo G.") keeps just the one.
   const name = (account.name ?? "").trim().replace(/\.+$/, "");
   $("hello").textContent = name ? `Hola, ${name}.` : "Hola.";
+  const plan = planLine(account.plan);
+  $("plan-line").textContent = plan.text;
+  $("plan-line").hidden = !plan.text;
+  $("enter").disabled = !plan.open;
+  $("team-panel").hidden = account.team !== true;
   $("subject").replaceChildren(
     ...(subjects ?? []).map((subject) => new Option(SUBJECTS[subject], subject)),
     new Option("Otra", "other"),

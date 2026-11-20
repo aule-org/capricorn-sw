@@ -50,6 +50,13 @@ const STEP_POLL_MS = 3000;
 // Typed messages go to the tutor on the topic LiveKit agents read.
 const CHAT_TOPIC = "lk.chat";
 
+// Why the family's plan has no session now, as the platform says it.
+const PLAN_LIMITS = {
+  trial_day_used: "Hoy ya usaste la sesión de tu prueba gratis. Vuelve mañana.",
+  week_used: "Ya usaste las sesiones de tu plan de estos 7 días. Cada una vuelve a los 7 días de usarla.",
+  trial_over: "Tu prueba gratis de 7 días terminó. Suscríbete para seguir con Aule.",
+};
+
 const ERRORS = {
   daily_limit: "Ya usaste las sesiones de hoy. Vuelve mañana.",
   not_signed_in: "Tu sesión se cerró. Vuelve a entrar.",
@@ -712,7 +719,8 @@ $("join").addEventListener("click", async () => {
     });
     const body = await response.json();
     if (!response.ok) {
-      throw new Error(ERRORS[body.error] ?? body.message ?? "No se pudo empezar la sesión.");
+      const why = body.error === "plan_limit" ? PLAN_LIMITS[body.reason] : ERRORS[body.error];
+      throw new Error(why ?? body.message ?? "No se pudo empezar la sesión.");
     }
     // The room opens the devices itself, with what was chosen here.
     stopPreview();

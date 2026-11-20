@@ -14,7 +14,9 @@ import {
   answer,
   createSession,
   eraseAccount,
+  platform,
   PlatformError,
+  readPlan,
   signIn,
   signInProviders,
   signInWithCode,
@@ -70,6 +72,9 @@ const STATIC: Record<string, { file: string | URL; type: string }> = {
   "/signin.js": { file: new URL("signin.js", publicDir), type: "text/javascript; charset=utf-8" },
   "/visuals.js": { file: new URL("visuals.js", publicDir), type: "text/javascript; charset=utf-8" },
   "/style.css": { file: new URL("style.css", publicDir), type: "text/css; charset=utf-8" },
+  // The team's panel. The page is the same for anyone; its data only for the team.
+  "/admin": { file: new URL("admin.html", publicDir), type: "text/html; charset=utf-8" },
+  "/admin.js": { file: new URL("admin.js", publicDir), type: "text/javascript; charset=utf-8" },
   "/fonts/serif.woff2": { file: join(serif, "source-serif-4-latin-wght-normal.woff2"), type: "font/woff2" },
   "/fonts/serif-italic.woff2": { file: join(serif, "source-serif-4-latin-wght-italic.woff2"), type: "font/woff2" },
   "/livekit-client.js": { file: livekitClient, type: "text/javascript; charset=utf-8" },
@@ -180,6 +185,7 @@ export function createPlayground(settings: Settings): Server {
     try {
       const who = await account(settings, token);
       const students = await readStudents(settings, token, who.students);
+      const plan = await readPlan(settings, token);
       return reply({
         google_client_id: clientId,
         providers,
@@ -187,6 +193,8 @@ export function createPlayground(settings: Settings): Server {
         name: who.name,
         students,
         subjects: who.subjects,
+        plan: plan.standing,
+        team: plan.team,
       });
     } catch (error) {
       if (!(error instanceof PlatformError)) throw error;
@@ -289,7 +297,15 @@ export function createPlayground(settings: Settings): Server {
     const objective = objectiveFrom(body.objective);
     if (objective === null) return json(response, 400, { error: "bad_request" });
     if (!daily.take(token)) return json(response, 429, { error: "daily_limit" });
-    return json(response, 200, await startSession(settings, token, id, language, objective));
+    try {
+      return json(response, 200, await startSession(settings, token, id, language, objective));
+    } catch (error) {
+      // The family's plan has no session left now; the platform says which limit.
+      if (error instanceof PlatformError && error.status === 402) {
+        return json(response, 402, { error: "plan_limit", reason: error.message });
+      }
+      throw error;
+    }
   }
 
   // A session the engine runs: where it stands, and an answer written on the
@@ -352,6 +368,45 @@ export function createPlayground(settings: Settings): Server {
       return json(response, 200, await supervisorView(settings, body.session_id));
     }
     return json(response, 200, await createSession(settings, language));
+  }
+
+  // The team's panel: the platform decides who is on the team, from the sign-in.
+  async function admin(path: string, request: IncomingMessage, response: ServerResponse) {
+    if (!settings.platform) return json(response, 404, { error: "not_found" });
+    const token = guardianToken(request);
+    if (!token) return json(response, 401, { error: "not_signed_in" });
+    try {
+      if (request.method === "GET" && path === "/api/admin/families") {
+        return json(response, 200, await platform(settings, "/v1/admin/families", undefined, token));
+      }
+      if (request.method === "GET" && path === "/api/admin/metrics") {
+        return json(response, 200, await platform(settings, "/v1/metrics/daily?days=14", undefined, token));
+      }
+      if (request.method !== "POST" || !["/api/admin/grant", "/api/admin/ungrant"].includes(path)) {
+        return json(response, 404, { error: "not_found" });
+      }
+      let body: Record<string, unknown>;
+      try {
+        body = await readJson(request);
+      } catch {
+        return json(response, 400, { error: "bad_request" });
+      }
+      const id = body.family_id;
+      if (typeof id !== "string" || !ID.test(id)) return json(response, 400, { error: "bad_request" });
+      const grant = `/v1/admin/families/${id}/grant`;
+      if (path === "/api/admin/ungrant") {
+        return json(response, 200, await platform(settings, grant, undefined, token, "DELETE"));
+      }
+      const note = typeof body.note === "string" ? body.note.trim().slice(0, 500) : "";
+      if (!Number.isInteger(body.days)) return json(response, 400, { error: "bad_request" });
+      return json(response, 201, await platform(settings, grant, { days: body.days, ...(note ? { note } : {}) }, token));
+    } catch (error) {
+      if (error instanceof PlatformError && (error.status === 401 || error.status === 403)) {
+        return json(response, 403, { error: "not_team" });
+      }
+      if (error instanceof PlatformError && error.status === 400) return json(response, 400, { error: "bad_request" });
+      throw error;
+    }
   }
 
   // GitHub, Meta and Apple: "start" sends the person there, "callback" is where
@@ -422,6 +477,7 @@ export function createPlayground(settings: Settings): Server {
     const handle = async () => {
       if (path === "/healthz" && request.method === "GET") return json(response, 200, { ok: true });
       if (path === "/api/account" && request.method === "GET") return whoIsHere(request, response);
+      if (path.startsWith("/api/admin/")) return admin(path, request, response);
       const signingIn = SIGN_IN_PATH.exec(path);
       if (signingIn) return codeSignIn(signingIn[1] as CodeProvider, signingIn[2]!, request, response);
       if (

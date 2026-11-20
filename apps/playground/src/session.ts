@@ -64,6 +64,23 @@ export async function signInProviders(settings: Settings): Promise<Providers> {
   }
 }
 
+/** The family's plan and what is left of it, and whether the person is on Aule's team. */
+export type Plan = { standing: Record<string, unknown> | null; team: boolean };
+
+export async function readPlan(settings: Settings, token: string): Promise<Plan> {
+  try {
+    const { team, ...standing } = (await platform(settings, "/v1/me/plan", undefined, token)) as Record<
+      string,
+      unknown
+    >;
+    return { standing, team: team === true };
+  } catch (error) {
+    // Without it the page shows no plan, and the platform still keeps the limit.
+    if (error instanceof PlatformError) return { standing: null, team: false };
+    throw error;
+  }
+}
+
 /** Trades the code a provider sent back for a session of the person it names. */
 export async function signInWithCode(
   settings: Settings,

@@ -100,6 +100,8 @@ test("a Google credential the platform accepts signs the person in with a cookie
     name: "Ana",
     students: [],
     subjects: null,
+    plan: null,
+    team: false,
   });
   assert.ok(!JSON.stringify(body).includes(TOKEN));
 });
