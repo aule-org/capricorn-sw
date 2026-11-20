@@ -161,8 +161,9 @@ para que él mismo lo note.
 partida concreto, un ejemplo, o pártelo en algo más fácil.
 
 Cómo hablas:
-- Todo lo que dices se vuelve voz: frases cortas, una o dos por turno, sin listas, sin \
-símbolos, sin markdown ni emojis. Di los números y las operaciones con palabras.
+- Todo lo que escribes se le dice en voz alta al estudiante: escribe solo lo que él debe \
+oír, nunca lo que piensas, decides o haces. Frases cortas, una o dos por turno, sin listas, \
+sin símbolos, sin markdown ni emojis. Di los números y las operaciones con palabras.
 - Suena como una persona, no como un cuestionario: a veces invita a intentar, a veces solo \
 reacciona y anima. No termines cada turno con una pregunta.
 
@@ -203,7 +204,8 @@ contradiction, use it so they notice it themselves.
 concrete starting point, an example, or break it into something easier.
 
 How you speak:
-- Everything you say becomes speech: short sentences, one or two per turn, no lists, no \
+- Everything you write is said out loud to the student: write only what they should hear, \
+never what you think, decide or do. Short sentences, one or two per turn, no lists, no \
 symbols, no markdown, no emojis. Say numbers and operations in words.
 - Sound like a person, not a questionnaire: sometimes invite them to try, sometimes just \
 react and encourage. Do not end every turn with a question.
@@ -245,12 +247,12 @@ the exercise with black ones and grey ones.""",
 
 # Added to the instructions only when there is something to check answers with.
 CHECKING = {
-    "es": """Antes de pedirle un cálculo, llama a pose_exercise con la operación. Después, \
-a cada cosa que responda, también un "no sé" o una duda, llama a check_answer con sus \
-palabras y haz lo que te indique.""",
-    "en": """Before you ask for a computation, call pose_exercise with the operation. Then, \
-for everything they reply, an "I don't know" or a doubt too, call check_answer with their \
-words and do what it tells you.""",
+    "es": """Antes de pedirle un cálculo, llama a pose_exercise con la operación. Mientras \
+ese cálculo siga abierto, a cada cosa que responda, también un "no sé" o una duda, llama a \
+check_answer con sus palabras y haz lo que te indique. Sin un cálculo abierto no las uses.""",
+    "en": """Before you ask for a computation, call pose_exercise with the operation. While \
+that computation is open, for everything they reply, an "I don't know" or a doubt too, call \
+check_answer with their words and do what it tells you. With none open, do not use them.""",
 }
 
 GREETING = {
@@ -293,6 +295,17 @@ def _text_of(chunk: Any) -> str:
     return (delta.content or "") if delta is not None else ""
 
 
+def for_the_student(text: str) -> str:
+    """The part of a reply that is meant to be heard.
+
+    A reply is one short paragraph. When the model writes more than one, the
+    earlier ones are it reasoning about what to do, and only the last one is
+    addressed to the student.
+    """
+    paragraphs = [part.strip() for part in text.split("\n\n") if part.strip()]
+    return paragraphs[-1] if len(paragraphs) > 1 else text
+
+
 async def checked(stream: AsyncIterable[Any], gates: Gates, language: str) -> AsyncIterable[Any]:
     """The model's reply once the gate on what is spoken has approved all of it.
 
@@ -301,12 +314,22 @@ async def checked(stream: AsyncIterable[Any], gates: Gates, language: str) -> As
     pass is replaced by a fixed one.
     """
     chunks = [chunk async for chunk in stream]
-    decision = await gates.spoken("".join(_text_of(chunk) for chunk in chunks))
-    if decision.allowed:
+    written = "".join(_text_of(chunk) for chunk in chunks)
+    spoken = for_the_student(written)
+    decision = await gates.spoken(spoken)
+    if not decision.allowed:
+        yield reply(decision.reply or "unavailable", language)
+    elif spoken == written:
         for chunk in chunks:
             yield chunk
     else:
-        yield reply(decision.reply or "unavailable", language)
+        # Counts only: what was left out is never logged.
+        logger.info("reasoning left out of a reply", extra={"chars": len(written) - len(spoken)})
+        yield spoken
+        for chunk in chunks:
+            # What is not text still has to go through: a tool call, the usage.
+            if not _text_of(chunk):
+                yield chunk
 
 
 async def present(visual: object, gates: Gates, show: Show) -> str:
