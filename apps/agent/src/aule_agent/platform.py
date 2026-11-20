@@ -115,6 +115,10 @@ class Platform:
         self._stops_done: set[str] = set()
         # Why the session ended, when it was not the clock or the person leaving.
         self.end_reason: str | None = None
+        # The platform decides when a break is due and repeats its offer until
+        # it reads here that one was taken.
+        self._pause = False
+        self.breaks_taken = 0
 
     async def _http(
         self, method: str, path: str, body: dict[str, Any] | None, timeout: float
@@ -272,7 +276,11 @@ class Platform:
             answer = await self._call(
                 "POST",
                 "/v1/agent/session/turns",
-                {"turns": batch, "after_guidance": self._after_guidance},
+                {
+                    "turns": batch,
+                    "after_guidance": self._after_guidance,
+                    "breaks_taken": self.breaks_taken,
+                },
                 REPORT_TIMEOUT_SECONDS,
             )
             if answer is None:
@@ -284,6 +292,7 @@ class Platform:
             stop = answer.get("stop")
             if stop in STOPS and self._stop != "end":
                 self._stop = stop
+            self._pause = answer.get("pause") == "offer"
             plan = answer.get("plan")
             if isinstance(plan, str) and plan.strip() and self._late_plan is None:
                 self._late_plan = plan
@@ -298,10 +307,11 @@ class Platform:
         advise: Callable[[str], Awaitable[None]],
         plan: Callable[[str], Awaitable[None]] | None = None,
         stop: Callable[[str], Awaitable[None]] | None = None,
+        pause: Callable[[], Awaitable[None]] | None = None,
     ) -> None:
         """Reports turns as they come and hands the plan, once, and guidance to
-        the tutor; and a warning or the end, once each, when the platform asks
-        for it. Runs until cancelled."""
+        the tutor; a warning or the end, once each, when the platform asks for
+        it; and a break each time it offers one. Runs until cancelled."""
         while True:
             await self._wake.wait()
             self._wake.clear()
@@ -315,11 +325,16 @@ class Platform:
             if stop and self._stop and self._stop not in self._stops_done:
                 self._stops_done.add(self._stop)
                 await stop(self._stop)
+            if pause and self._pause:
+                self._pause = False
+                await pause()
             if self._pending:
                 await asyncio.sleep(REPORT_RETRY_SECONDS)
                 self._wake.set()
 
-    async def end(self) -> None:
+    async def end(self, measures: Mapping[str, float] | None = None) -> None:
+        """Reports what is left and closes the session, with the agent's own
+        numbers about it (how long it lasted, what the model used)."""
         if self._flags:
             # Flags are best effort; the end of a session does not wait long for them.
             _, late = await asyncio.wait(self._flags, timeout=FLAG_TIMEOUT_SECONDS)
@@ -336,9 +351,11 @@ class Platform:
             logger.warning(
                 "session ended with unreported turns", extra={"turns": len(self._pending)}
             )
-        body = {"end_reason": "error"} if self._pending else {}
+        body: dict[str, Any] = {"end_reason": "error"} if self._pending else {}
         if self.end_reason and not self._pending:
             body = {"end_reason": self.end_reason}
+        if measures:
+            body["metrics"] = dict(measures)
         await self._call("POST", "/v1/agent/session/end", body, REPORT_TIMEOUT_SECONDS)
         if self._http_session is not None:
             await self._http_session.close()

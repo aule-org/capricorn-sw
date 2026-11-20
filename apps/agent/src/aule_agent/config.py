@@ -47,6 +47,8 @@ class Settings:
     session_max_minutes: int
     # Device turn-taking: the talk button drives turns, the VAD does not.
     push_to_talk: bool
+    # How long a break lasts before the tutor asks to go on.
+    break_minutes: int = 5
     # Kept out of the repr so a logged Settings never shows a key.
     openai_api_key: str | None = field(default=None, repr=False)
     typesafe_api_key: str | None = field(default=None, repr=False)
@@ -96,6 +98,11 @@ class Settings:
         if not 1 <= minutes <= 120:
             problems.append("AULE_SESSION_MAX_MINUTES must be a whole number from 1 to 120")
 
+        raw_break = get("AULE_BREAK_MINUTES", "5")
+        break_minutes = int(raw_break) if raw_break.isdecimal() else 0
+        if not 1 <= break_minutes <= 15:
+            problems.append("AULE_BREAK_MINUTES must be a whole number from 1 to 15")
+
         push_to_talk = get("AULE_PUSH_TO_TALK").lower() in ("1", "true", "yes", "on")
 
         if problems:
@@ -110,6 +117,7 @@ class Settings:
             language=language,
             session_max_minutes=minutes,
             push_to_talk=push_to_talk,
+            break_minutes=break_minutes,
             openai_api_key=get(MODERATION_KEY) or None,
             typesafe_api_key=get(PHYSICAL_SAFETY_KEY) or None,
         )

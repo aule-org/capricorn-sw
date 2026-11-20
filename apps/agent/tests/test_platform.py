@@ -103,6 +103,7 @@ async def test_turns_are_numbered_and_named_for_the_platform():
                     {"seq": 1, "role": "child", "content": "No sé"},
                 ],
                 "after_guidance": 0,
+                "breaks_taken": 0,
             },
         )
     ]
@@ -466,3 +467,48 @@ async def test_a_session_without_an_engine_is_not_scripted(monkeypatch):
     await platform.start()
 
     assert not platform.scripted and platform.opening() == ()
+
+
+async def test_a_break_is_handed_over_each_time_the_platform_offers_one():
+    send = Recorder({"pause": "offer"}, {"pause": "offer"}, {"pause": None})
+    platform = Platform(SESSION, send)
+    offers = []
+
+    async def pause():
+        offers.append(len(send.calls))
+        # The tutor proposed it: the next report says so.
+        platform.breaks_taken = 1
+
+    async def nothing(_):
+        return None
+
+    running = asyncio.create_task(platform.run(nothing, pause=pause))
+    for text in ("uno", "dos", "tres"):
+        platform.heard("user", text)
+        for _ in range(10):
+            await asyncio.sleep(0)
+    running.cancel()
+    await asyncio.gather(running, return_exceptions=True)
+
+    # Offered twice and withdrawn once; the count travels with every report.
+    assert offers == [1, 2]
+    assert [body["breaks_taken"] for _, _, body in send.calls] == [0, 1, 1]
+
+
+async def test_the_end_carries_the_numbers_of_the_session():
+    send = Recorder()
+    platform = Platform(SESSION, send)
+    platform.end_reason = "not_working"
+
+    await platform.end({"minutes": 31.5, "breaks_taken": 1, "llm_calls": 40})
+
+    assert send.calls == [
+        (
+            "POST",
+            "/v1/agent/session/end",
+            {
+                "end_reason": "not_working",
+                "metrics": {"minutes": 31.5, "breaks_taken": 1, "llm_calls": 40},
+            },
+        )
+    ]

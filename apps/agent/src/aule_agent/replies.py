@@ -1,5 +1,6 @@
-"""The fixed replies a person hears when a safety gate stops a turn, and when
-a session is stopped because the student is not working.
+"""The fixed replies a person hears when a safety gate stops a turn, when a
+session is stopped because the student is not working, and when the clock
+asks for a break or says the end is near.
 
 They are written and reviewed by people, in every supported language, and are
 never generated or translated by a model: what is said after a gate stops a
@@ -70,6 +71,57 @@ REPLIES: dict[str, dict[str, str]] = {
         "en": "I'm not sure what you want to do. Can you tell me another way? We can also play a "
         "guessing game or make up a story.",
     },
+    # The clock. Said in a quiet moment, never over a reply: a session does not
+    # end without a warning.
+    "five_minutes_left": {
+        "es": "Nos quedan cinco minutos. Terminemos esto con calma.",
+        "en": "We have five minutes left. Let's finish this calmly.",
+    },
+    "two_minutes_left": {
+        "es": "Nos quedan dos minutos. Terminemos esto con calma.",
+        "en": "We have two minutes left. Let's finish this calmly.",
+    },
+    "goodbye": {
+        "es": "Se nos acabó el tiempo por hoy. ¡Buen trabajo! Hasta la próxima.",
+        "en": "That is all our time for today. Good work! See you next time.",
+    },
+    # An active break: one short thing to do away from the work, then back.
+    "break_stars": {
+        "es": "Llevamos un buen rato trabajando, así que toca una pausa. Ponte de pie y haz "
+        "quince saltos de estrella, abriendo brazos y piernas. Cuando vuelvas, avísame y "
+        "seguimos.",
+        "en": "We have been working for a good while, so it is time for a break. Stand up and "
+        "do fifteen star jumps, opening your arms and legs. Tell me when you are back and we "
+        "go on.",
+    },
+    "break_balloon": {
+        "es": "Buen momento para una pausa. Siéntate cómodo, pon las manos en la barriga y "
+        "respira despacio cinco veces, inflándola como un globo. Cuando termines, avísame y "
+        "seguimos.",
+        "en": "A good moment for a break. Sit comfortably, put your hands on your belly and "
+        "breathe slowly five times, filling it like a balloon. Tell me when you are done and "
+        "we go on.",
+    },
+    "break_mirror": {
+        "es": "Toca una pausa. Ponte de pie y toca tu nariz, tus rodillas y tus hombros, cada "
+        "vez más rápido. Después sacude las manos y los pies. Cuando vuelvas, avísame y "
+        "seguimos.",
+        "en": "Time for a break. Stand up and touch your nose, your knees and your shoulders, "
+        "faster each time. Then shake your hands and feet. Tell me when you are back and we "
+        "go on.",
+    },
+    "break_cat": {
+        "es": "Hagamos una pausa. Estira los brazos hacia arriba como un gato que despierta, "
+        "gira despacio el cuello a un lado y al otro, y toma agua si tienes a la mano. Cuando "
+        "vuelvas, avísame y seguimos.",
+        "en": "Let's take a break. Stretch your arms up like a cat waking up, turn your neck "
+        "slowly to one side and the other, and drink some water if you have it near. Tell me "
+        "when you are back and we go on.",
+    },
+    "break_over": {
+        "es": "Ya pasó la pausa. ¿Seguimos donde nos quedamos?",
+        "en": "The break is over. Shall we go on where we left off?",
+    },
     "context_limit": {
         "es": "Necesito ayuda de un adulto para seguir con seguridad. Pídele que revise lo que "
         "pasa y vuelva a iniciar la sesión.",
@@ -86,6 +138,10 @@ ADULT_HELP_SEQUENCE = ("adult_help", "adult_help_riddle", "adult_help_story")
 # Replies that offer something to do next. They stay in the conversation so
 # that "the riddle" has something to refer to on the following turn.
 OFFERS = frozenset({*ADULT_HELP_SEQUENCE, "clarify"})
+
+# One activity per break, in turn: one that wakes up, then one that calms. They
+# are the four the session engine proposes, shortened to be heard.
+BREAKS = ("break_stars", "break_balloon", "break_mirror", "break_cat")
 
 
 def reply(key: str, language: str) -> str:
