@@ -38,7 +38,7 @@ Before real children use it:
 - **OpenAI's moderation endpoint receives what the child says and what the tutor answers.** Its terms must be checked against the requirement in ARCHITECTURE.md that providers allow minors' data with zero retention.
 - A session starts when both gates are configured; the agent does not probe that the providers answer before it starts. If one is down, every turn gets the fixed reply.
 - The physical-safety gate is told the age is unknown: the dispatch does not carry the child's age yet.
-- The verdicts were evaluated on synthetic conversations only ([evals/physical-safety](evals/physical-safety/README.md), run by hand against the real provider). The gates do not replace an adult nearby.
+- The verdicts were evaluated on synthetic conversations only ([evals/physical-safety](evals/physical-safety/README.md) and [evals/second-reading](evals/second-reading/README.md), run by hand against the real providers). The gates do not replace an adult nearby.
 
 Not built yet: publishing `session.ended` and `safety.flagged` as events.
 

@@ -62,22 +62,21 @@ async def test_cancelling_is_not_swallowed_and_the_client_is_closed_with_it():
     assert client.closed
 
 
-async def test_only_the_word_schoolwork_lets_a_tired_student_through():
-    reader = SecondOpinion(client=FakeClient("schoolwork"))
+async def test_a_childs_words_are_ordinary_concern_or_unsettled():
+    async def read(answer):
+        return await SecondOpinion(client=FakeClient(answer)).ordinary("¿Hacemos otro?", "x")
 
-    assert await reader.only_schoolwork("¿Hacemos otro?", "ya no quiero seguir")
-    for answer in ("CONCERN", "SCHOOLWORK, probably", "", "SAFE"):
-        tired = await SecondOpinion(client=FakeClient(answer)).only_schoolwork(
-            "¿Hacemos otro?", "x"
-        )
-        assert not tired
+    assert await read(" ordinary\n") is True
+    assert await read("CONCERN") is False
+    for answer in ("ORDINARY, I think", "", "SAFE", "SCHOOLWORK"):
+        assert await read(answer) is None
 
 
 async def test_the_reader_gets_the_childs_words_with_the_tutors_line_before_them():
-    client = FakeClient("SCHOOLWORK")
+    client = FakeClient("ORDINARY")
 
-    await SecondOpinion(client=client).only_schoolwork(" ¿Hacemos otro? ", " ya no quiero seguir ")
-    await SecondOpinion(client=client).only_schoolwork("", "ya no quiero seguir")
+    await SecondOpinion(client=client).ordinary(" ¿Hacemos otro? ", " ya no quiero seguir ")
+    await SecondOpinion(client=client).ordinary("", "ya no quiero seguir")
 
     assert client.calls[0]["system"].startswith("A child between 6 and 16")
     assert [call["messages"][0]["content"] for call in client.calls] == [
@@ -86,10 +85,8 @@ async def test_the_reader_gets_the_childs_words_with_the_tutors_line_before_them
     ]
 
 
-async def test_a_reader_that_is_late_or_down_does_not_clear_anything(monkeypatch):
+async def test_a_reader_that_is_late_or_down_settles_nothing(monkeypatch):
     monkeypatch.setattr("aule_agent.opinion.TIMEOUT_SECONDS", 0.01)
 
-    assert not await SecondOpinion(client=FakeClient("SCHOOLWORK", delay=1)).only_schoolwork(
-        "", "x"
-    )
-    assert not await SecondOpinion(client=FakeClient(RuntimeError("down"))).only_schoolwork("", "x")
+    assert await SecondOpinion(client=FakeClient("ORDINARY", delay=1)).ordinary("", "x") is None
+    assert await SecondOpinion(client=FakeClient(RuntimeError("down"))).ordinary("", "x") is None

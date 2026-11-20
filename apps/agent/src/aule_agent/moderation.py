@@ -150,12 +150,13 @@ class Finding:
     # sentences land as often as bad ones, so a score cannot settle it (see
     # ``opinion``).
     unsure: bool = False
-    # True when all that was found is a faint score for self-harm in a
-    # sentence the provider itself did not act on. That is where a student who
-    # is only tired lands ("I don't want to go on, let's finish"), so it is
-    # read once more before the line for a child in distress is said (see
-    # ``opinion``). Anything stronger, or found with anything else, is never
-    # in doubt.
+    # True when the self-harm scores are faint, under our thresholds or just
+    # over them, in a sentence the provider itself did not act on and where
+    # nothing else was found. A student who is only tired lands there ("I
+    # don't want to go on, let's finish"), and so do veiled words of a child
+    # in distress that score as nothing ("everyone would be better off without
+    # me"), so such a sentence is read once more (see ``opinion``). Anything
+    # stronger, or found with anything else, is never in doubt.
     faint_self_harm: bool = False
 
     @property
@@ -199,25 +200,26 @@ def provider_is_unsure(response: Any) -> bool:
     return bool(found) and set(found) <= SECOND_READING and result.flagged is False
 
 
-# Below this, a self-harm score in a sentence the provider did not flag may be
-# a student talking about the work. From here up it is never in doubt.
+# A self-harm score from the first to below the second, in a sentence the
+# provider did not flag, may be a tired student or a child in distress, and is
+# read once more. Below it the sentence is ordinary talk; from the second up it
+# is never in doubt.
+SELF_HARM_FAINT_FROM = 0.003
 SELF_HARM_FAINT_BELOW = 0.2
 _SELF_HARM_SCORES = ("self_harm", "self_harm_intent", "self_harm_instructions")
 
 
 def provider_finds_faint_self_harm(response: Any) -> bool:
-    """Whether everything found is self-harm, over our threshold only and
-    faintly, and the provider's own verdict is that nothing is wrong. Call
-    after ``provider_categories`` accepted the response."""
+    """Whether the self-harm scores are faint, nothing but self-harm was found
+    if anything was, and the provider's own verdict is that nothing is wrong.
+    Call after ``provider_categories`` accepted the response."""
     result = response.results[0]
-    found = provider_categories(response)
-    if not found or result.flagged is not False:
+    if result.flagged is not False:
         return False
-    if not all(category.startswith("self-harm") for category in found):
+    if not all(category.startswith("self-harm") for category in provider_categories(response)):
         return False
-    return max(getattr(result.category_scores, name) for name in _SELF_HARM_SCORES) < (
-        SELF_HARM_FAINT_BELOW
-    )
+    score = max(getattr(result.category_scores, name) for name in _SELF_HARM_SCORES)
+    return SELF_HARM_FAINT_FROM <= score < SELF_HARM_FAINT_BELOW
 
 
 def provider_categories(response: Any) -> tuple[str, ...]:
