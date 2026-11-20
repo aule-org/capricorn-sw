@@ -111,3 +111,23 @@ jobs:
           path: reports/*.sarif
           if-no-files-found: error
           retention-days: 14
+
+  scripts:
+    name: Workflows, shell scripts and Dockerfiles
+    # The linters run from their images, and the Aule runner has no Docker.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: actionlint
+        # Its image carries ShellCheck, which also checks the workflows' run blocks.
+        run: docker run --rm --volume "$PWD:/repo" --workdir /repo rhysd/actionlint:1.7.12
+      - name: ShellCheck
+        if: ${{ !cancelled() }}
+        run: git ls-files -z '*.sh' | xargs -0 docker run --rm --volume "$PWD:/mnt" koalaman/shellcheck:v0.11.0 --severity=warning
+      - name: Hadolint
+        if: ${{ !cancelled() }}
+        # Debian's package versions are not pinned: an old one leaves the archive and breaks the build.
+        run: git ls-files -z '*Dockerfile' | xargs -0 docker run --rm --volume "$PWD:/mnt" --workdir /mnt hadolint/hadolint:v2.15.1 hadolint --failure-threshold warning --ignore DL3008

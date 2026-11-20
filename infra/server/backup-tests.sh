@@ -34,8 +34,13 @@ while read -r line; do
 done < <(remote 'sudo -n -u aule-admin bash -c "cd / && for f in /var/lib/aule/backups/aule-sw/*/*.sha256; do (cd \$(dirname \$f) && sha256sum -c \$(basename \$f)); done"' 2>&1)
 size=$(remote "sudo -n -u aule-admin stat -c %s $newest")
 [ "$size" -gt 100000 ] && ok "newest file is $size bytes (not empty or cut)" || ko "newest file is only $size bytes"
-remote "sudo -n -u aule-admin cat $newest" | gpg --list-packets --batch 2>/dev/null | grep -q "pubkey enc packet.*keyid 26CC75B6BC18FD63\|keyid 26CC75B6BC18FD63" \
-  && ok "encrypted to the backup key (subkey 26CC75B6BC18FD63)" || ok "encryption packet listed (key id format differs)"
+# The first packet names the key it is encrypted to; anything else is not a backup we can read.
+# (\| alternation is not portable to the Mac's grep, which made this check pass whatever it saw.)
+# Only the start of the file is read, so gpg complains about the rest: its
+# listing is kept and checked apart from its exit status.
+packets=$(remote "sudo -n -u aule-admin head -c 4096 $newest" | gpg --list-packets --batch 2>/dev/null || true)
+grep -q -E "pubkey enc packet: .*keyid 26CC75B6BC18FD63" <<<"$packets" \
+  && ok "encrypted to the backup key (subkey 26CC75B6BC18FD63)" || ko "not encrypted to the backup key (subkey 26CC75B6BC18FD63)"
 
 restore() { # file, label: restores into the throwaway database, returns its counts on stdout
   remote "sudo -n -u aule-admin cat $1" | "${GPG[@]}" | gunzip \
@@ -48,7 +53,7 @@ image=$(remote "docker inspect aule-sw-postgres-1 --format '{{.Config.Image}}'")
 PW=$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')
 # An internal network: the test database and the platform's migrate reach each other and nothing else.
 remote "docker rm -f $TEST >/dev/null 2>&1; docker network rm aule-restore-net >/dev/null 2>&1; docker network create --internal aule-restore-net >/dev/null && docker run -d --name $TEST --network aule-restore-net --memory 1g --tmpfs /var/lib/postgresql/data:rw,size=2g -e POSTGRES_USER=aule -e POSTGRES_PASSWORD=$PW -e POSTGRES_DB=aule $image >/dev/null"
-for i in $(seq 1 30); do remote "docker exec $TEST pg_isready -U aule -d aule -q" && break; sleep 2; done
+for _ in $(seq 1 30); do remote "docker exec $TEST pg_isready -U aule -d aule -q" && break; sleep 2; done
 sleep 3
 
 if restore "$newest" newest; then ok "newest backup restores with no error (ON_ERROR_STOP)"; else ko "newest backup did not restore"; fi

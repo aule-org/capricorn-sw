@@ -52,7 +52,10 @@ mail() { # subject, body
     printf 'Content-Type: text/plain; charset=utf-8\r\n\r\n'
     printf '%s\r\n' "$2"
   } >"$msg"
-  curl -fsS --max-time 30 --ssl-reqd --url "$url" --mail-from "$from" "${rcpt[@]}" --upload-file "$msg" >/dev/null
+  # The address may hold the mail password: it goes to curl as a config line on
+  # its standard input, never on the command line, where ps would show it.
+  local quoted=${url//\\/\\\\}
+  printf 'url = "%s"\n' "${quoted//\"/\\\"}" | curl -fsS --max-time 30 --ssl-reqd --config - --mail-from "$from" "${rcpt[@]}" --upload-file "$msg" >/dev/null
   local sent=$?
   rm -f "$msg"
   return $sent
