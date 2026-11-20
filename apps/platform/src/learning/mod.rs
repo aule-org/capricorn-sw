@@ -7,10 +7,16 @@ pub mod skill_model;
 use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{DateTime, Utc};
+use sea_orm::ActiveValue::Set;
+use sea_orm::sea_query::{Expr, OnConflict};
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, Statement, TransactionTrait,
+};
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
+use crate::entity::{attempt, correction, item_difficulty, skill};
 use crate::error::{ApiError, ApiResult};
 use skill_model::{Correction, LearnerModel, Params, SkillTrace, TraceAttempt, TraceRequest, TraceResponse};
 
@@ -54,43 +60,24 @@ impl NewAttempt {
     }
 }
 
-#[derive(sqlx::FromRow)]
-struct AttemptRow {
-    skill_id: String,
-    question_id: Option<String>,
-    correct: bool,
-    credit: Option<f64>,
-    choice: bool,
-    difficulty: Option<f64>,
-    at: DateTime<Utc>,
-}
-
-#[derive(sqlx::FromRow)]
-struct CorrectionRow {
-    skill_id: String,
-    level: f64,
-    at: DateTime<Utc>,
-}
-
 async fn history(
-    tx: &mut Transaction<'_, Postgres>,
+    db: &impl ConnectionTrait,
     child_id: Uuid,
-) -> Result<(Vec<TraceAttempt>, Vec<Correction>), sqlx::Error> {
-    let attempts: Vec<AttemptRow> = sqlx::query_as(
-        "select skill_id, question_id, correct, credit, choice, difficulty, at
-         from attempts where child_id = $1 order by at, id limit $2",
-    )
-    .bind(child_id)
-    .bind(skill_model::MAX_ATTEMPTS as i64)
-    .fetch_all(&mut **tx)
-    .await?;
-    let corrections: Vec<CorrectionRow> = sqlx::query_as(
-        "select skill_id, level, at from corrections where child_id = $1 order by at, id limit $2",
-    )
-    .bind(child_id)
-    .bind(skill_model::MAX_CORRECTIONS as i64)
-    .fetch_all(&mut **tx)
-    .await?;
+) -> Result<(Vec<TraceAttempt>, Vec<Correction>), sea_orm::DbErr> {
+    let attempts = attempt::Entity::find()
+        .filter(attempt::Column::ChildId.eq(child_id))
+        .order_by_asc(attempt::Column::At)
+        .order_by_asc(attempt::Column::Id)
+        .limit(skill_model::MAX_ATTEMPTS as u64)
+        .all(db)
+        .await?;
+    let corrections = correction::Entity::find()
+        .filter(correction::Column::ChildId.eq(child_id))
+        .order_by_asc(correction::Column::At)
+        .order_by_asc(correction::Column::Id)
+        .limit(skill_model::MAX_CORRECTIONS as u64)
+        .all(db)
+        .await?;
     Ok((
         attempts
             .into_iter()
@@ -145,10 +132,14 @@ pub fn replay(attempts: &[TraceAttempt], corrections: &[Correction], params: Par
 }
 
 /// What the child knows now.
-pub async fn trace_child(pool: &PgPool, child_id: Uuid, now: DateTime<Utc>) -> ApiResult<TraceResponse> {
-    let mut tx = pool.begin().await?;
-    let (attempts, corrections) = history(&mut tx, child_id).await?;
-    tx.commit().await?;
+pub async fn trace_child(
+    db: &DatabaseConnection,
+    child_id: Uuid,
+    now: DateTime<Utc>,
+) -> ApiResult<TraceResponse> {
+    let txn = db.begin().await?;
+    let (attempts, corrections) = history(&txn, child_id).await?;
+    txn.commit().await?;
     skill_model::trace(&TraceRequest { now: Some(now), attempts, corrections, params: Params::default() })
         .map_err(ApiError::Internal)
 }
@@ -156,29 +147,31 @@ pub async fn trace_child(pool: &PgPool, child_id: Uuid, now: DateTime<Utc>) -> A
 /// Reads the calibrated difficulty of a skill or question, locking its row so
 /// two answers to the same question update it one after the other.
 async fn locked_difficulty(
-    tx: &mut Transaction<'_, Postgres>,
+    db: &impl ConnectionTrait,
     skill_id: &str,
     question_id: &str,
-) -> Result<(f64, i32), sqlx::Error> {
-    sqlx::query("insert into item_difficulty (skill_id, question_id) values ($1, $2) on conflict do nothing")
-        .bind(skill_id)
-        .bind(question_id)
-        .execute(&mut **tx)
-        .await?;
-    sqlx::query_as(
-        "select value, answers from item_difficulty where skill_id = $1 and question_id = $2 for update",
-    )
-    .bind(skill_id)
-    .bind(question_id)
-    .fetch_one(&mut **tx)
-    .await
+) -> Result<(f64, i32), sea_orm::DbErr> {
+    item_difficulty::Entity::insert(item_difficulty::ActiveModel {
+        skill_id: Set(skill_id.to_string()),
+        question_id: Set(question_id.to_string()),
+        ..Default::default()
+    })
+    .on_conflict_do_nothing()
+    .exec_without_returning(db)
+    .await?;
+    let row = item_difficulty::Entity::find_by_id((skill_id.to_string(), question_id.to_string()))
+        .lock_exclusive()
+        .one(db)
+        .await?
+        .ok_or_else(|| sea_orm::DbErr::RecordNotFound("item_difficulty".into()))?;
+    Ok((row.value, row.answers))
 }
 
 /// Records answers. Each one moves the child's model and, with the same
 /// signal, the difficulty of the question and of its skill: an answer most
 /// children get wrong becomes a harder question for everyone.
 pub async fn record(
-    pool: &PgPool,
+    db: &DatabaseConnection,
     child_id: Uuid,
     session_id: Option<Uuid>,
     source: &str,
@@ -193,20 +186,22 @@ pub async fn record(
     ordered.sort_by_key(|(at, _)| *at);
 
     let params = Params::default();
-    let mut tx = pool.begin().await?;
+    let txn = db.begin().await?;
     // One writer per child at a time, so the replay below is the real history.
-    sqlx::query("select pg_advisory_xact_lock(hashtextextended($1::text, 0))")
-        .bind(child_id)
-        .execute(&mut *tx)
-        .await?;
-    let (past, corrections) = history(&mut tx, child_id).await?;
+    txn.execute_raw(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        "select pg_advisory_xact_lock(hashtextextended($1::text, 0))",
+        [child_id.into()],
+    ))
+    .await?;
+    let (past, corrections) = history(&txn, child_id).await?;
     let mut model = replay(&past, &corrections, params);
 
     for (at, attempt) in &ordered {
-        let (skill_value, skill_answers) = locked_difficulty(&mut tx, &attempt.skill_id, "").await?;
+        let (skill_value, skill_answers) = locked_difficulty(&txn, &attempt.skill_id, "").await?;
         let question = match attempt.question_id.as_deref() {
             Some(question_id) => {
-                Some((question_id, locked_difficulty(&mut tx, &attempt.skill_id, question_id).await?))
+                Some((question_id, locked_difficulty(&txn, &attempt.skill_id, question_id).await?))
             }
             None => None,
         };
@@ -214,23 +209,21 @@ pub async fn record(
         let credit = attempt.credit.unwrap_or(if attempt.correct { 1.0 } else { 0.0 });
         let signal = model.observe(&attempt.skill_id, difficulty, attempt.choice, credit, *at);
 
-        sqlx::query(
-            "insert into attempts
-               (id, child_id, session_id, skill_id, question_id, correct, credit, choice, difficulty, source, at)
-             values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
-        )
-        .bind(Uuid::now_v7())
-        .bind(child_id)
-        .bind(session_id)
-        .bind(&attempt.skill_id)
-        .bind(&attempt.question_id)
-        .bind(attempt.correct)
-        .bind(attempt.credit)
-        .bind(attempt.choice)
-        .bind(difficulty)
-        .bind(source)
-        .bind(at)
-        .execute(&mut *tx)
+        attempt::Entity::insert(attempt::ActiveModel {
+            id: Set(Uuid::now_v7()),
+            child_id: Set(child_id),
+            session_id: Set(session_id),
+            skill_id: Set(attempt.skill_id.clone()),
+            question_id: Set(attempt.question_id.clone()),
+            correct: Set(attempt.correct),
+            credit: Set(attempt.credit),
+            choice: Set(attempt.choice),
+            difficulty: Set(Some(difficulty)),
+            source: Set(source.to_string()),
+            at: Set(*at),
+            ..Default::default()
+        })
+        .exec_without_returning(&txn)
         .await?;
 
         let mut updates = vec![("", skill_value, skill_answers)];
@@ -238,22 +231,26 @@ pub async fn record(
             updates.push((question_id, value, answers));
         }
         for (question_id, value, answers) in updates {
-            sqlx::query(
-                "update item_difficulty set value = $3, answers = answers + 1
-                 where skill_id = $1 and question_id = $2",
-            )
-            .bind(&attempt.skill_id)
-            .bind(question_id)
-            .bind(params.item_update(value, answers.max(0) as u32, signal))
-            .execute(&mut *tx)
-            .await?;
+            item_difficulty::Entity::update_many()
+                .col_expr(
+                    item_difficulty::Column::Value,
+                    Expr::value(params.item_update(value, answers.max(0) as u32, signal)),
+                )
+                .col_expr(
+                    item_difficulty::Column::Answers,
+                    sea_orm::sea_query::ExprTrait::add(Expr::col(item_difficulty::Column::Answers), 1),
+                )
+                .filter(item_difficulty::Column::SkillId.eq(&attempt.skill_id))
+                .filter(item_difficulty::Column::QuestionId.eq(question_id))
+                .exec(&txn)
+                .await?;
         }
     }
-    tx.commit().await?;
+    txn.commit().await?;
     Ok(ordered.len())
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Skill {
     pub id: String,
     pub subject: String,
@@ -266,13 +263,25 @@ pub struct Skill {
     pub prerequisites: Vec<String>,
 }
 
-pub async fn catalog(pool: &PgPool) -> Result<Vec<Skill>, sqlx::Error> {
-    sqlx::query_as("select id, subject, name, grade, description, prerequisites from skills order by id")
-        .fetch_all(pool)
-        .await
+impl From<skill::Model> for Skill {
+    fn from(row: skill::Model) -> Self {
+        Self {
+            id: row.id,
+            subject: row.subject,
+            name: row.name,
+            grade: row.grade,
+            description: row.description,
+            prerequisites: row.prerequisites,
+        }
+    }
 }
 
-pub async fn upsert_skills(pool: &PgPool, skills: &[Skill]) -> ApiResult<usize> {
+pub async fn catalog(db: &DatabaseConnection) -> ApiResult<Vec<Skill>> {
+    let rows = skill::Entity::find().order_by_asc(skill::Column::Id).all(db).await?;
+    Ok(rows.into_iter().map(Skill::from).collect())
+}
+
+pub async fn upsert_skills(db: &DatabaseConnection, skills: &[Skill]) -> ApiResult<usize> {
     for skill in skills {
         if !is_slug(&skill.id) || skill.prerequisites.iter().any(|id| !is_slug(id)) {
             return Err(ApiError::bad_request(format!(
@@ -281,24 +290,31 @@ pub async fn upsert_skills(pool: &PgPool, skills: &[Skill]) -> ApiResult<usize> 
             )));
         }
     }
-    let mut tx = pool.begin().await?;
-    for skill in skills {
-        sqlx::query(
-            "insert into skills (id, subject, name, grade, description, prerequisites)
-             values ($1, $2, $3, $4, $5, $6)
-             on conflict (id) do update set subject = excluded.subject, name = excluded.name,
-               grade = excluded.grade, description = excluded.description, prerequisites = excluded.prerequisites",
+    let txn = db.begin().await?;
+    for one in skills {
+        skill::Entity::insert(skill::ActiveModel {
+            id: Set(one.id.clone()),
+            subject: Set(one.subject.clone()),
+            name: Set(one.name.clone()),
+            grade: Set(one.grade.clone()),
+            description: Set(one.description.clone()),
+            prerequisites: Set(one.prerequisites.clone()),
+        })
+        .on_conflict(
+            OnConflict::column(skill::Column::Id)
+                .update_columns([
+                    skill::Column::Subject,
+                    skill::Column::Name,
+                    skill::Column::Grade,
+                    skill::Column::Description,
+                    skill::Column::Prerequisites,
+                ])
+                .to_owned(),
         )
-        .bind(&skill.id)
-        .bind(&skill.subject)
-        .bind(&skill.name)
-        .bind(&skill.grade)
-        .bind(&skill.description)
-        .bind(&skill.prerequisites)
-        .execute(&mut *tx)
+        .exec_without_returning(&txn)
         .await?;
     }
-    tx.commit().await?;
+    txn.commit().await?;
     Ok(skills.len())
 }
 

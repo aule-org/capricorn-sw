@@ -22,7 +22,7 @@ const CURRICULUM_DIR: &str = "/usr/share/aule/curriculum";
 /// Loads every catalog in `CURRICULUM_DIR`: new skills are added and changed
 /// ones updated; none is removed. A catalog that cannot be read is reported
 /// and skipped, so a bad file never keeps the API from starting.
-async fn load_curriculum(pool: &sqlx::PgPool) {
+async fn load_curriculum(db: &sea_orm::DatabaseConnection) {
     let Ok(entries) = std::fs::read_dir(CURRICULUM_DIR) else { return };
     let mut paths: Vec<_> = entries
         .filter_map(Result::ok)
@@ -38,7 +38,7 @@ async fn load_curriculum(pool: &sqlx::PgPool) {
             .map_err(|error| error.to_string())
             .and_then(|text| serde_json::from_str::<SkillFile>(&text).map_err(|error| error.to_string()));
         match catalog {
-            Ok(catalog) => match learning::upsert_skills(pool, &catalog.skills).await {
+            Ok(catalog) => match learning::upsert_skills(db, &catalog.skills).await {
                 Ok(stored) => tracing::info!(file, stored, "skill catalog loaded"),
                 Err(error) => tracing::error!(file, %error, "skill catalog not stored"),
             },
@@ -81,7 +81,7 @@ async fn main() {
                 .unwrap_or_else(|error| fail("the file could not be read", error));
             let catalog: SkillFile = serde_json::from_str(&text)
                 .unwrap_or_else(|error| fail("the file is not a skill catalog", error));
-            let stored = learning::upsert_skills(&state.pool, &catalog.skills)
+            let stored = learning::upsert_skills(&state.db, &catalog.skills)
                 .await
                 .unwrap_or_else(|error| fail("the skills could not be stored", error));
             println!("{stored} skills stored from {path}");
@@ -94,7 +94,7 @@ async fn main() {
             }
         }
         _ => {
-            load_curriculum(&state.pool).await;
+            load_curriculum(&state.db).await;
             let addr = state.config.addr;
             let listener = tokio::net::TcpListener::bind(addr)
                 .await

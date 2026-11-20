@@ -3,10 +3,14 @@
 //! that creates it is generated from them (`cargo run --example migration`), and
 //! a test fails while an entity has something the migrations do not create.
 
+pub mod attempt;
 pub mod child;
+pub mod correction;
 pub mod family;
 pub mod guardian;
 pub mod guardian_child;
+pub mod item_difficulty;
+pub mod skill;
 
 /// Every entity, in one schema: what the migrations must create.
 pub fn schema() -> sea_orm::SchemaBuilder {
@@ -16,4 +20,8 @@ pub fn schema() -> sea_orm::SchemaBuilder {
         .register(guardian::Entity)
         .register(child::Entity)
         .register(guardian_child::Entity)
+        .register(skill::Entity)
+        .register(item_difficulty::Entity)
+        .register(attempt::Entity)
+        .register(correction::Entity)
 }

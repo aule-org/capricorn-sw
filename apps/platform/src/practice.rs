@@ -618,8 +618,7 @@ pub async fn answer(
                 choice: false,
                 at: None,
             };
-            learning::record(&state.pool, child_id, Some(session.id), "tutor", &[attempt], Utc::now())
-                .await?;
+            learning::record(&state.db, child_id, Some(session.id), "tutor", &[attempt], Utc::now()).await?;
         }
     }
 
