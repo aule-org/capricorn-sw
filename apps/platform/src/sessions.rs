@@ -9,12 +9,21 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use chrono::Utc;
 use rand::Rng;
+use sea_orm::ActiveValue::Set;
+use sea_orm::sea_query::{Expr, OnConflict};
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, DbErr, EntityTrait, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Statement, TransactionTrait,
+};
 use serde::Deserialize;
 use serde_json::{Value, json};
-use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::auth::{Agent, Caller, Input, Operator, Session, token_hash};
+use crate::entity::{
+    attempt, child, memory as memory_row, session as session_row, session_brief, session_exercise,
+    session_flag, session_guidance, session_review, session_turn,
+};
 use crate::error::{ApiError, ApiResult};
 use crate::families::{Child, child_for, current_consent, find_child};
 use crate::livekit::{RoomToken, room_token};
@@ -137,15 +146,18 @@ pub async fn open_session(
 
     // A child's profile is only used with the guardian's consent, whoever is
     // at the microphone. Without consent for voice there is no session.
-    let mut tx = state.pool.begin().await?;
+    let txn = state.db.begin().await?;
     let (keep_transcript, use_memory) = match &child {
         Some(child) => {
-            sqlx::query_scalar::<_, Uuid>("select id from children where id = $1 for update")
-                .bind(child.id)
-                .fetch_optional(&mut *tx)
+            child::Entity::find_by_id(child.id)
+                .select_only()
+                .column(child::Column::Id)
+                .lock_exclusive()
+                .into_tuple::<Uuid>()
+                .one(&txn)
                 .await?
                 .ok_or(ApiError::NotFound("child"))?;
-            let consent = current_consent(&mut *tx, child.id).await?;
+            let consent = current_consent(&txn, child.id).await?;
             if !consent["voice"] {
                 return Err(ApiError::Forbidden("the guardian has not consented to voice sessions"));
             }
@@ -158,9 +170,7 @@ pub async fn open_session(
     let flow = (engine && child.is_some() && flow::goal(objective.as_ref(), &language).is_some())
         .then_some(flow::ENGINE);
     let flow_start = match (&child, flow) {
-        (Some(child), Some(_)) => {
-            Some(flow::start_for(&mut tx, child.id, state.config.session_minutes).await?)
-        }
+        (Some(child), Some(_)) => Some(flow::start_for(&txn, child.id, state.config.session_minutes).await?),
         _ => None,
     };
 
@@ -169,27 +179,24 @@ pub async fn open_session(
     rand::rng().fill_bytes(&mut secret);
     let agent_token = hex::encode(secret);
     let room = format!("session-{}", session_id.simple());
-    sqlx::query(
-        "insert into sessions
-           (id, child_id, audience, room, language, agent_token_hash, keep_transcript, use_memory, device_id,
-            objective, flow, flow_start)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
-    )
-    .bind(session_id)
-    .bind(child.as_ref().map(|child| child.id))
-    .bind(audience)
-    .bind(&room)
-    .bind(&language)
-    .bind(token_hash(&agent_token))
-    .bind(keep_transcript)
-    .bind(use_memory)
-    .bind(device_id)
-    .bind(&objective)
-    .bind(flow)
-    .bind(flow_start)
-    .execute(&mut *tx)
+    session_row::Entity::insert(session_row::ActiveModel {
+        id: Set(session_id),
+        child_id: Set(child.as_ref().map(|child| child.id)),
+        audience: Set(audience.to_string()),
+        room: Set(room.clone()),
+        language: Set(language.clone()),
+        agent_token_hash: Set(token_hash(&agent_token)),
+        keep_transcript: Set(keep_transcript),
+        use_memory: Set(use_memory),
+        device_id: Set(device_id),
+        objective: Set(objective.clone()),
+        flow: Set(flow.map(str::to_string)),
+        flow_start: Set(flow_start),
+        ..Default::default()
+    })
+    .exec_without_returning(&txn)
     .await?;
-    tx.commit().await?;
+    txn.commit().await?;
 
     let tutor = crate::families::tutor(child.as_ref());
     // The plan is written while the person connects, so nobody waits for it.
@@ -243,9 +250,11 @@ async fn prepare_brief(state: &AppState, session_id: Uuid, child: &Child, use_me
     let now = Utc::now();
     let trace = learning::trace_child(&state.db, child.id, now).await?;
     let catalog = learning::catalog(&state.db).await?;
-    let objective: Option<Value> = sqlx::query_scalar("select objective from sessions where id = $1")
-        .bind(session_id)
-        .fetch_optional(&state.pool)
+    let objective: Option<Value> = session_row::Entity::find_by_id(session_id)
+        .select_only()
+        .column(session_row::Column::Objective)
+        .into_tuple::<Option<Value>>()
+        .one(&state.db)
         .await?
         .flatten();
     // What the family asked for comes first; the learner model's own choices follow.
@@ -256,14 +265,16 @@ async fn prepare_brief(state: &AppState, session_id: Uuid, child: &Child, use_me
             candidates.push(candidate);
         }
     }
-    let memories = if use_memory { memory::latest(&state.pool, child.id, 8).await? } else { Vec::new() };
-    let last_next_step: Option<String> = sqlx::query_scalar(
-        "select next_step from session_reviews where child_id = $1 order by created_at desc limit 1",
-    )
-    .bind(child.id)
-    .fetch_optional(&state.pool)
-    .await?
-    .flatten();
+    let memories = if use_memory { memory::latest(&state.db, child.id, 8).await? } else { Vec::new() };
+    let last_next_step: Option<String> = session_review::Entity::find()
+        .filter(session_review::Column::ChildId.eq(child.id))
+        .order_by_desc(session_review::Column::CreatedAt)
+        .select_only()
+        .column(session_review::Column::NextStep)
+        .into_tuple::<Option<String>>()
+        .one(&state.db)
+        .await?
+        .flatten();
 
     let brief = match &state.llm {
         Some(llm) => {
@@ -284,43 +295,46 @@ async fn prepare_brief(state: &AppState, session_id: Uuid, child: &Child, use_me
         }
         None => supervisor::fallback_brief(&candidates),
     };
-    sqlx::query("insert into session_briefs (session_id, brief) values ($1, $2) on conflict do nothing")
-        .bind(session_id)
-        .bind(sqlx::types::Json(&brief))
-        .execute(&state.pool)
-        .await?;
+    let brief = serde_json::to_value(&brief).map_err(|error| ApiError::Internal(error.to_string()))?;
+    session_brief::Entity::insert(session_brief::ActiveModel {
+        session_id: Set(session_id),
+        brief: Set(brief),
+        ..Default::default()
+    })
+    .on_conflict_do_nothing()
+    .exec_without_returning(&state.db)
+    .await?;
     Ok(())
 }
 
-async fn stored_brief(pool: &PgPool, session_id: Uuid) -> Result<Option<Brief>, sqlx::Error> {
-    let brief: Option<sqlx::types::Json<Brief>> =
-        sqlx::query_scalar("select brief from session_briefs where session_id = $1")
-            .bind(session_id)
-            .fetch_optional(pool)
-            .await?;
-    Ok(brief.map(|brief| brief.0))
+/// A stored plan, read back. One that no longer parses is treated as none.
+fn brief_of(value: Value) -> Option<Brief> {
+    serde_json::from_value(value).ok()
+}
+
+async fn stored_brief(db: &DatabaseConnection, session_id: Uuid) -> Result<Option<Brief>, DbErr> {
+    let row = session_brief::Entity::find_by_id(session_id).one(db).await?;
+    Ok(row.and_then(|row| brief_of(row.brief)))
 }
 
 /// The plan, if it is ready when the tutor starts. It is marked as handed
 /// over, so it is not sent a second time with the turns.
-async fn brief_at_start(pool: &PgPool, session_id: Uuid) -> Result<Option<Brief>, sqlx::Error> {
-    let brief: Option<sqlx::types::Json<Brief>> = sqlx::query_scalar(
-        "update session_briefs set sent_at_start = true where session_id = $1 returning brief",
-    )
-    .bind(session_id)
-    .fetch_optional(pool)
-    .await?;
-    Ok(brief.map(|brief| brief.0))
+async fn brief_at_start(db: &DatabaseConnection, session_id: Uuid) -> Result<Option<Brief>, DbErr> {
+    let marked = session_brief::Entity::update_many()
+        .col_expr(session_brief::Column::SentAtStart, Expr::value(true))
+        .filter(session_brief::Column::SessionId.eq(session_id))
+        .exec_with_returning(db)
+        .await?;
+    Ok(marked.into_iter().next().and_then(|row| brief_of(row.brief)))
 }
 
 /// The plan, when it was finished after the tutor had started.
-async fn late_brief(pool: &PgPool, session_id: Uuid) -> Result<Option<Brief>, sqlx::Error> {
-    let brief: Option<sqlx::types::Json<Brief>> =
-        sqlx::query_scalar("select brief from session_briefs where session_id = $1 and not sent_at_start")
-            .bind(session_id)
-            .fetch_optional(pool)
-            .await?;
-    Ok(brief.map(|brief| brief.0))
+async fn late_brief(db: &DatabaseConnection, session_id: Uuid) -> Result<Option<Brief>, DbErr> {
+    let row = session_brief::Entity::find_by_id(session_id)
+        .filter(session_brief::Column::SentAtStart.eq(false))
+        .one(db)
+        .await?;
+    Ok(row.and_then(|row| brief_of(row.brief)))
 }
 
 /// What the tutor is told about the student, in words.
@@ -348,12 +362,13 @@ pub async fn agent_start(Agent(session): Agent, State(state): State<AppState>) -
     if session.status == "ended" {
         return Err(ApiError::Conflict("the session has ended"));
     }
-    sqlx::query(
-        "update sessions set status = 'active', started_at = now() where id = $1 and status = 'created'",
-    )
-    .bind(session.id)
-    .execute(&state.pool)
-    .await?;
+    session_row::Entity::update_many()
+        .col_expr(session_row::Column::Status, Expr::value("active"))
+        .col_expr(session_row::Column::StartedAt, Expr::current_timestamp())
+        .filter(session_row::Column::Id.eq(session.id))
+        .filter(session_row::Column::Status.eq("created"))
+        .exec(&state.db)
+        .await?;
 
     let Some(child_id) = session.child_id else {
         return Ok(Json(
@@ -363,7 +378,7 @@ pub async fn agent_start(Agent(session): Agent, State(state): State<AppState>) -
     let child = find_child(&state.db, child_id).await?;
     let deadline = tokio::time::Instant::now() + BRIEF_WAIT;
     let brief = loop {
-        if let Some(brief) = brief_at_start(&state.pool, session.id).await? {
+        if let Some(brief) = brief_at_start(&state.db, session.id).await? {
             break Some(brief);
         }
         if tokio::time::Instant::now() >= deadline {
@@ -377,13 +392,12 @@ pub async fn agent_start(Agent(session): Agent, State(state): State<AppState>) -
     };
     // How many sessions this student has started before this one: lets a
     // written greeting vary without the agent keeping anything.
-    let session_number: i64 = sqlx::query_scalar(
-        "select count(*) from sessions where child_id = $1 and id <> $2 and started_at is not null",
-    )
-    .bind(child_id)
-    .bind(session.id)
-    .fetch_one(&state.pool)
-    .await?;
+    let session_number = session_row::Entity::find()
+        .filter(session_row::Column::ChildId.eq(child_id))
+        .filter(session_row::Column::Id.ne(session.id))
+        .filter(session_row::Column::StartedAt.is_not_null())
+        .count(&state.db)
+        .await?;
     let mut start = json!({
         "session_id": session.id,
         "instructions": instructions,
@@ -430,50 +444,54 @@ async fn pause(
     state: &AppState,
     session: &Session,
     breaks_taken: Option<i32>,
-) -> Result<Option<&'static str>, sqlx::Error> {
+) -> Result<Option<&'static str>, DbErr> {
+    let db = &state.db;
     // The agent took a break: the next block starts now.
     if let Some(taken) = breaks_taken.filter(|taken| (0..=20).contains(taken)) {
-        sqlx::query(
+        db.execute_raw(Statement::from_sql_and_values(
+            DbBackend::Postgres,
             "update sessions set breaks = $2, last_break_at = now(), pause_offered_at = null, tired_at = null
              where id = $1 and breaks < $2",
-        )
-        .bind(session.id)
-        .bind(taken)
-        .execute(&state.pool)
+            [session.id.into(), taken.into()],
+        ))
         .await?;
     }
     // An offer nobody took was a no: count the block again from here.
-    sqlx::query(
+    db.execute_raw(Statement::from_sql_and_values(
+        DbBackend::Postgres,
         "update sessions set last_break_at = now(), pause_offered_at = null, tired_at = null
          where id = $1 and pause_offered_at < now() - make_interval(secs => $2)",
-    )
-    .bind(session.id)
-    .bind(OFFER_STANDS_SECONDS as f64)
-    .execute(&state.pool)
+        [session.id.into(), (OFFER_STANDS_SECONDS as f64).into()],
+    ))
     .await?;
 
-    let due: Option<(bool,)> = sqlx::query_as(
-        "select true from sessions s
-         where s.id = $1 and s.status = 'active' and s.stop_step is distinct from 'end'
-           and now() < coalesce(s.started_at, s.created_at) + make_interval(mins => $3 - $4)
-           and (now() >= coalesce(s.last_break_at, s.started_at, s.created_at) + make_interval(mins => $2)
-                or s.tired_at is not null
-                or s.pause_offered_at is not null)
-           and not exists (select 1 from session_exercises e where e.session_id = s.id and e.status = 'open')",
-    )
-    .bind(session.id)
-    .bind(state.config.break_every_minutes as i32)
-    .bind(state.config.session_minutes as i32)
-    .bind(NO_BREAK_IN_THE_LAST_MINUTES as i32)
-    .fetch_optional(&state.pool)
-    .await?;
+    let due = db
+        .query_one_raw(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "select true from sessions s
+             where s.id = $1 and s.status = 'active' and s.stop_step is distinct from 'end'
+               and now() < coalesce(s.started_at, s.created_at) + make_interval(mins => $3 - $4)
+               and (now() >= coalesce(s.last_break_at, s.started_at, s.created_at) + make_interval(mins => $2)
+                    or s.tired_at is not null
+                    or s.pause_offered_at is not null)
+               and not exists (select 1 from session_exercises e where e.session_id = s.id and e.status = 'open')",
+            [
+                session.id.into(),
+                (state.config.break_every_minutes as i32).into(),
+                (state.config.session_minutes as i32).into(),
+                (NO_BREAK_IN_THE_LAST_MINUTES as i32).into(),
+            ],
+        ))
+        .await?;
     if due.is_none() {
         return Ok(None);
     }
-    sqlx::query("update sessions set pause_offered_at = coalesce(pause_offered_at, now()) where id = $1")
-        .bind(session.id)
-        .execute(&state.pool)
-        .await?;
+    db.execute_raw(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        "update sessions set pause_offered_at = coalesce(pause_offered_at, now()) where id = $1",
+        [session.id.into()],
+    ))
+    .await?;
     Ok(Some("offer"))
 }
 
@@ -502,17 +520,20 @@ pub async fn agent_turns(
             continue;
         }
         // The same turn sent twice is stored once, and read by the supervisor once.
-        let stored = sqlx::query(
-            "insert into session_turns (session_id, seq, role, content) values ($1, $2, $3, $4)
-             on conflict (session_id, seq) do nothing",
+        let stored = session_turn::Entity::insert(session_turn::ActiveModel {
+            session_id: Set(session.id),
+            seq: Set(turn.seq),
+            role: Set(turn.role.clone()),
+            content: Set(content.clone()),
+            ..Default::default()
+        })
+        .on_conflict(
+            OnConflict::columns([session_turn::Column::SessionId, session_turn::Column::Seq])
+                .do_nothing()
+                .to_owned(),
         )
-        .bind(session.id)
-        .bind(turn.seq)
-        .bind(&turn.role)
-        .bind(&content)
-        .execute(&state.pool)
+        .exec_without_returning(&state.db)
         .await?
-        .rows_affected()
             > 0;
         child_spoke |= stored && turn.role == "child";
         if stored && turn.role == "tutor" {
@@ -531,13 +552,16 @@ pub async fn agent_turns(
         });
     }
 
-    let guidance: Vec<(i64, String)> = sqlx::query_as(
-        "select id, guidance from session_guidance where session_id = $1 and id > $2 order by id",
-    )
-    .bind(session.id)
-    .bind(body.after_guidance)
-    .fetch_all(&state.pool)
-    .await?;
+    let guidance: Vec<(i64, String)> = session_guidance::Entity::find()
+        .filter(session_guidance::Column::SessionId.eq(session.id))
+        .filter(session_guidance::Column::Id.gt(body.after_guidance))
+        .order_by_asc(session_guidance::Column::Id)
+        .select_only()
+        .column(session_guidance::Column::Id)
+        .column(session_guidance::Column::Guidance)
+        .into_tuple()
+        .all(&state.db)
+        .await?;
     let guidance: Vec<Value> = guidance
         .into_iter()
         .map(|(id, text)| {
@@ -546,12 +570,15 @@ pub async fn agent_turns(
         })
         .collect();
     // Repeated on every answer: the agent keeps the first one it sees.
-    let plan = late_brief(&state.pool, session.id).await?.map(|brief| brief.as_instructions());
+    let plan = late_brief(&state.db, session.id).await?.map(|brief| brief.as_instructions());
     // "warn" or "end", repeated while it holds: the agent says each once.
-    let stop: Option<String> = sqlx::query_scalar("select stop_step from sessions where id = $1")
-        .bind(session.id)
-        .fetch_one(&state.pool)
-        .await?;
+    let stop: Option<String> = session_row::Entity::find_by_id(session.id)
+        .select_only()
+        .column(session_row::Column::StopStep)
+        .into_tuple::<Option<String>>()
+        .one(&state.db)
+        .await?
+        .flatten();
     // "offer" while a break is due; the agent says it once and reports it taken.
     // The engine gives its own breaks, as lines of its script: a second offer
     // from here would be a second system of breaks.
@@ -566,25 +593,25 @@ pub async fn agent_turns(
     Ok(Json(answer))
 }
 
-pub async fn load_turns(pool: &PgPool, session_id: Uuid) -> Result<Vec<Turn>, sqlx::Error> {
-    let rows: Vec<(i32, String, String)> =
-        sqlx::query_as("select seq, role, content from session_turns where session_id = $1 order by seq")
-            .bind(session_id)
-            .fetch_all(pool)
-            .await?;
-    Ok(rows.into_iter().map(|(seq, role, content)| Turn { seq, role, content }).collect())
+pub async fn load_turns(db: &DatabaseConnection, session_id: Uuid) -> Result<Vec<Turn>, DbErr> {
+    let rows = session_turn::Entity::find()
+        .filter(session_turn::Column::SessionId.eq(session_id))
+        .order_by_asc(session_turn::Column::Seq)
+        .all(db)
+        .await?;
+    Ok(rows.into_iter().map(|row| Turn { seq: row.seq, role: row.role, content: row.content }).collect())
 }
 
 async fn watch(state: &AppState, session: &Session) -> ApiResult<()> {
     let Some(llm) = &state.llm else { return Ok(()) };
-    let turns = load_turns(&state.pool, session.id).await?;
+    let turns = load_turns(&state.db, session.id).await?;
     let Some(last) = turns.last() else { return Ok(()) };
-    let brief = stored_brief(&state.pool, session.id).await?.unwrap_or_default();
+    let brief = stored_brief(&state.db, session.id).await?.unwrap_or_default();
     let memories = match (session.child_id, session.use_memory) {
         (Some(child_id), true) => {
             let said =
                 turns.iter().rev().find(|turn| turn.role == "child").map_or("", |turn| turn.content.as_str());
-            memory::recall(&state.pool, state.embedder.as_deref(), child_id, said, 3).await?
+            memory::recall(&state.db, state.embedder.as_deref(), child_id, said, 3).await?
         }
         _ => Vec::new(),
     };
@@ -596,22 +623,28 @@ async fn watch(state: &AppState, session: &Session) -> ApiResult<()> {
         .map_err(|error| ApiError::Internal(error.to_string()))?;
     count_not_trying(state, session, guidance.signals.not_trying).await?;
     if guidance.signals.tired {
-        sqlx::query("update sessions set tired_at = coalesce(tired_at, now()) where id = $1")
-            .bind(session.id)
-            .execute(&state.pool)
+        state
+            .db
+            .execute_raw(Statement::from_sql_and_values(
+                DbBackend::Postgres,
+                "update sessions set tired_at = coalesce(tired_at, now()) where id = $1",
+                [session.id.into()],
+            ))
             .await?;
     }
     // The engine decides what the tutor does next; advice would pull against
     // it. What the supervisor read (not working, tired) still counts above.
     if !guidance.is_empty() && !flow::runs(session) {
-        sqlx::query(
-            "insert into session_guidance (session_id, after_seq, guidance, signals) values ($1, $2, $3, $4)",
-        )
-        .bind(session.id)
-        .bind(last.seq)
-        .bind(&guidance.text)
-        .bind(sqlx::types::Json(&guidance.signals))
-        .execute(&state.pool)
+        let signals =
+            serde_json::to_value(&guidance.signals).map_err(|error| ApiError::Internal(error.to_string()))?;
+        session_guidance::Entity::insert(session_guidance::ActiveModel {
+            session_id: Set(session.id),
+            after_seq: Set(last.seq),
+            guidance: Set(guidance.text.clone()),
+            signals: Set(signals),
+            ..Default::default()
+        })
+        .exec_without_returning(&state.db)
         .await?;
     }
     Ok(())
@@ -628,17 +661,19 @@ const STOP_AFTER: i32 = 4;
 /// Counts the turn the supervisor just read and decides whether to warn or
 /// close. The decision is the platform's, by count: the model only says
 /// whether this one turn was fooling around.
-async fn count_not_trying(state: &AppState, session: &Session, not_trying: bool) -> Result<(), sqlx::Error> {
-    let mut tx = state.pool.begin().await?;
-    let step: Option<(i32, Option<String>)> = sqlx::query_as(
-        "update sessions set not_trying_streak = case when $2 then not_trying_streak + 1 else 0 end
-         where id = $1 and status <> 'ended' returning not_trying_streak, stop_step",
-    )
-    .bind(session.id)
-    .bind(not_trying)
-    .fetch_optional(&mut *tx)
-    .await?;
-    let Some((streak, before)) = step else { return Ok(()) };
+async fn count_not_trying(state: &AppState, session: &Session, not_trying: bool) -> Result<(), DbErr> {
+    let txn = state.db.begin().await?;
+    let step = txn
+        .query_one_raw(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "update sessions set not_trying_streak = case when $2 then not_trying_streak + 1 else 0 end
+             where id = $1 and status <> 'ended' returning not_trying_streak, stop_step",
+            [session.id.into(), not_trying.into()],
+        ))
+        .await?;
+    let Some(step) = step else { return Ok(()) };
+    let streak: i32 = step.try_get("", "not_trying_streak")?;
+    let before: Option<String> = step.try_get("", "stop_step")?;
     // Once the close is asked for it stands, whatever is said afterwards.
     let now = match (before.as_deref(), streak) {
         (Some("end"), _) => Some("end"),
@@ -647,17 +682,17 @@ async fn count_not_trying(state: &AppState, session: &Session, not_trying: bool)
         _ => None,
     };
     if now != before.as_deref() {
-        sqlx::query("update sessions set stop_step = $2 where id = $1")
-            .bind(session.id)
-            .bind(now)
-            .execute(&mut *tx)
+        session_row::Entity::update_many()
+            .col_expr(session_row::Column::StopStep, Expr::value(now))
+            .filter(session_row::Column::Id.eq(session.id))
+            .exec(&txn)
             .await?;
         if let (Some("end"), Some(child_id)) = (now, session.child_id) {
             let data = json!({ "session_id": session.id, "child_id": child_id, "reason": "not_working" });
-            events::publish(&mut *tx, events::SESSION_STOPPED, session.id, data).await?;
+            events::publish(&txn, events::SESSION_STOPPED, session.id, data).await?;
         }
     }
-    tx.commit().await
+    txn.commit().await
 }
 
 #[derive(Deserialize)]
@@ -683,46 +718,51 @@ pub async fn agent_end(
     }
     let speaking_seconds = body.speaking_seconds.filter(|seconds| (0..=86_400).contains(seconds));
     // An exercise still open when the session closes was left, not failed.
-    sqlx::query(
-        "update session_exercises set status = 'dropped', resolved_at = now() where session_id = $1 and status = 'open'",
-    )
-    .bind(session.id)
-    .execute(&state.pool)
-    .await?;
+    session_exercise::Entity::update_many()
+        .col_expr(session_exercise::Column::Status, Expr::value("dropped"))
+        .col_expr(session_exercise::Column::ResolvedAt, Expr::current_timestamp())
+        .filter(session_exercise::Column::SessionId.eq(session.id))
+        .filter(session_exercise::Column::Status.eq("open"))
+        .exec(&state.db)
+        .await?;
     if let Some(metrics) = body.metrics.as_ref().and_then(crate::metrics::numbers_only) {
-        sqlx::query("update sessions set agent_metrics = $2 where id = $1 and status <> 'ended'")
-            .bind(session.id)
-            .bind(metrics)
-            .execute(&state.pool)
+        session_row::Entity::update_many()
+            .col_expr(session_row::Column::AgentMetrics, Expr::value(metrics))
+            .filter(session_row::Column::Id.eq(session.id))
+            .filter(session_row::Column::Status.ne("ended"))
+            .exec(&state.db)
             .await?;
     }
-    end_session(&state.pool, session.id, speaking_seconds, reason).await?;
+    end_session(&state.db, session.id, speaking_seconds, reason).await?;
     flow::forget(&state, session.id);
     Ok(StatusCode::NO_CONTENT)
 }
 
-type Ended = (Option<Uuid>, Option<Uuid>, chrono::DateTime<Utc>, chrono::DateTime<Utc>);
-
 pub async fn end_session(
-    pool: &PgPool,
+    db: &DatabaseConnection,
     session_id: Uuid,
     speaking_seconds: Option<i32>,
     end_reason: &str,
-) -> Result<bool, sqlx::Error> {
-    let mut tx = pool.begin().await?;
-    let ended: Option<Ended> = sqlx::query_as(
-        "update sessions set status = 'ended', ended_at = now(), speaking_seconds = $2
-         where id = $1 and status <> 'ended'
-         returning child_id, device_id, coalesce(started_at, created_at), ended_at",
-    )
-    .bind(session_id)
-    .bind(speaking_seconds)
-    .fetch_optional(&mut *tx)
-    .await?;
-    if let Some((child_id, device_id, started_at, ended_at)) = ended {
+) -> Result<bool, DbErr> {
+    let txn = db.begin().await?;
+    let ended = txn
+        .query_one_raw(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "update sessions set status = 'ended', ended_at = now(), speaking_seconds = $2
+             where id = $1 and status <> 'ended'
+             returning child_id, device_id, coalesce(started_at, created_at) as started_at, ended_at",
+            [session_id.into(), speaking_seconds.into()],
+        ))
+        .await?;
+    if let Some(row) = &ended {
+        let child_id: Option<Uuid> = row.try_get("", "child_id")?;
+        let device_id: Option<Uuid> = row.try_get("", "device_id")?;
+        let started_at: chrono::DateTime<Utc> = row.try_get("", "started_at")?;
+        let ended_at: chrono::DateTime<Utc> = row.try_get("", "ended_at")?;
         // How much each side spoke, counted now: the turns themselves are
         // deleted after the review unless the family keeps transcripts.
-        sqlx::query(
+        txn.execute_raw(Statement::from_sql_and_values(
+            DbBackend::Postgres,
             "update sessions set
                child_turns = (select count(*) from session_turns where session_id = $1 and role = 'child'),
                tutor_turns = (select count(*) from session_turns where session_id = $1 and role = 'tutor'),
@@ -731,17 +771,16 @@ pub async fn end_session(
                tutor_chars = (select coalesce(sum(char_length(content)), 0) from session_turns
                               where session_id = $1 and role = 'tutor')
              where id = $1",
-        )
-        .bind(session_id)
-        .execute(&mut *tx)
+            [session_id.into()],
+        ))
         .await?;
-        jobs::enqueue(&mut *tx, jobs::REVIEW_SESSION, &json!({ "session_id": session_id })).await?;
+        jobs::enqueue(&txn, jobs::REVIEW_SESSION, &json!({ "session_id": session_id })).await?;
         // The event is about a child's session on a device; a session from the
         // playground has neither.
         if let (Some(child_id), Some(device_id)) = (child_id, device_id) {
-            let turns: i64 = sqlx::query_scalar("select count(*) from session_turns where session_id = $1")
-                .bind(session_id)
-                .fetch_one(&mut *tx)
+            let turns = session_turn::Entity::find()
+                .filter(session_turn::Column::SessionId.eq(session_id))
+                .count(&txn)
                 .await?;
             let data = json!({
                 "session_id": session_id,
@@ -753,10 +792,10 @@ pub async fn end_session(
                 "end_reason": end_reason,
                 "turns": turns,
             });
-            events::publish(&mut *tx, events::SESSION_ENDED, session_id, data).await?;
+            events::publish(&txn, events::SESSION_ENDED, session_id, data).await?;
         }
     }
-    tx.commit().await?;
+    txn.commit().await?;
     Ok(ended.is_some())
 }
 
@@ -793,14 +832,16 @@ pub async fn agent_flag(
     {
         return Err(ApiError::bad_request("a flag needs a known gate and action and 1 to 10 categories"));
     }
-    let mut tx = state.pool.begin().await?;
-    sqlx::query("insert into session_flags (session_id, gate, action, categories) values ($1, $2, $3, $4)")
-        .bind(session.id)
-        .bind(&body.gate)
-        .bind(&body.action)
-        .bind(&categories)
-        .execute(&mut *tx)
-        .await?;
+    let txn = state.db.begin().await?;
+    session_flag::Entity::insert(session_flag::ActiveModel {
+        session_id: Set(session.id),
+        gate: Set(body.gate.clone()),
+        action: Set(body.action.clone()),
+        categories: Set(categories.clone()),
+        ..Default::default()
+    })
+    .exec_without_returning(&txn)
+    .await?;
     if let Some(child_id) = session.child_id {
         let data = json!({
             "session_id": session.id,
@@ -809,9 +850,9 @@ pub async fn agent_flag(
             "action": body.action,
             "categories": categories,
         });
-        events::publish(&mut *tx, events::SAFETY_FLAGGED, session.id, data).await?;
+        events::publish(&txn, events::SAFETY_FLAGGED, session.id, data).await?;
     }
-    tx.commit().await?;
+    txn.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -819,13 +860,11 @@ pub async fn agent_flag(
 /// note for the guardian. Then the transcript goes, unless the guardian agreed
 /// to keep it for a while. Safe to run again after a failure.
 pub async fn review_session(state: &AppState, session_id: Uuid) -> ApiResult<()> {
-    let session: Option<Session> = sqlx::query_as(
-        "select id, child_id, audience, room, language, status, keep_transcript, use_memory, created_at, ended_at, flow
-         from sessions where id = $1 and reviewed_at is null"
-    )
-    .bind(session_id)
-    .fetch_optional(&state.pool)
-    .await?;
+    let session = session_row::Entity::find_by_id(session_id)
+        .filter(session_row::Column::ReviewedAt.is_null())
+        .one(&state.db)
+        .await?
+        .map(Session::from);
     let Some(session) = session else { return Ok(()) };
 
     // A session the engine ran is told to the family in the engine's words,
@@ -834,24 +873,28 @@ pub async fn review_session(state: &AppState, session_id: Uuid) -> ApiResult<()>
     // that keeps failing.
     let engine_report = flow::conclude(state, &session).await?;
     if let (Some(report), Some(child_id)) = (&engine_report, session.child_id) {
-        sqlx::query(
-            "insert into session_reviews (session_id, child_id, guardian_summary) values ($1, $2, $3)
-             on conflict (session_id) do update set guardian_summary = excluded.guardian_summary",
+        session_review::Entity::insert(session_review::ActiveModel {
+            session_id: Set(session.id),
+            child_id: Set(Some(child_id)),
+            guardian_summary: Set(report.clone()),
+            ..Default::default()
+        })
+        .on_conflict(
+            OnConflict::column(session_review::Column::SessionId)
+                .update_column(session_review::Column::GuardianSummary)
+                .to_owned(),
         )
-        .bind(session.id)
-        .bind(child_id)
-        .bind(report)
-        .execute(&state.pool)
+        .exec_without_returning(&state.db)
         .await?;
     }
     let mut family_told = false;
 
-    let turns = load_turns(&state.pool, session.id).await?;
+    let turns = load_turns(&state.db, session.id).await?;
     let child_spoke = turns.iter().any(|turn| turn.role == "child");
     if let (Some(child_id), Some(llm), true) = (session.child_id, &state.llm, child_spoke) {
         let child = find_child(&state.db, child_id).await?;
         let now = Utc::now();
-        let brief = stored_brief(&state.pool, session.id).await?.unwrap_or_default();
+        let brief = stored_brief(&state.db, session.id).await?.unwrap_or_default();
         let mut known: Vec<String> =
             learning::catalog(&state.db).await?.into_iter().map(|skill| skill.id).collect();
         known.extend(
@@ -869,24 +912,28 @@ pub async fn review_session(state: &AppState, session_id: Uuid) -> ApiResult<()>
             .map_err(|error| ApiError::Internal(error.to_string()))?;
 
         // A second run replaces what the first one wrote.
-        sqlx::query("delete from attempts where session_id = $1 and source = 'review'")
-            .bind(session.id)
-            .execute(&state.pool)
+        attempt::Entity::delete_many()
+            .filter(attempt::Column::SessionId.eq(session.id))
+            .filter(attempt::Column::Source.eq("review"))
+            .exec(&state.db)
             .await?;
-        sqlx::query("delete from memories where session_id = $1")
-            .bind(session.id)
-            .execute(&state.pool)
+        memory_row::Entity::delete_many()
+            .filter(memory_row::Column::SessionId.eq(session.id))
+            .exec(&state.db)
             .await?;
 
         let at = session.ended_at.unwrap_or(now);
         // Skills the tutor's exercises were checked on already have their
         // evidence, from the check; the review's reading of them is left out.
-        let checked: Vec<String> = sqlx::query_scalar(
-            "select distinct skill_id from attempts where session_id = $1 and source in ('tutor', 'engine')",
-        )
-        .bind(session.id)
-        .fetch_all(&state.pool)
-        .await?;
+        let checked: Vec<String> = attempt::Entity::find()
+            .filter(attempt::Column::SessionId.eq(session.id))
+            .filter(attempt::Column::Source.is_in(["tutor", "engine"]))
+            .select_only()
+            .column(attempt::Column::SkillId)
+            .distinct()
+            .into_tuple()
+            .all(&state.db)
+            .await?;
         let attempts: Vec<learning::NewAttempt> = review
             .evidence
             .iter()
@@ -905,56 +952,58 @@ pub async fn review_session(state: &AppState, session_id: Uuid) -> ApiResult<()>
         if session.use_memory {
             let embedder = state.embedder.as_deref();
             if let Err(error) =
-                memory::remember(&state.pool, embedder, child_id, Some(session.id), &review.memories).await
+                memory::remember(&state.db, embedder, child_id, Some(session.id), &review.memories).await
             {
                 // A memory without an embedding is still found by date.
                 tracing::warn!(%session_id, %error, "memories were stored without embeddings");
-                memory::remember(&state.pool, None, child_id, Some(session.id), &review.memories)
+                memory::remember(&state.db, None, child_id, Some(session.id), &review.memories)
                     .await
                     .map_err(|error| ApiError::Internal(error.to_string()))?;
             }
         }
 
-        sqlx::query(
-            "insert into session_reviews (session_id, child_id, guardian_summary, next_step, flags)
-             values ($1, $2, $3, $4, $5)
-             on conflict (session_id) do update set
-               guardian_summary = case when $6 then session_reviews.guardian_summary
-                                       else excluded.guardian_summary end,
-               next_step = excluded.next_step, flags = excluded.flags",
-        )
-        .bind(session.id)
-        .bind(child_id)
-        .bind(&review.guardian_summary)
-        .bind(&review.next_step)
-        .bind(&review.flags)
         // The engine's report, once written, is what the family reads: the
         // supervisor adds its next step and flags, not its own summary.
-        .bind(flow::runs(&session))
-        .execute(&state.pool)
+        let mut written = vec![session_review::Column::NextStep, session_review::Column::Flags];
+        if !flow::runs(&session) {
+            written.push(session_review::Column::GuardianSummary);
+        }
+        session_review::Entity::insert(session_review::ActiveModel {
+            session_id: Set(session.id),
+            child_id: Set(Some(child_id)),
+            guardian_summary: Set(review.guardian_summary.clone()),
+            next_step: Set(review.next_step.clone()),
+            flags: Set(review.flags.clone()),
+            ..Default::default()
+        })
+        .on_conflict(OnConflict::column(session_review::Column::SessionId).update_columns(written).to_owned())
+        .exec_without_returning(&state.db)
         .await?;
         let data = json!({ "session_id": session.id, "child_id": child_id, "flags": review.flags });
-        events::publish(&state.pool, events::SESSION_REVIEWED, session.id, data).await?;
+        events::publish(&state.db, events::SESSION_REVIEWED, session.id, data).await?;
         family_told = true;
     }
     // Without a supervisor the engine's report still reaches the family.
     if let (false, Some(_), Some(child_id)) = (family_told, &engine_report, session.child_id) {
         let data = json!({ "session_id": session.id, "child_id": child_id, "flags": [] });
-        events::publish(&state.pool, events::SESSION_REVIEWED, session.id, data).await?;
+        events::publish(&state.db, events::SESSION_REVIEWED, session.id, data).await?;
     }
 
     // Consent may have changed while the external review was running.
-    sqlx::query(
-        "delete from session_turns using sessions
-         where session_turns.session_id = sessions.id and sessions.id = $1 and not sessions.keep_transcript",
-    )
-    .bind(session.id)
-    .execute(&state.pool)
-    .await?;
+    state
+        .db
+        .execute_raw(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "delete from session_turns using sessions
+             where session_turns.session_id = sessions.id and sessions.id = $1 and not sessions.keep_transcript",
+            [session.id.into()],
+        ))
+        .await?;
     flow::delete_inputs_after_review(&state.pool, session.id).await?;
-    sqlx::query("update sessions set reviewed_at = now() where id = $1")
-        .bind(session.id)
-        .execute(&state.pool)
+    session_row::Entity::update_many()
+        .col_expr(session_row::Column::ReviewedAt, Expr::current_timestamp())
+        .filter(session_row::Column::Id.eq(session.id))
+        .exec(&state.db)
         .await?;
     Ok(())
 }
@@ -966,31 +1015,25 @@ pub async fn supervisor_view(
     State(state): State<AppState>,
     Path(session_id): Path<Uuid>,
 ) -> ApiResult<Json<Value>> {
-    let status: Option<String> = sqlx::query_scalar("select status from sessions where id = $1")
-        .bind(session_id)
-        .fetch_optional(&state.pool)
+    let status: Option<String> = session_row::Entity::find_by_id(session_id)
+        .select_only()
+        .column(session_row::Column::Status)
+        .into_tuple()
+        .one(&state.db)
         .await?;
     let status = status.ok_or(ApiError::NotFound("session"))?;
-    let brief = stored_brief(&state.pool, session_id).await?;
-    let guidance: Vec<(i64, i32, String, sqlx::types::Json<supervisor::Signals>)> = sqlx::query_as(
-        "select id, after_seq, guidance, signals from session_guidance where session_id = $1 order by id",
-    )
-    .bind(session_id)
-    .fetch_all(&state.pool)
-    .await?;
-    let guidance: Vec<Value> = guidance
+    let brief = stored_brief(&state.db, session_id).await?;
+    let guidance: Vec<Value> = session_guidance::Entity::find()
+        .filter(session_guidance::Column::SessionId.eq(session_id))
+        .order_by_asc(session_guidance::Column::Id)
+        .all(&state.db)
+        .await?
         .into_iter()
-        .map(|(id, after_seq, text, signals)| json!({ "id": id, "after_seq": after_seq, "text": text, "signals": signals.0 }))
+        .map(|row| json!({ "id": row.id, "after_seq": row.after_seq, "text": row.guidance, "signals": row.signals }))
         .collect();
     // What the family is told once the session has been reviewed.
-    let review: Option<(String, Option<String>, Vec<String>)> = sqlx::query_as(
-        "select guardian_summary, next_step, flags from session_reviews where session_id = $1",
-    )
-    .bind(session_id)
-    .fetch_optional(&state.pool)
-    .await?;
-    let review = review.map(|(guardian_summary, next_step, flags)| {
-        json!({ "guardian_summary": guardian_summary, "next_step": next_step, "flags": flags })
+    let review = session_review::Entity::find_by_id(session_id).one(&state.db).await?.map(|row| {
+        json!({ "guardian_summary": row.guardian_summary, "next_step": row.next_step, "flags": row.flags })
     });
     let exercises = crate::practice::exercises(&state.pool, session_id).await?;
     Ok(Json(json!({

@@ -5,10 +5,12 @@
 
 use std::time::Duration;
 
+use sea_orm::ActiveValue::Set;
+use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, DbErr, EntityTrait, Statement};
 use serde_json::Value;
-use sqlx::{PgExecutor, PgPool};
 use uuid::Uuid;
 
+use crate::entity::job;
 use crate::state::AppState;
 use crate::{events, sessions};
 
@@ -20,34 +22,43 @@ const UNREVIEWED_TRANSCRIPT_HOURS: i32 = 2;
 /// Hours after which a session that never reported its end is closed.
 const STALE_SESSION_HOURS: i32 = 3;
 
-pub async fn enqueue<'a>(
-    executor: impl PgExecutor<'a>,
-    kind: &str,
-    payload: &Value,
-) -> Result<(), sqlx::Error> {
-    sqlx::query("insert into jobs (kind, payload) values ($1, $2)")
-        .bind(kind)
-        .bind(payload)
-        .execute(executor)
-        .await?;
+/// Queues a job, in the caller's transaction.
+pub async fn enqueue(db: &impl ConnectionTrait, kind: &str, payload: &Value) -> Result<(), sea_orm::DbErr> {
+    job::Entity::insert(job::ActiveModel {
+        kind: Set(kind.to_string()),
+        payload: Set(payload.clone()),
+        ..Default::default()
+    })
+    .exec_without_returning(db)
+    .await?;
     Ok(())
 }
 
 /// Takes the next due job, hiding it from other workers for five minutes.
-async fn claim(pool: &PgPool) -> Result<Option<(i64, String, Value, i32)>, sqlx::Error> {
-    sqlx::query_as(
-        "update jobs set locked_until = now() + interval '5 minutes', attempts = attempts + 1
-         where id = (
-             select id from jobs
-             where done_at is null and run_at <= now() and attempts < $1
-               and (locked_until is null or locked_until < now())
-             order by run_at for update skip locked limit 1
-         )
-         returning id, kind, payload, attempts",
-    )
-    .bind(MAX_ATTEMPTS)
-    .fetch_optional(pool)
-    .await
+async fn claim(db: &DatabaseConnection) -> Result<Option<(i64, String, Value, i32)>, DbErr> {
+    let row = db
+        .query_one_raw(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "update jobs set locked_until = now() + interval '5 minutes', attempts = attempts + 1
+             where id = (
+                 select id from jobs
+                 where done_at is null and run_at <= now() and attempts < $1
+                   and (locked_until is null or locked_until < now())
+                 order by run_at for update skip locked limit 1
+             )
+             returning id, kind, payload, attempts",
+            [MAX_ATTEMPTS.into()],
+        ))
+        .await?;
+    row.map(|row| {
+        Ok((
+            row.try_get("", "id")?,
+            row.try_get("", "kind")?,
+            row.try_get("", "payload")?,
+            row.try_get("", "attempts")?,
+        ))
+    })
+    .transpose()
 }
 
 async fn run(state: &AppState, kind: &str, payload: &Value) -> Result<(), String> {
@@ -67,85 +78,86 @@ async fn run(state: &AppState, kind: &str, payload: &Value) -> Result<(), String
 }
 
 /// Runs one job if one is due. Returns whether there was one.
-pub async fn work_once(state: &AppState) -> Result<bool, sqlx::Error> {
-    let Some((id, kind, payload, attempts)) = claim(&state.pool).await? else { return Ok(false) };
+pub async fn work_once(state: &AppState) -> Result<bool, DbErr> {
+    let Some((id, kind, payload, attempts)) = claim(&state.db).await? else { return Ok(false) };
     match run(state, &kind, &payload).await {
         Ok(()) => {
-            sqlx::query(
-                "update jobs set done_at = now(), locked_until = null, last_error = null where id = $1",
-            )
-            .bind(id)
-            .execute(&state.pool)
-            .await?;
+            state
+                .db
+                .execute_raw(Statement::from_sql_and_values(
+                    DbBackend::Postgres,
+                    "update jobs set done_at = now(), locked_until = null, last_error = null where id = $1",
+                    [id.into()],
+                ))
+                .await?;
         }
         Err(error) => {
             tracing::warn!(job = id, %kind, attempts, %error, "job failed");
             // Wait longer after each failure: 1, 4, 9, 16 minutes.
-            sqlx::query(
-                "update jobs set locked_until = null, last_error = $2,
-                   run_at = now() + make_interval(mins => $3) where id = $1",
-            )
-            .bind(id)
-            .bind(error.chars().take(500).collect::<String>())
-            .bind(attempts * attempts)
-            .execute(&state.pool)
-            .await?;
+            state
+                .db
+                .execute_raw(Statement::from_sql_and_values(
+                    DbBackend::Postgres,
+                    "update jobs set locked_until = null, last_error = $2,
+                       run_at = now() + make_interval(mins => $3) where id = $1",
+                    [
+                        id.into(),
+                        error.chars().take(500).collect::<String>().into(),
+                        (attempts * attempts).into(),
+                    ],
+                ))
+                .await?;
         }
     }
     Ok(true)
 }
 
 /// Deletes what has outlived its purpose and closes what was left open.
-pub async fn housekeeping(state: &AppState) -> Result<(), sqlx::Error> {
-    let pool = &state.pool;
-    let stale: Vec<Uuid> = sqlx::query_scalar(
-        "select id from sessions where status <> 'ended' and created_at < now() - make_interval(hours => $1)",
-    )
-    .bind(STALE_SESSION_HOURS)
-    .fetch_all(pool)
-    .await?;
-    for session_id in stale {
-        sessions::end_session(pool, session_id, None, "device_offline").await?;
-    }
-
-    let transcripts = sqlx::query(
-        "delete from session_turns using sessions
-         where session_turns.session_id = sessions.id and sessions.status = 'ended'
-           and sessions.ended_at < now() - make_interval(hours =>
-               case when sessions.keep_transcript then $1 else $2 end)",
-    )
-    .bind(state.config.transcript_hours as i32)
-    .bind(UNREVIEWED_TRANSCRIPT_HOURS)
-    .execute(pool)
-    .await?
-    .rows_affected();
-    if transcripts > 0 {
-        tracing::info!(turns = transcripts, "transcripts past their time were deleted");
-    }
-    // What went into the session engine is what the student said: same rule.
-    sqlx::query(
-        "delete from session_flow_inputs using sessions
-         where session_flow_inputs.session_id = sessions.id and sessions.status = 'ended'
-           and sessions.ended_at < now() - make_interval(hours =>
-               case when sessions.keep_transcript then $1 else $2 end)",
-    )
-    .bind(state.config.transcript_hours as i32)
-    .bind(UNREVIEWED_TRANSCRIPT_HOURS)
-    .execute(pool)
-    .await?;
-
-    sqlx::query("delete from session_guidance using sessions
-                 where session_guidance.session_id = sessions.id and sessions.reviewed_at < now() - interval '1 day'")
-        .execute(pool)
+pub async fn housekeeping(state: &AppState) -> Result<(), DbErr> {
+    let db = &state.db;
+    let stale = db
+        .query_all_raw(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "select id from sessions where status <> 'ended' and created_at < now() - make_interval(hours => $1)",
+            [STALE_SESSION_HOURS.into()],
+        ))
         .await?;
+    for row in stale {
+        let session_id: Uuid = row.try_get("", "id")?;
+        sessions::end_session(db, session_id, None, "device_offline").await?;
+    }
+
+    // What the student said, the turns and what went into the session engine,
+    // goes after its time.
+    for table in ["session_turns", "session_flow_inputs"] {
+        let deleted = db
+            .execute_raw(Statement::from_sql_and_values(
+                DbBackend::Postgres,
+                format!(
+                    "delete from {table} using sessions
+                     where {table}.session_id = sessions.id and sessions.status = 'ended'
+                       and sessions.ended_at < now() - make_interval(hours =>
+                           case when sessions.keep_transcript then $1 else $2 end)"
+                ),
+                [(state.config.transcript_hours as i32).into(), UNREVIEWED_TRANSCRIPT_HOURS.into()],
+            ))
+            .await?
+            .rows_affected();
+        if table == "session_turns" && deleted > 0 {
+            tracing::info!(turns = deleted, "transcripts past their time were deleted");
+        }
+    }
+
     for expired in [
+        "delete from session_guidance using sessions
+         where session_guidance.session_id = sessions.id and sessions.reviewed_at < now() - interval '1 day'",
         "delete from jobs where done_at < now() - interval '7 days'",
         "delete from outbox where delivered_at < now() - interval '30 days'",
         "delete from login_codes where expires_at < now() - interval '1 hour'",
         "delete from guardian_sessions where expires_at < now()",
         "delete from device_claims where expires_at < now()",
     ] {
-        sqlx::query(expired).execute(pool).await?;
+        db.execute_raw(Statement::from_string(DbBackend::Postgres, expired)).await?;
     }
     Ok(())
 }

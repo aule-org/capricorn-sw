@@ -9,16 +9,15 @@ use chrono::{DateTime, Datelike, Utc};
 use sea_orm::ActiveValue::{Set, Unchanged};
 use sea_orm::sea_query::{Expr, OnConflict};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter,
-    QuerySelect, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, DbErr, EntityTrait,
+    QueryFilter, QueryOrder, QuerySelect, Statement, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use sqlx::PgExecutor;
 use uuid::Uuid;
 
 use crate::auth::{Caller, Input, Operator};
-use crate::entity::{child, family, guardian, guardian_child};
+use crate::entity::{child, consent_record, family, guardian, guardian_child, memory, session};
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
 use crate::supervisor::ChildContext;
@@ -434,7 +433,7 @@ pub async fn get_child(
     Path(child_id): Path<Uuid>,
 ) -> ApiResult<Json<Value>> {
     let child = child_for(&state.db, &caller, child_id).await?;
-    let consent = current_consent(&state.pool, child_id).await?;
+    let consent = current_consent(&state.db, child_id).await?;
     let relationship = relationship_of(&state.db, &caller, child_id).await?;
     Ok(Json(json!({ "child": child, "consent": consent, "relationship": relationship })))
 }
@@ -456,20 +455,25 @@ pub async fn delete_child(
 }
 
 /// The latest answer for each purpose. A purpose never answered is not granted.
-pub async fn current_consent<'a>(
-    executor: impl PgExecutor<'a>,
+pub async fn current_consent(
+    db: &impl ConnectionTrait,
     child_id: Uuid,
-) -> Result<BTreeMap<String, bool>, sqlx::Error> {
-    let rows: Vec<(String, bool)> = sqlx::query_as(
-        "select distinct on (purpose) purpose, granted from consent_records
-         where child_id = $1 order by purpose, created_at desc, id desc",
-    )
-    .bind(child_id)
-    .fetch_all(executor)
-    .await?;
+) -> Result<BTreeMap<String, bool>, DbErr> {
+    let rows = consent_record::Entity::find()
+        .filter(consent_record::Column::ChildId.eq(child_id))
+        .order_by_desc(consent_record::Column::CreatedAt)
+        .order_by_desc(consent_record::Column::Id)
+        .all(db)
+        .await?;
     let mut consent: BTreeMap<String, bool> =
         PURPOSES.iter().map(|purpose| (purpose.to_string(), false)).collect();
-    consent.extend(rows);
+    // Newest first: the first answer seen for a purpose is its current one.
+    let mut seen = std::collections::BTreeSet::new();
+    for row in rows {
+        if seen.insert(row.purpose.clone()) {
+            consent.insert(row.purpose, row.granted);
+        }
+    }
     Ok(consent)
 }
 
@@ -517,68 +521,78 @@ pub async fn record_consent(
             .await?;
         belongs.ok_or(ApiError::Forbidden("that guardian is not in the child's family"))?;
     }
-    let mut tx = state.pool.begin().await?;
+    let txn = state.db.begin().await?;
     // Session creation and memory writes take the same lock. Revocation must
     // either remove a completed write or prevent a later one.
-    sqlx::query_scalar::<_, Uuid>("select id from children where id = $1 for update")
-        .bind(child_id)
-        .fetch_optional(&mut *tx)
+    child::Entity::find_by_id(child_id)
+        .select_only()
+        .column(child::Column::Id)
+        .lock_exclusive()
+        .into_tuple::<Uuid>()
+        .one(&txn)
         .await?
         .ok_or(ApiError::NotFound("child"))?;
-    sqlx::query(
+    let locale = body
+        .locale
+        .as_deref()
+        .map(|locale| text(locale, "locale", 20))
+        .transpose()?
+        .unwrap_or_else(|| "es-PE".into());
+    // The time is the clock's, not the transaction's: two answers in one
+    // transaction keep their order.
+    txn.execute_raw(Statement::from_sql_and_values(
+        DbBackend::Postgres,
         "insert into consent_records (id, family_id, child_id, guardian_id, purpose, granted, policy_version, locale, source, created_at)
          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, clock_timestamp())",
-    )
-    .bind(Uuid::now_v7())
-    .bind(child.family_id)
-    .bind(child_id)
-    .bind(guardian_id)
-    .bind(&body.purpose)
-    .bind(body.granted)
-    .bind(text(&body.policy_version, "policy_version", 40)?)
-    .bind(body.locale.as_deref().map(|locale| text(locale, "locale", 20)).transpose()?.unwrap_or_else(|| "es-PE".into()))
-    .bind(source)
-    .execute(&mut *tx)
+        [
+            Uuid::now_v7().into(),
+            child.family_id.into(),
+            child_id.into(),
+            guardian_id.into(),
+            body.purpose.clone().into(),
+            body.granted.into(),
+            text(&body.policy_version, "policy_version", 40)?.into(),
+            locale.into(),
+            source.into(),
+        ],
+    ))
     .await?;
 
     // Taking consent back takes the data back too.
     if !body.granted {
         match body.purpose.as_str() {
             "memory" => {
-                sqlx::query("update sessions set use_memory = false where child_id = $1")
-                    .bind(child_id)
-                    .execute(&mut *tx)
+                session::Entity::update_many()
+                    .col_expr(session::Column::UseMemory, Expr::value(false))
+                    .filter(session::Column::ChildId.eq(child_id))
+                    .exec(&txn)
                     .await?;
-                sqlx::query("delete from memories where child_id = $1")
-                    .bind(child_id)
-                    .execute(&mut *tx)
-                    .await?;
+                memory::Entity::delete_many().filter(memory::Column::ChildId.eq(child_id)).exec(&txn).await?;
             }
             "transcripts" => {
-                sqlx::query("update sessions set keep_transcript = false where child_id = $1")
-                    .bind(child_id)
-                    .execute(&mut *tx)
+                session::Entity::update_many()
+                    .col_expr(session::Column::KeepTranscript, Expr::value(false))
+                    .filter(session::Column::ChildId.eq(child_id))
+                    .exec(&txn)
                     .await?;
-                sqlx::query(
-                    "delete from session_turns using sessions
-                     where session_turns.session_id = sessions.id and sessions.child_id = $1 and sessions.status = 'ended'",
-                )
-                .bind(child_id)
-                .execute(&mut *tx)
-                .await?;
-                // What the student said to the session engine goes with the turns.
-                sqlx::query(
-                    "delete from session_flow_inputs using sessions
-                     where session_flow_inputs.session_id = sessions.id and sessions.child_id = $1 and sessions.status = 'ended'",
-                )
-                .bind(child_id)
-                .execute(&mut *tx)
-                .await?;
+                // What the student said: the turns, and what went into the session
+                // engine, of every session that has ended.
+                for table in ["session_turns", "session_flow_inputs"] {
+                    txn.execute_raw(Statement::from_sql_and_values(
+                        DbBackend::Postgres,
+                        format!(
+                            "delete from {table} using sessions
+                             where {table}.session_id = sessions.id and sessions.child_id = $1 and sessions.status = 'ended'"
+                        ),
+                        [child_id.into()],
+                    ))
+                    .await?;
+                }
             }
             _ => {}
         }
     }
-    let consent = current_consent(&mut *tx, child_id).await?;
-    tx.commit().await?;
+    let consent = current_consent(&txn, child_id).await?;
+    txn.commit().await?;
     Ok((StatusCode::CREATED, Json(json!({ "consent": consent }))))
 }

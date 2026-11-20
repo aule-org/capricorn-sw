@@ -286,7 +286,7 @@ async fn complete_if_ready(tx: &mut Transaction<'_, Postgres>, device_id: Uuid) 
     if let Some(version) = firmware_version {
         data["firmware_version"] = json!(version);
     }
-    events::publish(&mut **tx, events::DEVICE_CLAIMED, device_id, data).await?;
+    events::publish_sqlx(&mut **tx, events::DEVICE_CLAIMED, device_id, data).await?;
     Ok(true)
 }
 
