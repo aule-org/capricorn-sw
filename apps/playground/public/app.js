@@ -291,14 +291,16 @@ async function showStep(id, given) {
   // A new exercise brings its own drawing, or an empty board: the drawing of
   // the one before does not stay next to it.
   $("board").hidden = true;
-  if (card.visual && card.visual.kind !== "exercise") {
+  boardShows = null;
+  if (card.visual?.kind === "exercise") lastExercise = card.visual;
+  if (card.visual && (card.visual.kind !== "exercise" || inkMode)) {
     try {
-      $("board").innerHTML = renderVisual(card.visual);
-      $("board").hidden = false;
+      draw(card.visual);
     } catch {
       // A drawing the page cannot make is simply not shown.
     }
   }
+  if (inkMode) showInk();
 }
 
 $("answer").addEventListener("submit", async (event) => {
@@ -339,18 +341,43 @@ function item(text) {
 }
 
 // The tutor describes what to show; the page draws it.
+// The ink screen shows what the device would: the drawing, or else the
+// exercise in hand, which the card shows in words and the board skips. So the
+// last exercise is kept, and the screen says so when there is nothing yet.
+let inkMode = false;
+let lastExercise = null;
+// What the board shows: a drawing's kind, "waiting", or null when empty.
+let boardShows = null;
+
+function draw(visual) {
+  $("board").innerHTML = renderVisual(visual);
+  $("board").hidden = false;
+  boardShows = visual.kind;
+  // The panel flashes when it redraws.
+  $("board").classList.remove("redraw");
+  void $("board").offsetWidth;
+  $("board").classList.add("redraw");
+}
+
+function showInk() {
+  if (boardShows && boardShows !== "waiting") return;
+  if (lastExercise) return draw(lastExercise);
+  const waiting = document.createElement("p");
+  waiting.className = "ink-waiting";
+  waiting.textContent = "Aquí aparece lo que mostraría la pantalla de tinta: los dibujos de Aule y el ejercicio del momento.";
+  $("board").replaceChildren(waiting);
+  $("board").hidden = false;
+  boardShows = "waiting";
+}
+
 async function onVisual(reader) {
   try {
     const visual = JSON.parse(await reader.readAll());
+    if (visual.kind === "exercise") lastExercise = visual;
     // With the exercise card on the screen its statement is already there:
     // the board is for drawings, not for the same words again.
-    if (visual.kind === "exercise" && !$("card").hidden) return;
-    $("board").innerHTML = renderVisual(visual);
-    $("board").hidden = false;
-    // The panel flashes when it redraws.
-    $("board").classList.remove("redraw");
-    void $("board").offsetWidth;
-    $("board").classList.add("redraw");
+    if (visual.kind === "exercise" && !$("card").hidden && !inkMode) return;
+    draw(visual);
   } catch {
     // A description this page cannot draw is skipped; the voice carries on.
   }
@@ -679,6 +706,8 @@ function leave(reason) {
   $("audio").replaceChildren();
   $("board").replaceChildren();
   $("board").hidden = true;
+  boardShows = null;
+  lastExercise = null;
   stage.hidden = true;
   document.querySelector("main").classList.toggle("in-session", false);
   lobby.hidden = true;
@@ -772,9 +801,16 @@ document.addEventListener("keyup", (event) => {
 window.addEventListener("blur", () => stopTalking("cancel_turn"));
 
 $("device").addEventListener("click", () => {
-  const on = !$("board").classList.contains("device");
-  $("board").classList.toggle("device", on);
-  setToggle($("device"), "Modo tinta", on);
+  inkMode = !inkMode;
+  $("board").classList.toggle("device", inkMode);
+  setToggle($("device"), "Modo tinta", inkMode);
+  if (inkMode) return showInk();
+  // Back to the page's own board: no waiting note, and no exercise next to its card.
+  if (boardShows === "waiting" || (boardShows === "exercise" && !$("card").hidden)) {
+    $("board").replaceChildren();
+    $("board").hidden = true;
+    boardShows = null;
+  }
 });
 
 $("cam").addEventListener("click", async () => {
