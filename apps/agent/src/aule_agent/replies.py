@@ -24,12 +24,12 @@ REPLIES: dict[str, dict[str, str]] = {
     # A student who says something out of place is brought back to the work,
     # with no other plan offered: a game here would reward it.
     "redirect": {
-        "es": "De eso no puedo hablar. Sigamos con lo que estábamos haciendo.",
-        "en": "I can't talk about that. Let's go on with what we were doing.",
+        "es": "De eso no puedo hablar. Sigamos con lo nuestro.",
+        "en": "I can't talk about that. Let's get back to our work.",
     },
     "child_support": {
-        "es": "Gracias por contármelo. Si algo te hizo sentir incómodo o en peligro, busca a un "
-        "adulto de confianza que pueda ayudarte. No tienes que resolverlo a solas.",
+        "es": "Gracias por contármelo. Si algo te incomodó o te hizo sentir en peligro, busca a "
+        "un adulto de confianza que pueda ayudarte. No tienes que resolverlo a solas.",
         "en": "Thank you for telling me. If something made you feel uncomfortable or unsafe, "
         "find a trusted adult who can help. You don't have to handle it alone.",
     },
@@ -53,22 +53,23 @@ REPLIES: dict[str, dict[str, str]] = {
     "adult_help": {
         "es": "Primero, pide ayuda a un adulto de confianza que esté cerca. No lo intentes tú. "
         "Después seguimos con lo que estábamos haciendo.",
-        "en": "First, ask a trusted adult nearby for help. Don't try it yourself. Afterwards we "
-        "go on with what we were doing.",
+        "en": "First, ask a trusted adult nearby for help. Don't try it yourself. After that, "
+        "we'll carry on with what we were doing.",
     },
     "adult_help_again": {
         "es": "No lo intentes tú; pide ayuda a un adulto de confianza cercano. Después seguimos.",
-        "en": "Don't try it yourself; ask a trusted adult nearby for help. Afterwards we go on.",
+        "en": "Don't try it yourself; ask a trusted adult nearby for help. After that, we'll "
+        "carry on.",
     },
     "adult_help_wait": {
         "es": "Busca a un adulto de confianza que esté cerca; deja que se encargue. Después "
         "seguimos con lo nuestro.",
-        "en": "Find a trusted adult nearby and let them handle it. Afterwards we go on with our "
-        "work.",
+        "en": "Find a trusted adult nearby and let them handle it. After that, we'll carry on "
+        "with our work.",
     },
     "clarify": {
-        "es": "No estoy seguro de qué quieres hacer. ¿Me lo cuentas de otra manera?",
-        "en": "I'm not sure what you want to do. Can you tell me another way?",
+        "es": "No entendí bien qué quieres hacer. ¿Me lo cuentas de otra manera?",
+        "en": "I didn't quite get what you want to do. Can you tell me another way?",
     },
     "context_limit": {
         "es": "Necesito ayuda de un adulto para seguir con seguridad. Pídele que revise lo que "
