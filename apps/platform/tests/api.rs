@@ -2538,3 +2538,58 @@ async fn an_engine_session_leaves_the_level_and_its_evidence_and_the_next_one_st
     assert_eq!(app.count("select count(*) from attempts").await, 0);
     assert_eq!(app.count("select count(*) from session_flow_inputs").await, 0);
 }
+
+#[sqlx::test(migrator = "aule_platform::MIGRATOR")]
+async fn secondary_school_algebra_is_checked_like_arithmetic(pool: PgPool) {
+    let app = app(pool);
+    let child = app.child().await;
+    app.consent(&child, "voice", true).await;
+    app.admin(
+        Method::PUT,
+        "/v1/skills",
+        Some(json!({ "skills": [{ "id": "algebra.ecuaciones", "subject": "math", "name": "Ecuaciones" }] })),
+    )
+    .await;
+    let (_, token) = app.session(&child).await;
+    let agent = Some(token.as_str());
+    let pose = |expression: &'static str| {
+        app.call(
+            Method::POST,
+            "/v1/agent/session/exercises",
+            agent,
+            Some(json!({ "expression": expression, "skill_id": "algebra.ecuaciones" })),
+        )
+    };
+    let answer = |said: &'static str| {
+        app.call(Method::POST, "/v1/agent/session/answers", agent, Some(json!({ "said": said })))
+    };
+
+    // An equation: the slip of moving the 3 across without changing its sign has a name.
+    assert_eq!(pose("2x + 3 = 11").await.0, StatusCode::CREATED);
+    let (_, slip) = answer("x = 7").await;
+    assert_eq!(
+        (slip["verdict"].as_str(), slip["read"].as_str(), slip["misconception"].as_str()),
+        (Some("incorrect"), Some("x = 7"), Some("transposed_sign"))
+    );
+    pose("3x - 1 = 8").await;
+    let (_, right) = answer("x vale tres").await;
+    assert_eq!((right["verdict"].as_str(), right["stage"].as_str()), (Some("correct"), Some("practice")));
+
+    // Expanding: equal but not expanded is a matter of form, and costs no hint.
+    pose("(x + 2)(x - 3)").await;
+    let (_, form) = answer("x^2 + 2x - 3x - 6").await;
+    assert_eq!((form["verdict"].as_str(), form["next"].as_str()), (Some("wrong_form"), Some("fix_form")));
+    assert!(form["say"].as_str().unwrap().contains("like terms"), "{form}");
+    let (_, expanded) = answer("x al cuadrado menos x menos seis").await;
+    assert_eq!(expanded["verdict"], "correct");
+    assert_eq!(
+        app.count(
+            "select count(*) from session_exercises where answer = 'x^2 - x - 6' and form = 'expanded'"
+        )
+        .await,
+        1
+    );
+
+    // What has no exact answer is not checked.
+    assert_eq!(pose("x^2 = 2").await.0, StatusCode::BAD_REQUEST);
+}

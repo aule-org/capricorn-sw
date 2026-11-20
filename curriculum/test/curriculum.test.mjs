@@ -1,6 +1,7 @@
 // Every catalog in this directory must be loadable by PUT /v1/skills and form
 // a prerequisite graph the learner model can walk: no dangling ids, no cycles,
-// nothing that depends on a later grade.
+// nothing that depends on a later grade. A catalog may build on another one
+// in this directory (secondary algebra on primary arithmetic).
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
@@ -10,11 +11,16 @@ const files = readdirSync(root).filter((file) => file.endsWith('.json') && file 
 
 // Same rule as is_slug in apps/platform/src/learning/mod.rs.
 const SLUG = /^[a-z0-9][a-z0-9._-]{0,79}$/;
-const GRADES = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'];
+const PRIMARY = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'];
+const GRADES = [...PRIMARY, 'S1', 'S2', 'S3', 'S4', 'S5'];
 const FIELDS = ['id', 'subject', 'name', 'grade', 'description', 'prerequisites'];
 const MAX_NAME = 160;
 const MAX_DESCRIPTION = 600;
 const MAX_SKILLS_PER_REQUEST = 2000;
+
+const everySkill = new Map(
+  files.flatMap((file) => JSON.parse(readFileSync(new URL(file, root), 'utf8')).skills.map((skill) => [skill.id, skill])),
+);
 
 test('there is at least one catalog', () => {
   assert.ok(files.length > 0);
@@ -59,7 +65,7 @@ for (const file of files) {
 
   test(`${file}: prerequisites exist, are not repeated and never come from a later grade`, () => {
     const { skills } = load();
-    const byId = new Map(skills.map((skill) => [skill.id, skill]));
+    const byId = everySkill;
     for (const skill of skills) {
       assert.equal(new Set(skill.prerequisites).size, skill.prerequisites.length, `${skill.id}: repeated prerequisite`);
       for (const id of skill.prerequisites) {
@@ -76,7 +82,7 @@ for (const file of files) {
 
   test(`${file}: the prerequisite graph has no cycles`, () => {
     const { skills } = load();
-    const byId = new Map(skills.map((skill) => [skill.id, skill]));
+    const byId = everySkill;
     const state = new Map(); // id -> 'visiting' | 'done'
     const visit = (id, path) => {
       if (state.get(id) === 'done' || !byId.has(id)) return;
@@ -88,13 +94,19 @@ for (const file of files) {
     for (const { id } of skills) visit(id, []);
   });
 
-  test(`${file}: every grade has enough skills and P1 has places to start`, () => {
+  test(`${file}: every grade has enough skills and primary has places to start`, () => {
     const { skills } = load();
-    for (const grade of GRADES) {
+    const used = new Set(skills.map((skill) => skill.grade));
+    // A primary catalog covers all six grades; a catalog of one strand, the grades it names.
+    const primary = PRIMARY.some((grade) => used.has(grade));
+    for (const grade of primary ? PRIMARY : [...used]) {
       const count = skills.filter((skill) => skill.grade === grade).length;
-      assert.ok(count >= 15, `${grade} has only ${count} skills`);
+      const least = primary ? 15 : 4;
+      assert.ok(count >= least, `${grade} has only ${count} skills`);
     }
-    const entry = skills.filter((skill) => skill.grade === 'P1' && skill.prerequisites.length === 0);
-    assert.ok(entry.length >= 5, `P1 has only ${entry.length} skills without prerequisites`);
+    if (primary) {
+      const entry = skills.filter((skill) => skill.grade === 'P1' && skill.prerequisites.length === 0);
+      assert.ok(entry.length >= 5, `P1 has only ${entry.length} skills without prerequisites`);
+    }
   });
 }

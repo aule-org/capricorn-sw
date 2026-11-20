@@ -3,7 +3,8 @@
 Skill catalogs for the platform's learner model: what a child can be taught, in units small enough to practise in one voice session and to be judged right or wrong on, and which skills must be mastered before another is offered.
 
 ```text
-math-primaria.json   mathematics for Peruvian primary school, grades 1 to 6 (188 skills)
+math-primaria.json             mathematics for Peruvian primary school, grades 1 to 6 (188 skills)
+math-secundaria-algebra.json   algebra for the first three years of secondary school (17 skills)
 test/                checks every *.json catalog in this folder
 ```
 
@@ -44,6 +45,10 @@ Where it was unclear in which grade the CNEB expects a topic, the skill sits whe
 
 Known gaps: symmetry, nets of solids, the length of a circumference, inequalities and inverse proportionality are left out, some because they are hard to practise by voice and some because their place in primary was unclear.
 
+### Secondary algebra
+
+`math-secundaria-algebra.json` is a draft of the same kind, for the strand of *Resuelve problemas de regularidad, equivalencia y cambio* in the first three years of secundaria (S1 to S3): algebraic language, like terms, first-degree equations, polynomial products and factoring, systems of two equations and quadratic equations. Its first skills build on primary ones (`ecuaciones.dos-pasos`, `patrones.expresar-regla-con-letras`). Which year each topic falls in is where Peruvian textbooks commonly put it; it needs the same check and review. Every example in it is one the platform can check exactly (see `apps/platform/src/algebra.rs`). Inequalities and functions are left out: their answers are not a number or a polynomial.
+
 ## Shape of a skill
 
 ```json
@@ -57,7 +62,7 @@ Known gaps: symmetry, nets of solids, the length of a circumference, inequalitie
 }
 ```
 
-- **`grade`**: `P1` to `P6`, grades 1 to 6 of primaria. A child with no history is offered skills without prerequisites, their own grade first.
+- **`grade`**: `P1` to `P6`, grades 1 to 6 of primaria; `S1` to `S5`, years 1 to 5 of secundaria. A child with no history is offered skills without prerequisites, their own grade first.
 - **`name`** (at most 160 characters) and **`description`** (at most 600) are in Spanish as used in Peru and are read by the model that plans sessions; the name may also be shown to parents. The description says what the child can do and gives an exercise that works out loud, with the expected answer in parentheses. No skill needs the tutor to show a figure or the child to draw one; the child may work in a notebook and hold it up to the camera.
 - **`prerequisites`**: ids that must be mastered before this skill is offered as new. They never point to a later grade and form no cycles. Only P1 (and one P2 skill) can be started with no history, so a child who starts in a later grade is first offered those until evidence of earlier skills is recorded.
 
@@ -95,4 +100,4 @@ The request inserts new skills and updates existing ones by id (at most 2000 per
 pnpm --filter @aule/curriculum test
 ```
 
-The tests check, for every `*.json` catalog here: the `{"skills": [...]}` shape; unique ids matching the platform's slug rule; required fields and length limits; `subject` is `math` and `grade` is `P1`..`P6`; every prerequisite exists, is not the skill itself and is not from a later grade; the graph has no cycles; every grade has at least 15 skills and P1 at least 5 with no prerequisites.
+The tests check, for every `*.json` catalog here: the `{"skills": [...]}` shape; unique ids matching the platform's slug rule; required fields and length limits; `subject` is `math` and `grade` is `P1`..`P6` or `S1`..`S5`; every prerequisite exists in some catalog here, is not the skill itself and is not from a later grade; the graph has no cycles; a primary catalog has at least 15 skills in every grade and P1 at least 5 with no prerequisites, and any other catalog at least 4 in each grade it uses.
