@@ -72,6 +72,33 @@ export async function signIn(settings: Settings, credential: string): Promise<Si
   return { token: answer.token, days: typeof answer.expires_in_days === "number" ? answer.expires_in_days : 1 };
 }
 
+/** Asks the platform to mail a sign-in code to an address. It answers the same whether or not the address has an account. */
+export async function startCode(settings: Settings, email: string, language: Language): Promise<void> {
+  await platform(settings, "/v1/auth/start", { email, language });
+}
+
+/**
+ * Trades the code mailed to an address for a session. An address seen for the
+ * first time also needs the guardian's name: without it the platform refuses
+ * and the code stays good, so the page can ask for the name and send both again.
+ */
+export async function verifyCode(
+  settings: Settings,
+  email: string,
+  code: string,
+  name: string | undefined,
+  language: Language,
+): Promise<SignedIn> {
+  const answer = (await platform(settings, "/v1/auth/verify", {
+    email,
+    code,
+    language,
+    ...(name ? { name } : {}),
+  })) as { token?: unknown; expires_in_days?: unknown };
+  if (typeof answer.token !== "string") throw new PlatformError("the platform sent no session");
+  return { token: answer.token, days: typeof answer.expires_in_days === "number" ? answer.expires_in_days : 1 };
+}
+
 /**
  * Erases the signed-in guardian's family: the account, its students and what
  * was kept about them. The platform only does it when the address typed is the

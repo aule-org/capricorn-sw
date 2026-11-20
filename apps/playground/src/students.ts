@@ -126,7 +126,8 @@ export function profileFrom(body: Record<string, unknown>): Profile | null {
     tone,
     note,
     subjects: absent(body.subjects) ? null : (subjects as Subject[]),
-    remembers: body.remembers !== false,
+    // Remembering between sessions is the guardian's yes, never a default.
+    remembers: body.remembers === true,
     keepsTranscripts: body.keeps_transcripts === true,
     relationship,
   };

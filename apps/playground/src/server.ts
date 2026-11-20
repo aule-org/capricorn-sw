@@ -18,8 +18,10 @@ import {
   PlatformError,
   signIn,
   signOut,
+  startCode,
   step,
   supervisorView,
+  verifyCode,
 } from "./session.ts";
 import {
   createStudent,
@@ -68,6 +70,10 @@ const STATIC: Record<string, { file: string | URL; type: string }> = {
 const MAX_BODY_BYTES = 2_000;
 // A Google credential is a signed token of a couple of thousand characters.
 const MAX_SIGN_IN_BYTES = 8_000;
+// What a guardian types to sign in with a mailed code: an address, six digits and a name.
+const EMAIL_MAX_CHARS = 254;
+const NAME_MAX_CHARS = 120;
+const CODE = /^\d{6}$/;
 // A student's profile: a name, up to ten interests and a line from the family.
 const MAX_PROFILE_BYTES = 4_000;
 const ID = /^[0-9a-f-]{36}$/i;
@@ -173,10 +179,45 @@ export function createPlayground(settings: Settings): Server {
     if (!settings.platform) return json(response, 404, { error: "not_found" });
     let body: Record<string, unknown>;
     try {
-      const limit = path === "/api/signin" ? MAX_SIGN_IN_BYTES : path.startsWith("/api/student") ? MAX_PROFILE_BYTES : MAX_BODY_BYTES;
+      const limit = path.startsWith("/api/signin") ? MAX_SIGN_IN_BYTES : path.startsWith("/api/student") ? MAX_PROFILE_BYTES : MAX_BODY_BYTES;
       body = await readJson(request, limit);
     } catch {
       return json(response, 400, { error: "bad_request" });
+    }
+    if (path === "/api/signin/start" || path === "/api/signin/verify") {
+      const email = typeof body.email === "string" ? body.email.trim() : "";
+      if (!email || email.length > EMAIL_MAX_CHARS) return json(response, 400, { error: "bad_request" });
+      const language = LANGUAGES.find((known) => known === body.language) ?? ("es" as Language);
+      if (path === "/api/signin/start") {
+        try {
+          await startCode(settings, email, language);
+        } catch (error) {
+          if (error instanceof PlatformError && error.status === 400) return json(response, 400, { error: "bad_request" });
+          if (error instanceof PlatformError && error.status === 503) return json(response, 503, { error: "mail_unavailable" });
+          throw error;
+        }
+        // The same answer for any address, as the platform's.
+        return json(response, 200, { sent: true });
+      }
+      // The code may be pasted with spaces or dashes ("123 456").
+      const code = typeof body.code === "string" ? body.code.replace(/[\s-]/g, "") : "";
+      if (!CODE.test(code)) return json(response, 403, { error: "code_refused" });
+      const name = typeof body.name === "string" ? body.name.trim() : "";
+      if (name.length > NAME_MAX_CHARS) return json(response, 400, { error: "bad_request" });
+      let entered;
+      try {
+        entered = await verifyCode(settings, email, code, name || undefined, language);
+      } catch (error) {
+        if (error instanceof PlatformError && error.status === 403) return json(response, 403, { error: "code_refused" });
+        if (error instanceof PlatformError && error.status === 400) {
+          return json(response, 400, { error: /name is needed/.test(error.message) ? "name_needed" : "bad_request" });
+        }
+        throw error;
+      }
+      return whoIsHere(request, response, {
+        token: entered.token,
+        cookie: signedInCookie(entered.token, settings.basePath, entered.days),
+      });
     }
     if (path === "/api/signin") {
       if (typeof body.credential !== "string" || !body.credential) {
@@ -343,6 +384,8 @@ export function createPlayground(settings: Settings): Server {
       if (path === "/api/account" && request.method === "GET") return whoIsHere(request, response);
       if (
         path === "/api/signin" ||
+        path === "/api/signin/start" ||
+        path === "/api/signin/verify" ||
         path === "/api/signout" ||
         path === "/api/student" ||
         path === "/api/student/read" ||

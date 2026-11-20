@@ -26,6 +26,19 @@ const platform = createServer(async (request, response) => {
     response.end(JSON.stringify(value));
   };
   if (path === "/v1/auth/google" && request.method === "GET") return answer(200, { client_id: "client-1" });
+  if (path === "/v1/auth/start") {
+    if (!String(body.email).includes("@")) return answer(400, { error: { message: "email is not an email address" } });
+    if (body.email === "sin-correo@example.org") return answer(503, { error: { message: "sign-in needs mail to be configured" } });
+    return answer(204, {});
+  }
+  if (path === "/v1/auth/verify") {
+    if (body.code !== "123456") return answer(403, { error: { message: "that code is wrong or has expired" } });
+    // An address seen for the first time needs the guardian's name.
+    if (body.email === "nueva@example.org" && !body.name) {
+      return answer(400, { error: { message: "name is needed to create the account" } });
+    }
+    return answer(200, { token: TOKEN, expires_in_days: 30, new_account: body.email === "nueva@example.org" });
+  }
   if (path === "/v1/auth/google") {
     if (body.credential !== "good") return answer(403, { error: { message: "refused" } });
     return answer(200, { token: TOKEN, expires_in_days: 30, new_account: true });
@@ -118,10 +131,102 @@ test("a student is created only signed in, with a name and the guardian's yes", 
     seen.filter((call) => call.path.endsWith("/consents")).map((call) => call.body),
     [
       { purpose: "voice", granted: true, policy_version: "playground-2026-11" },
-      { purpose: "memory", granted: true, policy_version: "playground-2026-11" },
+      { purpose: "memory", granted: false, policy_version: "playground-2026-11" },
       { purpose: "transcripts", granted: false, policy_version: "playground-2026-11" },
     ],
   );
+});
+
+test("a student with only a username and the yes starts with memory off and the other consents as they were", async () => {
+  assert.equal((await post("student", { name: "tigre_azul" }, COOKIE)).status, 400, "not without the yes");
+  seen.length = 0;
+
+  const response = await post("student", { name: "tigre_azul", consent: true }, COOKIE);
+
+  assert.equal(response.status, 201);
+  assert.deepEqual(seen.find((call) => call.path.endsWith("/children"))?.body, {
+    nickname: "tigre_azul",
+    grade: null,
+    language: "es",
+    interests: [],
+    tutor_persona: "calido",
+    tutor_persona_note: "",
+    relationship: "",
+  });
+  assert.deepEqual(
+    seen.filter((call) => call.path.endsWith("/consents")).map((call) => call.body),
+    [
+      { purpose: "voice", granted: true, policy_version: "playground-2026-11" },
+      { purpose: "memory", granted: false, policy_version: "playground-2026-11" },
+      { purpose: "transcripts", granted: false, policy_version: "playground-2026-11" },
+    ],
+  );
+});
+
+test("a code asked for by mail answers the same for any address and tells a bad one apart", async () => {
+  seen.length = 0;
+
+  const sent = await post("signin/start", { email: " Ana@Example.org ", language: "en" });
+
+  assert.equal(sent.status, 200);
+  assert.deepEqual(await sent.json(), { sent: true });
+  assert.deepEqual(seen.at(-1)?.body, { email: "Ana@Example.org", language: "en" });
+  assert.equal((await post("signin/start", { email: "no-es-un-correo" })).status, 400);
+  assert.equal((await post("signin/start", {})).status, 400);
+  const unmailed = await post("signin/start", { email: "sin-correo@example.org" });
+  assert.equal(unmailed.status, 503);
+  assert.deepEqual(await unmailed.json(), { error: "mail_unavailable" });
+});
+
+test("the code from the mail signs the person in with the same cookie as Google", async () => {
+  seen.length = 0;
+
+  const response = await post("signin/verify", { email: "ana@example.org", code: " 123 456 " });
+
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("set-cookie") ?? "", new RegExp(`^aule_guardian=${TOKEN}; Max-Age=2592000; Path=/playground/; HttpOnly; Secure; SameSite=Strict$`));
+  const body = await response.json();
+  assert.equal(body.signed_in, true);
+  assert.equal(body.name, "Ana");
+  assert.ok(!JSON.stringify(body).includes(TOKEN));
+  assert.deepEqual(seen.find((call) => call.path === "/v1/auth/verify")?.body, {
+    email: "ana@example.org",
+    code: "123456",
+    language: "es",
+  });
+});
+
+test("a wrong or malformed code signs nobody in", async () => {
+  for (const code of ["654321", "12345", "abcdef", "", 123456]) {
+    seen.length = 0;
+    const response = await post("signin/verify", { email: "ana@example.org", code });
+
+    assert.equal(response.status, 403, String(code));
+    assert.deepEqual(await response.json(), { error: "code_refused" });
+    assert.equal(response.headers.get("set-cookie"), null);
+  }
+  assert.equal((await post("signin/verify", { code: "123456" })).status, 400);
+});
+
+test("an address seen for the first time is asked for a name, and the same code then works", async () => {
+  const first = await post("signin/verify", { email: "nueva@example.org", code: "123456" });
+
+  assert.equal(first.status, 400);
+  assert.deepEqual(await first.json(), { error: "name_needed" });
+  assert.equal(first.headers.get("set-cookie"), null);
+  assert.equal((await post("signin/verify", { email: "nueva@example.org", code: "654321" })).status, 403, "the code is checked first");
+  assert.equal((await post("signin/verify", { email: "nueva@example.org", code: "123456", name: "x".repeat(121) })).status, 400);
+
+  const second = await post("signin/verify", { email: "nueva@example.org", code: "123456", name: " Ana " });
+
+  assert.equal(second.status, 200);
+  assert.equal((await second.json()).signed_in, true);
+  assert.deepEqual(seen.findLast((call) => call.path === "/v1/auth/verify")?.body, {
+    email: "nueva@example.org",
+    code: "123456",
+    language: "es",
+    name: "Ana",
+  });
 });
 
 test("a signed-in session is a student's, asked for as the guardian, and bounded per day", async () => {
