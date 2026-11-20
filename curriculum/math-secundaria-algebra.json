@@ -44,7 +44,7 @@
       "id": "algebra.ecuaciones-con-fracciones",
       "subject": "math",
       "name": "Resolver ecuaciones con fracciones",
-      "grade": "S1",
+      "grade": "S2",
       "description": "Resuelve ecuaciones con coeficientes fraccionarios, multiplicando por el denominador o despejando paso a paso. Ejemplo: «x/2 + 1 = 4» (x = 6). «4a − 1 = 2» (a = 3/4).",
       "prerequisites": ["algebra.ecuaciones-lineales", "fracciones.multiplicar"]
     },
@@ -68,7 +68,7 @@
       "id": "algebra.productos-notables",
       "subject": "math",
       "name": "Desarrollar productos notables",
-      "grade": "S2",
+      "grade": "S3",
       "description": "Desarrolla el cuadrado de un binomio y la suma por la diferencia sin olvidar el doble producto. Ejemplo: «(x + 3)²» (x² + 6x + 9). «(2x − 1)²» (4x² − 4x + 1). «(x + 5)(x − 5)» (x² − 25).",
       "prerequisites": ["algebra.multiplicar-polinomios"]
     },
@@ -84,7 +84,7 @@
       "id": "algebra.diferencia-de-cuadrados",
       "subject": "math",
       "name": "Factorizar una diferencia de cuadrados",
-      "grade": "S2",
+      "grade": "S3",
       "description": "Reconoce a² − b² y la escribe como (a + b)(a − b). Ejemplo: «Factoriza x² − 9» ((x + 3)(x − 3)). «Factoriza 2x² − 8» (2(x + 2)(x − 2)).",
       "prerequisites": ["algebra.productos-notables", "algebra.factor-comun"]
     },
@@ -92,7 +92,7 @@
       "id": "algebra.sistemas-2x2",
       "subject": "math",
       "name": "Resolver sistemas de dos ecuaciones lineales",
-      "grade": "S2",
+      "grade": "S3",
       "description": "Resuelve dos ecuaciones con dos incógnitas por sustitución, igualación o reducción. Ejemplo: «x + y = 10 y x − y = 2» (x = 6, y = 4). «2x + 3y = 12 y x − y = 1» (x = 3, y = 2).",
       "prerequisites": ["algebra.ecuaciones-con-parentesis"]
     },
@@ -100,7 +100,7 @@
       "id": "algebra.plantear-sistemas",
       "subject": "math",
       "name": "Plantear y resolver problemas con dos incógnitas",
-      "grade": "S2",
+      "grade": "S3",
       "description": "Plantea un sistema de dos ecuaciones a partir de un problema y lo resuelve. Ejemplo: «En una granja hay gallinas y conejos: 10 cabezas y 28 patas. ¿Cuántos hay de cada uno?» (6 gallinas y 4 conejos).",
       "prerequisites": ["algebra.sistemas-2x2", "algebra.plantear-ecuaciones"]
     },
@@ -108,7 +108,7 @@
       "id": "algebra.factorizar-trinomios",
       "subject": "math",
       "name": "Factorizar trinomios de segundo grado",
-      "grade": "S3",
+      "grade": "S4",
       "description": "Factoriza x² + bx + c buscando dos números que sumen b y multipliquen c, y ax² + bx + c por aspa simple. Ejemplo: «Factoriza x² − 5x + 6» ((x − 2)(x − 3)). «Factoriza 2x² + 5x − 3» ((x + 3)(2x − 1)).",
       "prerequisites": ["algebra.diferencia-de-cuadrados"]
     },
@@ -116,7 +116,7 @@
       "id": "algebra.cuadraticas-incompletas",
       "subject": "math",
       "name": "Resolver ecuaciones cuadráticas incompletas",
-      "grade": "S3",
+      "grade": "S4",
       "description": "Resuelve ax² + c = 0 despejando y ax² + bx = 0 sacando factor común, sin olvidar que hay dos soluciones. Ejemplo: «x² = 9» (x = 3 o x = −3). «x² − 4x = 0» (x = 0 o x = 4).",
       "prerequisites": ["algebra.factor-comun", "algebra.ecuaciones-lineales"]
     },
@@ -124,7 +124,7 @@
       "id": "algebra.cuadraticas-por-factorizacion",
       "subject": "math",
       "name": "Resolver ecuaciones cuadráticas factorizando",
-      "grade": "S3",
+      "grade": "S4",
       "description": "Factoriza el trinomio e iguala cada factor a cero. Ejemplo: «x² − 5x + 6 = 0» (x = 2 o x = 3). «x² + 6x + 9 = 0» (x = −3).",
       "prerequisites": ["algebra.factorizar-trinomios", "algebra.cuadraticas-incompletas"]
     },
@@ -132,7 +132,7 @@
       "id": "algebra.formula-general",
       "subject": "math",
       "name": "Resolver ecuaciones cuadráticas con la fórmula general",
-      "grade": "S3",
+      "grade": "S4",
       "description": "Usa la fórmula general y el discriminante para hallar las soluciones o saber si no hay soluciones reales. Ejemplo: «2x² + 5x − 3 = 0» (x = 1/2 o x = −3). «¿Cuántas soluciones tiene x² + 1 = 0?» (ninguna real).",
       "prerequisites": ["algebra.cuadraticas-por-factorizacion"]
     }
