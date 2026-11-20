@@ -39,8 +39,10 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(pool: PgPool, config: Config) -> Self {
-        let llm =
-            config.supervisor.clone().map(|settings| Arc::new(Anthropic::new(settings)) as Arc<dyn Llm>);
+        let llm = config
+            .supervisor
+            .clone()
+            .map(|settings| Arc::new(Anthropic::new(settings).with_usage(pool.clone())) as Arc<dyn Llm>);
         let embedder = config
             .embeddings
             .clone()

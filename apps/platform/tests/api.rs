@@ -749,6 +749,8 @@ async fn a_day_of_sessions_is_read_as_numbers_and_nothing_else(pool: PgPool) {
     assert_eq!(day["exercises"]["correct"], 1);
     assert_eq!(day["exercises"]["answer_given_away"], 1);
     assert_eq!(day["agent"], json!({ "first_word_ms": 2600.0 }));
+    // A session that reported no model usage has no cost to add up yet.
+    assert_eq!(day["cost_usd"], Value::Null);
     let text = metrics.to_string();
     assert!(!text.contains("Mateo") && !text.contains("Siete") && !text.contains("what the student said"));
 }

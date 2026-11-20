@@ -90,7 +90,7 @@ Devices do not use a bearer token: they sign with the key burned into them.
 | `POST /v1/families` | A family and its first guardian, without sign-in |
 | `PUT /v1/skills` | Loads skills into the catalog (`aule-platform import-skills <file>` does the same from a file) |
 | `GET /v1/sessions/{id}/supervisor` | The plan and guidance of one session and, once it has been reviewed, `review`: the summary and next step written for the family, and `exercises`: each checked exercise with its answer, tries, hints and outcome |
-| `GET /v1/metrics/daily?days=14` | One object per day, newest first: sessions (started, never started, under a minute, median length, seconds to start), how the talk was shared, exercises (posed, not checkable, correct, failed, first-try rate, hints, and how many had their answer said by the tutor while still open), turns stopped by each safety gate, sessions warned and closed for not working, what the agent measured, and what reached the family. Counts, rates and durations only |
+| `GET /v1/metrics/daily?days=14` | One object per day, newest first: sessions (started, never started, under a minute, median length, seconds to start), how the talk was shared, exercises (posed, not checkable, correct, failed, first-try rate, hints, and how many had their answer said by the tutor while still open), turns stopped by each safety gate, sessions warned and closed for not working, what the agent measured, what reached the family, and `cost_usd`: what the day's sessions cost by service (the tutor's model, speech to text, the voice, the platform's own model calls), in total and per hour of session, from the measured usage and the dated list prices in `metrics.rs`. Counts, rates, durations and dollars only |
 
 ### Agent
 

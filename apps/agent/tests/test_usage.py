@@ -12,7 +12,10 @@ def test_a_session_adds_up_its_model_calls():
         "llm_calls": 2,
         "input_tokens": 6966,
         "cached_input_tokens": 3310,
+        "cache_write_tokens": 0,
         "output_tokens": 106,
+        "stt_seconds": 0.0,
+        "tts_chars": 0,
     }
 
 
@@ -24,5 +27,29 @@ def test_metrics_without_the_expected_counts_add_nothing_but_the_call():
         "llm_calls": 1,
         "input_tokens": 0,
         "cached_input_tokens": 0,
+        "cache_write_tokens": 0,
         "output_tokens": 0,
+        "stt_seconds": 0.0,
+        "tts_chars": 0,
     }
+
+
+def test_the_audio_heard_and_the_characters_spoken_add_up():
+    usage = Usage()
+    usage.add(
+        SimpleNamespace(
+            prompt_tokens=100, prompt_cached_tokens=0, cache_creation_tokens=90, completion_tokens=5
+        )
+    )
+    usage.heard(SimpleNamespace(audio_duration=12.34))
+    usage.heard(SimpleNamespace(audio_duration=0.0))
+    usage.heard(SimpleNamespace(audio_duration=None))
+    usage.spoke(SimpleNamespace(characters_count=120))
+    usage.spoke(SimpleNamespace(characters_count=-3))
+
+    summary = usage.summary()
+    assert (summary["cache_write_tokens"], summary["stt_seconds"], summary["tts_chars"]) == (
+        90,
+        12.3,
+        120,
+    )
