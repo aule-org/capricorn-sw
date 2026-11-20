@@ -7,7 +7,10 @@ pub mod attempt;
 pub mod child;
 pub mod consent_record;
 pub mod correction;
+pub mod device;
+pub mod device_claim;
 pub mod family;
+pub mod firmware;
 pub mod guardian;
 pub mod guardian_child;
 pub mod item_difficulty;
@@ -46,4 +49,7 @@ pub fn schema() -> sea_orm::SchemaBuilder {
         .register(memory::Entity)
         .register(outbox::Entity)
         .register(job::Entity)
+        .register(device::Entity)
+        .register(device_claim::Entity)
+        .register(firmware::Entity)
 }

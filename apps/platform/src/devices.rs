@@ -22,13 +22,19 @@ use axum::http::{HeaderMap, StatusCode};
 use chrono::Utc;
 use hmac::{Hmac, KeyInit, Mac};
 use rand::RngExt;
+use sea_orm::ActiveValue::Set;
+use sea_orm::sea_query::{Expr, OnConflict};
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, DbBackend, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
+    Statement, TransactionTrait,
+};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::Sha256;
-use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
 use crate::auth::{Caller, Guardian, Input, Operator};
+use crate::entity::{device, device_claim, firmware};
 use crate::error::{ApiError, ApiResult};
 use crate::families::{child_for, find_child};
 use crate::state::AppState;
@@ -84,7 +90,7 @@ pub async fn register(
     if body.devices.is_empty() || body.devices.len() > 1000 {
         return Err(ApiError::bad_request("send 1 to 1000 devices"));
     }
-    let mut tx = state.pool.begin().await?;
+    let txn = state.db.begin().await?;
     let mut registered = 0;
     for device in &body.devices {
         let serial_ok = (4..=32).contains(&device.serial.len())
@@ -99,25 +105,25 @@ pub async fn register(
         };
         // A serial that is already registered keeps its key: re-sending the
         // same list is harmless, and a key cannot be replaced by accident.
-        registered += sqlx::query(
-            "insert into devices (id, serial, hmac_key, model) values ($1, $2, $3, $4) on conflict (serial) do nothing",
-        )
-        .bind(Uuid::now_v7())
-        .bind(&device.serial)
-        .bind(key)
-        .bind(model)
-        .execute(&mut *tx)
-        .await?
-        .rows_affected();
+        registered += device::Entity::insert(device::ActiveModel {
+            id: Set(Uuid::now_v7()),
+            serial: Set(device.serial.clone()),
+            hmac_key: Set(key),
+            model: Set(model.to_string()),
+            ..Default::default()
+        })
+        .on_conflict(OnConflict::column(device::Column::Serial).do_nothing().to_owned())
+        .exec_without_returning(&txn)
+        .await?;
     }
-    tx.commit().await?;
+    txn.commit().await?;
     Ok((
         StatusCode::CREATED,
         Json(json!({ "registered": registered, "already_known": body.devices.len() as u64 - registered })),
     ))
 }
 
-#[derive(serde::Serialize, sqlx::FromRow)]
+#[derive(serde::Serialize)]
 struct DeviceView {
     id: Uuid,
     serial: String,
@@ -129,24 +135,36 @@ struct DeviceView {
     last_seen_at: Option<chrono::DateTime<Utc>>,
 }
 
+impl From<device::Model> for DeviceView {
+    fn from(row: device::Model) -> Self {
+        Self {
+            id: row.id,
+            serial: row.serial,
+            model: row.model,
+            family_id: row.family_id,
+            child_id: row.child_id,
+            claimed_at: row.claimed_at,
+            firmware_version: row.firmware_version,
+            last_seen_at: row.last_seen_at,
+        }
+    }
+}
+
 /// A guardian sees their family's devices; the operator sees the latest 200.
 pub async fn list(caller: Caller, State(state): State<AppState>) -> ApiResult<Json<Value>> {
-    let devices: Vec<DeviceView> =
-        match caller {
-            Caller::Guardian { family_id, .. } => sqlx::query_as(
-                "select id, serial, model, family_id, child_id, claimed_at, firmware_version, last_seen_at
-                 from devices where family_id = $1 order by claimed_at",
-            )
-            .bind(family_id)
-            .fetch_all(&state.pool)
-            .await?,
-            Caller::Operator => sqlx::query_as(
-                "select id, serial, model, family_id, child_id, claimed_at, firmware_version, last_seen_at
-                 from devices order by created_at desc limit 200",
-            )
-            .fetch_all(&state.pool)
-            .await?,
-        };
+    let rows = match caller {
+        Caller::Guardian { family_id, .. } => {
+            device::Entity::find()
+                .filter(device::Column::FamilyId.eq(family_id))
+                .order_by_asc(device::Column::ClaimedAt)
+                .all(&state.db)
+                .await?
+        }
+        Caller::Operator => {
+            device::Entity::find().order_by_desc(device::Column::CreatedAt).limit(200).all(&state.db).await?
+        }
+    };
+    let devices: Vec<DeviceView> = rows.into_iter().map(DeviceView::from).collect();
     Ok(Json(json!({ "devices": devices })))
 }
 
@@ -175,21 +193,23 @@ pub async fn publish_firmware(
     {
         return Err(ApiError::bad_request("firmware needs a model, an https url and a sha256 in hex"));
     }
-    let inserted = sqlx::query(
-        "insert into firmware (id, model, version, major, minor, patch, url, sha256)
-         values ($1, $2, $3, $4, $5, $6, $7, $8) on conflict (model, version) do nothing",
+    let inserted = firmware::Entity::insert(firmware::ActiveModel {
+        id: Set(Uuid::now_v7()),
+        model: Set(model.to_string()),
+        version: Set(version.to_string()),
+        major: Set(version.major as i32),
+        minor: Set(version.minor as i32),
+        patch: Set(version.patch as i32),
+        url: Set(body.url.clone()),
+        sha256: Set(sha256),
+        ..Default::default()
+    })
+    .on_conflict(
+        OnConflict::columns([firmware::Column::Model, firmware::Column::Version]).do_nothing().to_owned(),
     )
-    .bind(Uuid::now_v7())
-    .bind(model)
-    .bind(version.to_string())
-    .bind(version.major as i32)
-    .bind(version.minor as i32)
-    .bind(version.patch as i32)
-    .bind(&body.url)
-    .bind(sha256)
-    .execute(&state.pool)
+    .exec_without_returning(&state.db)
     .await?;
-    if inserted.rows_affected() == 0 {
+    if inserted == 0 {
         // A published version is never replaced: devices may already run it.
         return Err(ApiError::Conflict("that version is already published for that model"));
     }
@@ -226,16 +246,20 @@ pub async fn claim(
     }
     let code = body.code.trim().to_uppercase();
 
-    let mut tx = state.pool.begin().await?;
-    let device_id: Option<Uuid> = sqlx::query_scalar(
-        "update device_claims set guardian_id = $2, child_id = $3
-         where code = $1 and expires_at > now() returning device_id",
-    )
-    .bind(&code)
-    .bind(guardian.id)
-    .bind(body.child_id)
-    .fetch_optional(&mut *tx)
-    .await?;
+    let txn = state.db.begin().await?;
+    let device_id: Option<Uuid> = device_claim::Entity::update_many()
+        .col_expr(device_claim::Column::GuardianId, Expr::value(guardian.id))
+        .col_expr(device_claim::Column::ChildId, Expr::value(body.child_id))
+        .filter(device_claim::Column::Code.eq(&code))
+        .filter(sea_orm::sea_query::ExprTrait::gt(
+            Expr::col(device_claim::Column::ExpiresAt),
+            Expr::current_timestamp(),
+        ))
+        .exec_with_returning(&txn)
+        .await?
+        .into_iter()
+        .next()
+        .map(|claim| claim.device_id);
     let Some(device_id) = device_id else {
         let mut attempts = state.claim_attempts.lock().expect("lock");
         let entry = attempts.entry(guardian.id).or_insert((0, std::time::Instant::now()));
@@ -245,8 +269,8 @@ pub async fn claim(
         entry.0 += 1;
         return Err(ApiError::NotFound("a device showing that code"));
     };
-    let claimed = complete_if_ready(&mut tx, device_id).await?;
-    tx.commit().await?;
+    let claimed = complete_if_ready(&txn, device_id).await?;
+    txn.commit().await?;
     Ok(Json(
         json!({ "device_id": device_id, "status": if claimed { "claimed" } else { "waiting_for_device" } }),
     ))
@@ -254,46 +278,53 @@ pub async fn claim(
 
 /// Links the device once both halves are in: a guardian typed its code and
 /// the device signed its challenge.
-async fn complete_if_ready(tx: &mut Transaction<'_, Postgres>, device_id: Uuid) -> Result<bool, sqlx::Error> {
-    let ready: Option<(Uuid, Option<Uuid>, Uuid)> = sqlx::query_as(
-        "select device_claims.guardian_id, device_claims.child_id, guardians.family_id
-         from device_claims join guardians on guardians.id = device_claims.guardian_id
-         where device_claims.device_id = $1 and device_claims.proved_at is not null
-           and device_claims.expires_at > now() for update of device_claims",
-    )
-    .bind(device_id)
-    .fetch_optional(&mut **tx)
-    .await?;
-    let Some((guardian_id, child_id, family_id)) = ready else { return Ok(false) };
+async fn complete_if_ready(db: &impl ConnectionTrait, device_id: Uuid) -> Result<bool, DbErr> {
+    let ready = db
+        .query_one_raw(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "select device_claims.guardian_id, device_claims.child_id, guardians.family_id
+             from device_claims join guardians on guardians.id = device_claims.guardian_id
+             where device_claims.device_id = $1 and device_claims.proved_at is not null
+               and device_claims.expires_at > now() for update of device_claims",
+            [device_id.into()],
+        ))
+        .await?;
+    let Some(ready) = ready else { return Ok(false) };
+    let guardian_id: Uuid = ready.try_get("", "guardian_id")?;
+    let child_id: Option<Uuid> = ready.try_get("", "child_id")?;
+    let family_id: Uuid = ready.try_get("", "family_id")?;
 
-    let (model, firmware_version): (String, Option<String>) = sqlx::query_as(
-        "update devices set family_id = $2, child_id = $3, claimed_at = now() where id = $1
-         returning model, firmware_version",
-    )
-    .bind(device_id)
-    .bind(family_id)
-    .bind(child_id)
-    .fetch_one(&mut **tx)
-    .await?;
-    sqlx::query("delete from device_claims where device_id = $1").bind(device_id).execute(&mut **tx).await?;
+    let linked = device::Entity::update_many()
+        .col_expr(device::Column::FamilyId, Expr::value(family_id))
+        .col_expr(device::Column::ChildId, Expr::value(child_id))
+        .col_expr(device::Column::ClaimedAt, Expr::current_timestamp())
+        .filter(device::Column::Id.eq(device_id))
+        .exec_with_returning(db)
+        .await?
+        .into_iter()
+        .next()
+        .ok_or_else(|| DbErr::RecordNotFound("device".into()))?;
+    device_claim::Entity::delete_by_id(device_id).exec(db).await?;
 
     let mut data = json!({
         "device_id": device_id,
         "family_id": family_id,
         "claimed_by": guardian_id,
-        "hardware_revision": model,
+        "hardware_revision": linked.model,
     });
-    if let Some(version) = firmware_version {
+    if let Some(version) = linked.firmware_version {
         data["firmware_version"] = json!(version);
     }
-    events::publish_sqlx(&mut **tx, events::DEVICE_CLAIMED, device_id, data).await?;
+    events::publish(db, events::DEVICE_CLAIMED, device_id, data).await?;
     Ok(true)
 }
 
 async fn device_for(state: &AppState, caller: &Caller, device_id: Uuid) -> ApiResult<()> {
-    let family_id: Option<Option<Uuid>> = sqlx::query_scalar("select family_id from devices where id = $1")
-        .bind(device_id)
-        .fetch_optional(&state.pool)
+    let family_id: Option<Option<Uuid>> = device::Entity::find_by_id(device_id)
+        .select_only()
+        .column(device::Column::FamilyId)
+        .into_tuple()
+        .one(&state.db)
         .await?;
     match (caller, family_id) {
         (Caller::Operator, Some(_)) => Ok(()),
@@ -318,20 +349,21 @@ pub async fn assign(
     if let Some(child_id) = body.child_id {
         let child = child_for(&state.db, &caller, child_id).await?;
         // The child must be in the family the device belongs to.
-        let same: bool = sqlx::query_scalar("select family_id = $2 from devices where id = $1")
-            .bind(device_id)
-            .bind(child.family_id)
-            .fetch_one(&state.pool)
-            .await
-            .map(|same: Option<bool>| same.unwrap_or(false))?;
+        let family_id: Option<Option<Uuid>> = device::Entity::find_by_id(device_id)
+            .select_only()
+            .column(device::Column::FamilyId)
+            .into_tuple()
+            .one(&state.db)
+            .await?;
+        let same = family_id.flatten() == Some(child.family_id);
         if !same {
             return Err(ApiError::NotFound("child"));
         }
     }
-    sqlx::query("update devices set child_id = $2 where id = $1")
-        .bind(device_id)
-        .bind(body.child_id)
-        .execute(&state.pool)
+    device::Entity::update_many()
+        .col_expr(device::Column::ChildId, Expr::value(body.child_id))
+        .filter(device::Column::Id.eq(device_id))
+        .exec(&state.db)
         .await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -343,9 +375,12 @@ pub async fn release(
     Path(device_id): Path<Uuid>,
 ) -> ApiResult<StatusCode> {
     device_for(&state, &caller, device_id).await?;
-    sqlx::query("update devices set family_id = null, child_id = null, claimed_at = null where id = $1")
-        .bind(device_id)
-        .execute(&state.pool)
+    device::Entity::update_many()
+        .col_expr(device::Column::FamilyId, Expr::value(None::<Uuid>))
+        .col_expr(device::Column::ChildId, Expr::value(None::<Uuid>))
+        .col_expr(device::Column::ClaimedAt, Expr::value(None::<chrono::DateTime<Utc>>))
+        .filter(device::Column::Id.eq(device_id))
+        .exec(&state.db)
         .await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -359,18 +394,18 @@ async fn newer_firmware(
     state: &AppState,
     model: &str,
     current: &str,
-) -> Result<Option<(String, String)>, sqlx::Error> {
-    let latest: Option<(String, String, i32, i32, i32)> = sqlx::query_as(
-        "select version, url, major, minor, patch from firmware where model = $1
-         order by major desc, minor desc, patch desc limit 1",
-    )
-    .bind(model)
-    .fetch_optional(&state.pool)
-    .await?;
+) -> Result<Option<(String, String)>, DbErr> {
+    let latest = firmware::Entity::find()
+        .filter(firmware::Column::Model.eq(model))
+        .order_by_desc(firmware::Column::Major)
+        .order_by_desc(firmware::Column::Minor)
+        .order_by_desc(firmware::Column::Patch)
+        .one(&state.db)
+        .await?;
     let current = semver::Version::parse(current).map_or((0, 0, 0), |v| (v.major, v.minor, v.patch));
     Ok(latest
-        .filter(|(_, _, major, minor, patch)| (*major as u64, *minor as u64, *patch as u64) > current)
-        .map(|(version, url, ..)| (version, url)))
+        .filter(|row| (row.major as u64, row.minor as u64, row.patch as u64) > current)
+        .map(|row| (row.version, row.url)))
 }
 
 fn serial_of(headers: &HeaderMap) -> Option<&str> {
@@ -401,15 +436,19 @@ pub async fn check_in(
         .and_then(|Json(body)| body["application"]["version"].as_str())
         .map(|version| version.trim().chars().take(40).collect::<String>())
         .unwrap_or_default();
-    let device: Option<(Uuid, String, Option<chrono::DateTime<Utc>>)> = sqlx::query_as(
-        "update devices set last_seen_at = now(), firmware_version = coalesce(nullif($2, ''), firmware_version)
-         where serial = $1 returning id, model, claimed_at",
-    )
-    .bind(serial)
-    .bind(&current)
-    .fetch_optional(&state.pool)
-    .await?;
-    let Some((device_id, model, claimed_at)) = device else { return Ok(Json(answer)) };
+    let device = state
+        .db
+        .query_one_raw(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "update devices set last_seen_at = now(), firmware_version = coalesce(nullif($2, ''), firmware_version)
+             where serial = $1 returning id, model, claimed_at",
+            [serial.into(), current.clone().into()],
+        ))
+        .await?;
+    let Some(device) = device else { return Ok(Json(answer)) };
+    let device_id: Uuid = device.try_get("", "id")?;
+    let model: String = device.try_get("", "model")?;
+    let claimed_at: Option<chrono::DateTime<Utc>> = device.try_get("", "claimed_at")?;
 
     answer["firmware"] = match newer_firmware(&state, &model, &current).await? {
         Some((version, url)) => json!({ "version": version, "url": url }),
@@ -419,8 +458,11 @@ pub async fn check_in(
     if claimed_at.is_none() {
         // The code stays the same while it is valid, so the screen does not
         // change under the person typing it.
-        let (code, challenge): (String, String) = sqlx::query_as(
-            "insert into device_claims (device_id, code, challenge, expires_at)
+        let claim = state
+            .db
+            .query_one_raw(Statement::from_sql_and_values(
+                DbBackend::Postgres,
+                "insert into device_claims (device_id, code, challenge, expires_at)
              values ($1, $2, $3, now() + make_interval(mins => $4))
              on conflict (device_id) do update set
                code = case when device_claims.expires_at > now() then device_claims.code else excluded.code end,
@@ -430,13 +472,12 @@ pub async fn check_in(
                child_id = case when device_claims.expires_at > now() then device_claims.child_id end,
                expires_at = case when device_claims.expires_at > now() then device_claims.expires_at else excluded.expires_at end
              returning code, challenge",
-        )
-        .bind(device_id)
-        .bind(random_code())
-        .bind(random_challenge())
-        .bind(CLAIM_MINUTES)
-        .fetch_one(&state.pool)
-        .await?;
+                [device_id.into(), random_code().into(), random_challenge().into(), CLAIM_MINUTES.into()],
+            ))
+            .await?
+            .ok_or_else(|| DbErr::RecordNotInserted)?;
+        let code: String = claim.try_get("", "code")?;
+        let challenge: String = claim.try_get("", "challenge")?;
         answer["activation"] = json!({
             "code": code,
             "message": format!("aule\n{code}"),
@@ -461,37 +502,34 @@ pub async fn activate(
     Input(body): Input<ActivateInput>,
 ) -> ApiResult<StatusCode> {
     let refused = || ApiError::Forbidden("the device could not be verified");
-    let device: Option<(Uuid, Vec<u8>, Option<chrono::DateTime<Utc>>)> =
-        sqlx::query_as("select id, hmac_key, claimed_at from devices where serial = $1")
-            .bind(body.serial_number.trim())
-            .fetch_optional(&state.pool)
-            .await?;
-    let Some((device_id, key, claimed_at)) = device else { return Err(refused()) };
-    if !signed_by(&key, body.challenge.as_bytes(), &body.hmac) {
+    let device = device::Entity::find()
+        .filter(device::Column::Serial.eq(body.serial_number.trim()))
+        .one(&state.db)
+        .await?;
+    let Some(device) = device else { return Err(refused()) };
+    if !signed_by(&device.hmac_key, body.challenge.as_bytes(), &body.hmac) {
         return Err(refused());
     }
-    if claimed_at.is_some() {
+    if device.claimed_at.is_some() {
         return Ok(StatusCode::OK);
     }
-    let mut tx = state.pool.begin().await?;
-    let proved = sqlx::query(
-        "update device_claims set proved_at = coalesce(proved_at, now())
-         where device_id = $1 and challenge = $2 and expires_at > now()",
-    )
-    .bind(device_id)
-    .bind(&body.challenge)
-    .execute(&mut *tx)
-    .await?;
+    let txn = state.db.begin().await?;
+    let proved = txn
+        .execute_raw(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "update device_claims set proved_at = coalesce(proved_at, now())
+             where device_id = $1 and challenge = $2 and expires_at > now()",
+            [device.id.into(), body.challenge.clone().into()],
+        ))
+        .await?;
     if proved.rows_affected() == 0 {
         // Signed correctly, but for a challenge that is no longer the current one.
         return Err(refused());
     }
-    let claimed = complete_if_ready(&mut tx, device_id).await?;
-    tx.commit().await?;
+    let claimed = complete_if_ready(&txn, device.id).await?;
+    txn.commit().await?;
     Ok(if claimed { StatusCode::OK } else { StatusCode::ACCEPTED })
 }
-
-type SigningDevice = (Uuid, Vec<u8>, Option<Uuid>, Option<chrono::DateTime<Utc>>);
 
 #[derive(Deserialize)]
 pub struct DeviceSessionInput {
@@ -510,12 +548,10 @@ pub async fn start_session(
 ) -> ApiResult<(StatusCode, Json<Value>)> {
     let refused = || ApiError::Forbidden("the device could not be verified");
     let serial = body.serial_number.trim();
-    let device: Option<SigningDevice> =
-        sqlx::query_as("select id, hmac_key, child_id, claimed_at from devices where serial = $1")
-            .bind(serial)
-            .fetch_optional(&state.pool)
-            .await?;
-    let Some((device_id, key, child_id, claimed_at)) = device else { return Err(refused()) };
+    let device = device::Entity::find().filter(device::Column::Serial.eq(serial)).one(&state.db).await?;
+    let Some(device::Model { id: device_id, hmac_key: key, child_id, claimed_at, .. }) = device else {
+        return Err(refused());
+    };
     let message = format!("session:{serial}:{}", body.timestamp);
     if (Utc::now().timestamp() - body.timestamp).abs() > CLOCK_SKEW_SECONDS
         || !signed_by(&key, message.as_bytes(), &body.hmac)
@@ -523,14 +559,14 @@ pub async fn start_session(
         return Err(refused());
     }
     // Each signed timestamp works once: a copy of this request is useless.
-    let fresh = sqlx::query(
-        "update devices set last_signed_at = $2, last_seen_at = now() where id = $1 and last_signed_at < $2",
-    )
-    .bind(device_id)
-    .bind(body.timestamp)
-    .execute(&state.pool)
-    .await?;
-    if fresh.rows_affected() == 0 {
+    let fresh = device::Entity::update_many()
+        .col_expr(device::Column::LastSignedAt, Expr::value(body.timestamp))
+        .col_expr(device::Column::LastSeenAt, Expr::current_timestamp())
+        .filter(device::Column::Id.eq(device_id))
+        .filter(device::Column::LastSignedAt.lt(body.timestamp))
+        .exec(&state.db)
+        .await?;
+    if fresh.rows_affected == 0 {
         return Err(refused());
     }
     let (Some(_), Some(child_id)) = (claimed_at, child_id) else {

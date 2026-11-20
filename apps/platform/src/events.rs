@@ -13,7 +13,6 @@ use sea_orm::ActiveValue::Set;
 use sea_orm::{ConnectionTrait, DbBackend, DbErr, EntityTrait, Statement, TransactionTrait};
 use serde_json::{Value, json};
 use sha2::Sha256;
-use sqlx::PgExecutor;
 use uuid::Uuid;
 
 use crate::entity::outbox;
@@ -44,24 +43,6 @@ pub async fn publish(
     })
     .exec_without_returning(db)
     .await?;
-    Ok(())
-}
-
-/// `publish` for a transaction still on SQLx: the device claim, until the
-/// devices module moves to SeaORM.
-pub async fn publish_sqlx<'a>(
-    executor: impl PgExecutor<'a>,
-    event_type: &str,
-    subject: Uuid,
-    data: Value,
-) -> Result<(), sqlx::Error> {
-    sqlx::query("insert into outbox (id, type, subject, data) values ($1, $2, $3, $4)")
-        .bind(Uuid::now_v7())
-        .bind(event_type)
-        .bind(subject.to_string())
-        .bind(data)
-        .execute(executor)
-        .await?;
     Ok(())
 }
 
