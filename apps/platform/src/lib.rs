@@ -5,6 +5,7 @@ pub mod algebra;
 pub mod auth;
 pub mod config;
 pub mod devices;
+pub mod entity;
 pub mod error;
 pub mod events;
 pub mod exercise;

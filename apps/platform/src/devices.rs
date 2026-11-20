@@ -222,7 +222,7 @@ pub async fn claim(
     }
     if let Some(child_id) = body.child_id {
         let caller = Caller::Guardian { id: guardian.id, family_id: guardian.family_id };
-        child_for(&state.pool, &caller, child_id).await?;
+        child_for(&state.db, &caller, child_id).await?;
     }
     let code = body.code.trim().to_uppercase();
 
@@ -316,7 +316,7 @@ pub async fn assign(
 ) -> ApiResult<StatusCode> {
     device_for(&state, &caller, device_id).await?;
     if let Some(child_id) = body.child_id {
-        let child = child_for(&state.pool, &caller, child_id).await?;
+        let child = child_for(&state.db, &caller, child_id).await?;
         // The child must be in the family the device belongs to.
         let same: bool = sqlx::query_scalar("select family_id = $2 from devices where id = $1")
             .bind(device_id)
@@ -536,7 +536,7 @@ pub async fn start_session(
     let (Some(_), Some(child_id)) = (claimed_at, child_id) else {
         return Err(ApiError::Conflict("the device is not linked to a child yet"));
     };
-    let child = find_child(&state.pool, child_id).await?;
+    let child = find_child(&state.db, child_id).await?;
     let session =
         sessions::open_session(&state, Some(child), "child", None, Some(device_id), None, false).await?;
     Ok((StatusCode::CREATED, Json(session)))

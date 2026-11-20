@@ -85,7 +85,7 @@ async fn child_skills(
     State(state): State<AppState>,
     Path(child_id): Path<Uuid>,
 ) -> ApiResult<Json<Value>> {
-    let child = child_for(&state.pool, &caller, child_id).await?;
+    let child = child_for(&state.db, &caller, child_id).await?;
     let now = Utc::now();
     let trace = learning::trace_child(&state.pool, child_id, now).await?;
     let catalog = learning::catalog(&state.pool).await?;
@@ -114,7 +114,7 @@ async fn record_attempts(
     if body.attempts.is_empty() || body.attempts.len() > 500 {
         return Err(ApiError::bad_request("send 1 to 500 attempts"));
     }
-    child_for(&state.pool, &caller, child_id).await?;
+    child_for(&state.db, &caller, child_id).await?;
     let recorded = learning::record(&state.pool, child_id, None, source, &body.attempts, Utc::now()).await?;
     Ok((StatusCode::CREATED, Json(json!({ "recorded": recorded }))))
 }
@@ -136,7 +136,7 @@ async fn record_correction(
     if !is_slug(&body.skill_id) || !(0.0..=1.0).contains(&body.level) {
         return Err(ApiError::bad_request("skill_id must be a valid id and level a number from 0 to 1"));
     }
-    child_for(&state.pool, &caller, child_id).await?;
+    child_for(&state.db, &caller, child_id).await?;
     sqlx::query("insert into corrections (id, child_id, skill_id, level, at) values ($1, $2, $3, $4, now())")
         .bind(Uuid::now_v7())
         .bind(child_id)
@@ -162,7 +162,7 @@ async fn child_memories(
     Path(child_id): Path<Uuid>,
     Query(params): Query<MemoryQuery>,
 ) -> ApiResult<Json<Value>> {
-    child_for(&state.pool, &caller, child_id).await?;
+    child_for(&state.db, &caller, child_id).await?;
     let limit = params.limit.unwrap_or(20).clamp(1, 100);
     let memories =
         memory::recall(&state.pool, state.embedder.as_deref(), child_id, &params.query, limit).await?;
@@ -174,7 +174,7 @@ async fn forget_memory(
     State(state): State<AppState>,
     Path((child_id, memory_id)): Path<(Uuid, Uuid)>,
 ) -> ApiResult<StatusCode> {
-    child_for(&state.pool, &caller, child_id).await?;
+    child_for(&state.db, &caller, child_id).await?;
     if memory::forget(&state.pool, child_id, memory_id).await? {
         Ok(StatusCode::NO_CONTENT)
     } else {
@@ -197,7 +197,7 @@ async fn child_reviews(
     State(state): State<AppState>,
     Path(child_id): Path<Uuid>,
 ) -> ApiResult<Json<Value>> {
-    child_for(&state.pool, &caller, child_id).await?;
+    child_for(&state.db, &caller, child_id).await?;
     let reviews: Vec<ReviewRow> = sqlx::query_as(
         "select session_id, guardian_summary, next_step, flags, created_at from session_reviews
          where child_id = $1 order by created_at desc limit 20",

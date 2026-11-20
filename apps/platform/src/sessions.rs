@@ -104,7 +104,7 @@ pub async fn create_session(
         return Err(ApiError::Forbidden("a guardian can only start a child's session"));
     }
     let child = match body.child_id {
-        Some(child_id) => Some(child_for(&state.pool, &caller, child_id).await?),
+        Some(child_id) => Some(child_for(&state.db, &caller, child_id).await?),
         None if body.audience == "child" => {
             return Err(ApiError::bad_request("a child's session needs child_id"));
         }
@@ -360,7 +360,7 @@ pub async fn agent_start(Agent(session): Agent, State(state): State<AppState>) -
             json!({ "session_id": session.id, "instructions": "", "tutor": crate::families::tutor(None) }),
         ));
     };
-    let child = find_child(&state.pool, child_id).await?;
+    let child = find_child(&state.db, child_id).await?;
     let deadline = tokio::time::Instant::now() + BRIEF_WAIT;
     let brief = loop {
         if let Some(brief) = brief_at_start(&state.pool, session.id).await? {
@@ -849,7 +849,7 @@ pub async fn review_session(state: &AppState, session_id: Uuid) -> ApiResult<()>
     let turns = load_turns(&state.pool, session.id).await?;
     let child_spoke = turns.iter().any(|turn| turn.role == "child");
     if let (Some(child_id), Some(llm), true) = (session.child_id, &state.llm, child_spoke) {
-        let child = find_child(&state.pool, child_id).await?;
+        let child = find_child(&state.db, child_id).await?;
         let now = Utc::now();
         let brief = stored_brief(&state.pool, session.id).await?.unwrap_or_default();
         let mut known: Vec<String> =

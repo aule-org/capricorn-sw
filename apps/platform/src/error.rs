@@ -62,4 +62,13 @@ impl From<sqlx::Error> for ApiError {
     }
 }
 
+impl From<sea_orm::DbErr> for ApiError {
+    fn from(error: sea_orm::DbErr) -> Self {
+        match error {
+            sea_orm::DbErr::RecordNotFound(_) => Self::NotFound("record"),
+            other => Self::Internal(other.to_string()),
+        }
+    }
+}
+
 pub type ApiResult<T> = Result<T, ApiError>;

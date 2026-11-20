@@ -1103,7 +1103,7 @@ fn by_engine(session: &Session) -> ApiResult<()> {
 async fn setup(state: &AppState, session: &Session) -> ApiResult<Setup> {
     let not_runnable = ApiError::Conflict("the session cannot be run by the session engine");
     let Some(child_id) = session.child_id else { return Err(not_runnable) };
-    let child = find_child(&state.pool, child_id).await?;
+    let child = find_child(&state.db, child_id).await?;
     let guardian: Option<String> =
         sqlx::query_scalar("select name from guardians where family_id = $1 order by created_at limit 1")
             .bind(child.family_id)
@@ -1425,7 +1425,7 @@ async fn session_for(state: &AppState, caller: &Caller, session_id: Uuid) -> Api
     match (caller, session.child_id) {
         // A session of another family does not exist as far as a guardian can tell.
         (_, Some(child_id)) => {
-            child_for(&state.pool, caller, child_id).await.map_err(|_| ApiError::NotFound("session"))?;
+            child_for(&state.db, caller, child_id).await.map_err(|_| ApiError::NotFound("session"))?;
         }
         (Caller::Operator, None) => {}
         (Caller::Guardian { .. }, None) => return Err(ApiError::NotFound("session")),
