@@ -772,19 +772,22 @@ impl Motor {
             Actividad::Pausa(p) => {
                 if let Some(k) = self.leer_actividad(&t) {
                     self.elegir_actividad(k, out);
-                } else if p.eleccion.is_some() {
-                    // [PROPUESTA] Por voz no hay un botón para volver: si habla
-                    // después de elegir la actividad, ya volvió.
-                    self.aplicar(
-                        "PAU-06",
-                        "El Alumno habló después de la actividad: ya volvió",
-                    );
+                } else if p.eleccion.is_some() && dice_que_volvio(&t) {
+                    // [PROPUESTA] Por voz no hay un botón para volver: si dice
+                    // que ya volvió después de la actividad, se sigue.
+                    self.aplicar("PAU-06", "El Alumno dijo que ya volvió");
                     self.terminar_pausa(out);
-                } else {
+                } else if p.eleccion.is_none() {
                     // [PROPUESTA] Sin elegir una, se le propone la siguiente de la lista.
                     let k = (self.pausas_tomadas as usize).saturating_sub(1)
                         % self.cfg.actividades_pausa.len().max(1);
                     self.elegir_actividad(k, out);
+                } else {
+                    let r = self.pausa_restante_s(&p);
+                    out.push(msg(format!(
+                        "Estamos en la Pausa activa. Nos quedan {} para volver.",
+                        minutos_y_segundos(r)
+                    )));
                 }
             }
             Actividad::Terminada => {
@@ -3885,6 +3888,34 @@ fn si_no(b: bool) -> &'static str {
     } else {
         "mal"
     }
+}
+
+fn minutos_y_segundos(s: u64) -> String {
+    let (m, s) = (s / 60, s % 60);
+    if m == 0 {
+        format!("{s} segundos")
+    } else if s == 0 {
+        format!("{m} minutos")
+    } else {
+        format!("{m} min {s} s")
+    }
+}
+
+/// "Ya volví", "listo", "sigamos": dicho en la pausa, que quiere seguir.
+fn dice_que_volvio(t: &str) -> bool {
+    let n = normalizar(t);
+    [
+        "volvi",
+        "ya estoy",
+        "termine",
+        "listo",
+        "lista",
+        "sigamos",
+        "seguimos",
+        "continuemos",
+    ]
+    .iter()
+    .any(|p| n.contains(p))
 }
 
 #[derive(Clone, Copy, PartialEq)]
