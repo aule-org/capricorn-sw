@@ -309,3 +309,25 @@ def test_flagged_or_unchecked_text_is_never_spoken(finding, action, reply):
     decision = classify_spoken(finding)
 
     assert (decision.action, decision.reply) == (action, reply)
+
+
+async def test_only_a_sexual_score_the_provider_did_not_act_on_is_unsure():
+    guard, _ = moderator(provider_response(sexual=0.2))
+    unsure = await guard.check("cuenta con el dedo")
+    acted = provider_response(flagged=True, sexual=0.8)
+    acted.results[0].categories.sexual = True
+    two = provider_response(sexual=0.2, violence=0.4)
+    minors = provider_response(sexual=0.2, sexual_minors=0.06)
+
+    assert unsure.categories == ("sexual",) and unsure.unsure
+    for answer in (acted, two, minors, provider_response(harassment=0.4), provider_response()):
+        guard, _ = moderator(answer)
+        assert not (await guard.check("x")).unsure
+
+
+async def test_a_word_of_our_own_list_is_never_unsure():
+    guard, _ = moderator(provider_response(sexual=0.2))
+
+    finding = await guard.check("te odio")
+
+    assert finding.flagged and not finding.unsure

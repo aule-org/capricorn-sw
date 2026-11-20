@@ -444,3 +444,76 @@ async def test_every_reply_a_decision_can_name_exists(finding, verdict):
 
     assert (await both.heard(llm.ChatContext.empty(), said())).reply in REPLIES
     assert (await both.spoken("x")).reply in REPLIES
+
+
+class Opinion:
+    """Stands in for the second reader of an unsure reply."""
+
+    def __init__(self, safe):
+        self.answer, self.read, self.closed = safe, [], False
+
+    async def safe(self, text):
+        self.read.append(text)
+        return self.answer
+
+    async def close(self):
+        self.closed = True
+
+
+def unsure_gates(opinion, finding=None):
+    flags = []
+    finding = finding or Finding(categories=("sexual",), unsure=True)
+    built = Gates(
+        moderation=Moderation(finding),
+        physical_safety=Physical(),
+        report=lambda gate, action, categories: flags.append((gate, action, categories)),
+        second_opinion=opinion,
+    )
+    return built, flags
+
+
+async def test_an_unsure_reply_is_spoken_only_when_the_second_reader_says_it_is_safe():
+    safe, unsafe = Opinion(True), Opinion(False)
+    allowed, no_flags = unsure_gates(safe)
+    stopped, flags = unsure_gates(unsafe)
+
+    assert (await allowed.spoken("cuenta las canicas con el dedo")).allowed
+    assert no_flags == [] and safe.read == ["cuenta las canicas con el dedo"]
+    assert (await stopped.spoken("otra cosa")).reply == "redirect"
+    assert [flag[:2] for flag in flags] == [("moderation_output", "redirect")]
+
+
+async def test_without_a_second_reader_an_unsure_reply_stays_stopped():
+    stopped, flags = unsure_gates(None)
+
+    assert not (await stopped.spoken("cuenta las canicas")).allowed
+    assert len(flags) == 1
+
+
+async def test_what_the_provider_is_sure_about_never_gets_a_second_reading():
+    opinion = Opinion(True)
+    for finding in (
+        Finding(categories=("sexual",)),
+        Finding(categories=("sexual", "violence"), unsure=False),
+        Finding(available=False),
+    ):
+        stopped, _ = unsure_gates(opinion, finding)
+        assert not (await stopped.spoken("x")).allowed
+    assert opinion.read == []
+
+
+async def test_what_a_person_says_never_gets_a_second_reading():
+    opinion = Opinion(True)
+    built, _ = unsure_gates(opinion)
+
+    assert not (await built.heard(llm.ChatContext.empty(), said("algo"))).allowed
+    assert opinion.read == []
+
+
+async def test_the_second_reader_is_closed_with_the_gates():
+    opinion = Opinion(True)
+    built, _ = unsure_gates(opinion)
+
+    await built.close()
+
+    assert opinion.closed
