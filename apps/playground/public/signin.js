@@ -58,11 +58,14 @@ function showToday() {
   $("subject-note").hidden = $("subject").value === OWN_SUBJECT;
 }
 
-// The subject a session starts on: the first one the family wants reinforced.
+// The subject a session starts on: one the family wants reinforced. Among
+// those, the one Aule has exercises for; the platform keeps them in its own
+// order, so "the first" would not be the family's first.
 function showSubject() {
   const student = students.find((one) => one.id === chosen("student"));
-  const wanted = student?.subjects?.find((subject) => subjects?.includes(subject));
-  $("subject").value = wanted ?? (subjects?.includes(OWN_SUBJECT) ? OWN_SUBJECT : (subjects?.[0] ?? "other"));
+  const wanted = (student?.subjects ?? []).filter((subject) => subjects?.includes(subject));
+  const offered = wanted.length ? wanted : (subjects ?? []);
+  $("subject").value = offered.includes(OWN_SUBJECT) ? OWN_SUBJECT : (offered[0] ?? "other");
   showToday();
 }
 

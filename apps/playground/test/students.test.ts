@@ -330,3 +330,29 @@ test("a session carries what the family said it is for, and nothing when they sa
   await post("session", { student_id: LIAM, language: "es" });
   assert.deepEqual(seen.at(-1)?.body, { audience: "child", language: "es", child_id: LIAM });
 });
+
+test("a page set to the engine asks for it in every family session", async () => {
+  const url = `http://127.0.0.1:${(platform.address() as AddressInfo).port}`;
+  const withEngine = createPlayground(
+    readSettings({ ...COMPLETE, AULE_PLATFORM_URL: url, AULE_ADMIN_TOKEN: "admin", PLAYGROUND_FLOW: "engine" }),
+  );
+  await new Promise<void>((resolve) => withEngine.listen(0, "127.0.0.1", resolve));
+  try {
+    const objective = { kind: "homework", subject: "matematica", topic: "fracciones", due: null };
+    await fetch(`http://127.0.0.1:${(withEngine.address() as AddressInfo).port}/playground/api/session`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: COOKIE },
+      body: JSON.stringify({ student_id: LIAM, language: "es", objective }),
+    });
+  } finally {
+    withEngine.close();
+  }
+
+  assert.deepEqual(seen.at(-1)?.body, {
+    audience: "child",
+    language: "es",
+    child_id: LIAM,
+    objective: { kind: "homework", subject: "matematica", topic: "fracciones", due: null },
+    flow: "engine",
+  });
+});
