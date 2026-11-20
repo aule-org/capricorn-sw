@@ -93,8 +93,35 @@ async def enable_push_to_talk(ctx: JobContext, session: AgentSession) -> None:
     local.register_rpc_method("cancel_turn", cancel_turn)
 
 
+# Homes are noisy: a door, a pan, the television, a sibling. These are the free
+# measures against it; a voice that is not the student's still gets through
+# (only push-to-talk stops that).
+#
+# Voice detection: a sound must last this long and sound this much like speech
+# to count, so a bang or a clatter does not start a turn. Children speak
+# softly, so the bar stays near the default.
+SPEECH_MIN_SECONDS = 0.12
+SPEECH_LIKELIHOOD = 0.55
+TURNS: dict[str, Any] = {
+    # A child pauses to think in the middle of a sentence: wait a little longer
+    # before taking the turn as finished.
+    "endpointing": {"min_delay": 0.7, "max_delay": 4.0},
+    "interruption": {
+        # Voice detection on this server; the learned detector is LiveKit Cloud's.
+        "mode": "vad",
+        # The tutor stops for the student, not for a noise: speech this long,
+        # with at least one word the transcriber made out. A noise that does
+        # stop it is undone (resume after a silence, LiveKit's default).
+        "min_duration": 0.8,
+        "min_words": 1,
+    },
+}
+
+
 def prewarm(proc: JobProcess) -> None:
-    proc.userdata["vad"] = silero.VAD.load()
+    proc.userdata["vad"] = silero.VAD.load(
+        min_speech_duration=SPEECH_MIN_SECONDS, activation_threshold=SPEECH_LIKELIHOOD
+    )
     # The model's client takes seconds to import. Done here it is paid while
     # the process waits for a session, not while a student waits for hello.
     from livekit.plugins import anthropic  # noqa: F401
@@ -195,7 +222,7 @@ async def entrypoint(ctx: JobContext) -> None:
         vad=ctx.proc.userdata["vad"],
         # Push-to-talk: the talk button commits each turn (see ``push_to_talk``
         # below), so the VAD must not end a turn on its own.
-        **({"turn_detection": "manual"} if settings.push_to_talk else {}),
+        turn_handling={**TURNS, "turn_detection": "manual"} if settings.push_to_talk else TURNS,
     )
     session.on(
         "user_state_changed", lambda event: timing.user_state(event.old_state, event.new_state)
