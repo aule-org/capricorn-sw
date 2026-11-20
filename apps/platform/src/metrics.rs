@@ -75,9 +75,10 @@ pub fn tokens_cost(model: &str, tokens: Tokens) -> f64 {
         / 1e6
 }
 
-/// Dollars, to the cent.
+/// Dollars, to the cent. A sum of nothing is -0.0 in floating point; it is shown as 0.
 fn cents(value: f64) -> Value {
-    json!((value * 100.0).round() / 100.0)
+    let rounded = (value * 100.0).round() / 100.0;
+    json!(if rounded == 0.0 { 0.0 } else { rounded })
 }
 
 /// What the sessions of each day cost, by service, from what the agent
@@ -287,6 +288,7 @@ mod tests {
         // An unknown model is priced high, not free.
         assert!(tokens_cost("some-new-model", million(1e6, 0.0, 0.0, 0.0)) >= 2.0);
         assert_eq!(cents(0.126), json!(0.13));
+        assert_eq!(cents(std::iter::empty::<f64>().sum()).to_string(), "0.0");
     }
 
     #[test]
