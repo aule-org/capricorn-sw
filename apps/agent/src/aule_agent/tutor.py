@@ -13,7 +13,7 @@ from livekit.agents import Agent, ModelSettings, StopResponse, function_tool, ll
 
 from . import visuals
 from .greetings import greeting as written_greeting
-from .replies import ADULT_HELP_SEQUENCE, OFFERS, reply
+from .replies import ADULT_HELP_SEQUENCE, ANSWERABLE, reply
 from .safety import Gates
 from .script import Flow, Line
 
@@ -605,10 +605,10 @@ class Tutor(Agent):
         if key == "adult_help":
             key = ADULT_HELP_SEQUENCE[hazards]
         speech = await self.session.say(
-            reply(key, self._language), add_to_chat_ctx=key in OFFERS, allow_interruptions=False
+            reply(key, self._language), add_to_chat_ctx=key in ANSWERABLE, allow_interruptions=False
         )
         if decision.reply == "adult_help" and not speech.interrupted:
-            # After the full offer, alternate the two shorter reminders.
+            # After the full reply, alternate the two shorter reminders.
             self._hazards_in_a_row = hazards + 1 if hazards + 1 < len(ADULT_HELP_SEQUENCE) else 1
         return False
 
