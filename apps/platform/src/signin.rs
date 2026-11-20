@@ -11,6 +11,12 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use axum::http::request::Parts;
 use rand::{Rng, RngExt};
+use sea_orm::ActiveValue::Set;
+use sea_orm::sea_query::{Expr, ExprTrait};
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect, Statement, TransactionTrait,
+};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -18,6 +24,7 @@ use subtle::ConstantTimeEq;
 use uuid::Uuid;
 
 use crate::auth::{Guardian, Input, bearer, token_hash};
+use crate::entity::{child, device, family, guardian, guardian_session, login_code, notice};
 use crate::error::{ApiError, ApiResult};
 use crate::google::IdentityError;
 use crate::state::AppState;
@@ -73,8 +80,11 @@ pub async fn start(State(state): State<AppState>, Input(body): Input<StartInput>
     let code = format!("{:06}", rand::rng().random_range(0..1_000_000));
 
     // One statement decides whether this address may get another code now.
-    let allowed: Option<i32> = sqlx::query_scalar(
-        "insert into login_codes (email, code_hash, expires_at)
+    let allowed = state
+        .db
+        .query_one_raw(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "insert into login_codes (email, code_hash, expires_at)
          values ($1, $2, now() + make_interval(mins => $3))
          on conflict (email) do update set
            code_hash = excluded.code_hash, expires_at = excluded.expires_at, attempts = 0,
@@ -84,13 +94,14 @@ pub async fn start(State(state): State<AppState>, Input(body): Input<StartInput>
                                     then now() else login_codes.window_started_at end
          where login_codes.window_started_at < now() - interval '1 hour' or login_codes.sent_count < $4
          returning sent_count",
-    )
-    .bind(&email)
-    .bind(code_hash(&email, &code))
-    .bind(CODE_MINUTES)
-    .bind(MAX_CODES_PER_HOUR)
-    .fetch_optional(&state.pool)
-    .await?;
+            [
+                email.clone().into(),
+                code_hash(&email, &code).into(),
+                CODE_MINUTES.into(),
+                MAX_CODES_PER_HOUR.into(),
+            ],
+        ))
+        .await?;
 
     if allowed.is_some() {
         let language = body.language.as_deref().unwrap_or("es");
@@ -123,30 +134,30 @@ pub async fn verify(
     let email = normalized_email(&body.email)?;
     let wrong = || ApiError::Forbidden("that code is wrong or has expired");
 
-    let mut tx = state.pool.begin().await?;
-    let pending: Option<(String, i32)> = sqlx::query_as(
-        "select code_hash, attempts from login_codes where email = $1 and expires_at > now() for update",
-    )
-    .bind(&email)
-    .fetch_optional(&mut *tx)
-    .await?;
-    let Some((expected, attempts)) = pending else { return Err(wrong()) };
-    if attempts >= MAX_ATTEMPTS {
+    let txn = state.db.begin().await?;
+    let pending = login_code::Entity::find_by_id(email.clone())
+        .filter(Expr::col(login_code::Column::ExpiresAt).gt(Expr::current_timestamp()))
+        .lock_exclusive()
+        .one(&txn)
+        .await?;
+    let Some(pending) = pending else { return Err(wrong()) };
+    if pending.attempts >= MAX_ATTEMPTS {
         return Err(wrong());
     }
     let given = code_hash(&email, body.code.trim());
-    if !bool::from(given.as_bytes().ct_eq(expected.as_bytes())) {
-        sqlx::query("update login_codes set attempts = attempts + 1 where email = $1")
-            .bind(&email)
-            .execute(&mut *tx)
+    if !bool::from(given.as_bytes().ct_eq(pending.code_hash.as_bytes())) {
+        login_code::Entity::update_many()
+            .col_expr(login_code::Column::Attempts, Expr::col(login_code::Column::Attempts).add(1))
+            .filter(login_code::Column::Email.eq(&email))
+            .exec(&txn)
             .await?;
-        tx.commit().await?;
+        txn.commit().await?;
         return Err(wrong());
     }
 
-    let account = enter(&mut tx, &email, body.name.as_deref(), body.language.as_deref()).await?;
-    sqlx::query("delete from login_codes where email = $1").bind(&email).execute(&mut *tx).await?;
-    tx.commit().await?;
+    let account = enter(&txn, &email, body.name.as_deref(), body.language.as_deref()).await?;
+    login_code::Entity::delete_by_id(email.clone()).exec(&txn).await?;
+    txn.commit().await?;
     Ok(Json(account))
 }
 
@@ -154,16 +165,19 @@ pub async fn verify(
 /// Google. An address seen for the first time becomes a new family, and for
 /// that it needs the guardian's name.
 async fn enter(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    db: &impl ConnectionTrait,
     email: &str,
     name: Option<&str>,
     language: Option<&str>,
 ) -> ApiResult<Value> {
-    let existing: Option<(Uuid, Uuid)> =
-        sqlx::query_as("select id, family_id from guardians where email = $1")
-            .bind(email)
-            .fetch_optional(&mut **tx)
-            .await?;
+    let existing: Option<(Uuid, Uuid)> = guardian::Entity::find()
+        .filter(guardian::Column::Email.eq(email))
+        .select_only()
+        .column(guardian::Column::Id)
+        .column(guardian::Column::FamilyId)
+        .into_tuple()
+        .one(db)
+        .await?;
     let (guardian_id, family_id, new_account) = match existing {
         Some((guardian_id, family_id)) => (guardian_id, family_id, false),
         None => {
@@ -173,20 +187,22 @@ async fn enter(
             };
             let language = language.filter(|language| ["es", "en"].contains(language)).unwrap_or("es");
             let (family_id, guardian_id) = (Uuid::now_v7(), Uuid::now_v7());
-            sqlx::query("insert into families (id, name) values ($1, $2)")
-                .bind(family_id)
-                .bind(name)
-                .execute(&mut **tx)
-                .await?;
-            sqlx::query(
-                "insert into guardians (id, family_id, email, name, language) values ($1, $2, $3, $4, $5)",
-            )
-            .bind(guardian_id)
-            .bind(family_id)
-            .bind(email)
-            .bind(name)
-            .bind(language)
-            .execute(&mut **tx)
+            family::Entity::insert(family::ActiveModel {
+                id: Set(family_id),
+                name: Set(name.to_string()),
+                ..Default::default()
+            })
+            .exec_without_returning(db)
+            .await?;
+            guardian::Entity::insert(guardian::ActiveModel {
+                id: Set(guardian_id),
+                family_id: Set(family_id),
+                email: Set(email.to_string()),
+                name: Set(name.to_string()),
+                language: Set(language.to_string()),
+                ..Default::default()
+            })
+            .exec_without_returning(db)
             .await?;
             (guardian_id, family_id, true)
         }
@@ -195,14 +211,12 @@ async fn enter(
     let mut secret = [0u8; 32];
     rand::rng().fill_bytes(&mut secret);
     let token = hex::encode(secret);
-    sqlx::query(
+    db.execute_raw(Statement::from_sql_and_values(
+        DbBackend::Postgres,
         "insert into guardian_sessions (token_hash, guardian_id, expires_at)
          values ($1, $2, now() + make_interval(days => $3))",
-    )
-    .bind(token_hash(&token))
-    .bind(guardian_id)
-    .bind(SESSION_DAYS)
-    .execute(&mut **tx)
+        [token_hash(&token).into(), guardian_id.into(), SESSION_DAYS.into()],
+    ))
     .await?;
 
     Ok(json!({
@@ -256,38 +270,36 @@ pub async fn google(
     let name =
         body.name.as_deref().map(str::trim).filter(|name| !name.is_empty()).or(identity.name.as_deref());
 
-    let mut tx = state.pool.begin().await?;
-    let account = enter(&mut tx, &email, name, body.language.as_deref()).await?;
-    tx.commit().await?;
+    let txn = state.db.begin().await?;
+    let account = enter(&txn, &email, name, body.language.as_deref()).await?;
+    txn.commit().await?;
     Ok(Json(account))
 }
 
 /// Ends the session this request was made with.
 pub async fn sign_out(_: Guardian, State(state): State<AppState>, parts: Parts) -> ApiResult<StatusCode> {
-    sqlx::query("delete from guardian_sessions where token_hash = $1")
-        .bind(token_hash(bearer(&parts)?))
-        .execute(&state.pool)
-        .await?;
+    guardian_session::Entity::delete_by_id(token_hash(bearer(&parts)?)).exec(&state.db).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn me(guardian: Guardian, State(state): State<AppState>) -> ApiResult<Json<Value>> {
-    let (email, name, language, notices_by_email, notices_by_push): (String, String, String, bool, bool) = sqlx::query_as(
-        "select email::text, name, language, notices_by_email, notices_by_push from guardians where id = $1",
-    )
-            .bind(guardian.id)
-            .fetch_one(&state.pool)
-            .await?;
-    let children: Vec<(Uuid, String)> =
-        sqlx::query_as("select id, nickname from children where family_id = $1 order by created_at")
-            .bind(guardian.family_id)
-            .fetch_all(&state.pool)
-            .await?;
-    let unread: i64 =
-        sqlx::query_scalar("select count(*) from notices where family_id = $1 and read_at is null")
-            .bind(guardian.family_id)
-            .fetch_one(&state.pool)
-            .await?;
+    let me = guardian::Entity::find_by_id(guardian.id).one(&state.db).await?.ok_or(ApiError::Unauthorized)?;
+    let (email, name, language, notices_by_email, notices_by_push) =
+        (me.email, me.name, me.language, me.notices_by_email, me.notices_by_push);
+    let children: Vec<(Uuid, String)> = child::Entity::find()
+        .filter(child::Column::FamilyId.eq(guardian.family_id))
+        .order_by_asc(child::Column::CreatedAt)
+        .select_only()
+        .column(child::Column::Id)
+        .column(child::Column::Nickname)
+        .into_tuple()
+        .all(&state.db)
+        .await?;
+    let unread = notice::Entity::find()
+        .filter(notice::Column::FamilyId.eq(guardian.family_id))
+        .filter(notice::Column::ReadAt.is_null())
+        .count(&state.db)
+        .await?;
     Ok(Json(json!({
         "guardian": { "id": guardian.id, "email": email, "name": name, "language": language, "notices_by_email": notices_by_email, "notices_by_push": notices_by_push },
         "family_id": guardian.family_id,
@@ -316,17 +328,24 @@ pub async fn update_me(
     if body.language.as_deref().is_some_and(|language| !["es", "en"].contains(&language)) {
         return Err(ApiError::bad_request("language must be es or en"));
     }
-    sqlx::query(
-        "update guardians set language = coalesce($2, language),
-           notices_by_email = coalesce($3, notices_by_email), notices_by_push = coalesce($4, notices_by_push)
-         where id = $1",
-    )
-    .bind(guardian.id)
-    .bind(body.language)
-    .bind(body.notices_by_email)
-    .bind(body.notices_by_push)
-    .execute(&state.pool)
-    .await?;
+    // Left out, a setting keeps its value.
+    let mut update = guardian::Entity::update_many().filter(guardian::Column::Id.eq(guardian.id));
+    let mut changed = false;
+    if let Some(language) = body.language {
+        update = update.col_expr(guardian::Column::Language, Expr::value(language));
+        changed = true;
+    }
+    if let Some(by_email) = body.notices_by_email {
+        update = update.col_expr(guardian::Column::NoticesByEmail, Expr::value(by_email));
+        changed = true;
+    }
+    if let Some(by_push) = body.notices_by_push {
+        update = update.col_expr(guardian::Column::NoticesByPush, Expr::value(by_push));
+        changed = true;
+    }
+    if changed {
+        update.exec(&state.db).await?;
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -343,20 +362,19 @@ pub async fn erase_family(
     State(state): State<AppState>,
     Input(body): Input<EraseInput>,
 ) -> ApiResult<StatusCode> {
-    let email: String = sqlx::query_scalar("select email::text from guardians where id = $1")
-        .bind(guardian.id)
-        .fetch_one(&state.pool)
-        .await?;
+    let email =
+        guardian::Entity::find_by_id(guardian.id).one(&state.db).await?.ok_or(ApiError::Unauthorized)?.email;
     if normalized_email(&body.confirm_email)? != email {
         return Err(ApiError::bad_request("confirm_email must be the address you signed in with"));
     }
-    let mut tx = state.pool.begin().await?;
-    sqlx::query("update devices set claimed_at = null where family_id = $1")
-        .bind(guardian.family_id)
-        .execute(&mut *tx)
+    let txn = state.db.begin().await?;
+    device::Entity::update_many()
+        .col_expr(device::Column::ClaimedAt, Expr::value(None::<chrono::DateTime<chrono::Utc>>))
+        .filter(device::Column::FamilyId.eq(guardian.family_id))
+        .exec(&txn)
         .await?;
-    sqlx::query("delete from families where id = $1").bind(guardian.family_id).execute(&mut *tx).await?;
-    tx.commit().await?;
+    family::Entity::delete_by_id(guardian.family_id).exec(&txn).await?;
+    txn.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }
 

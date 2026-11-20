@@ -1,5 +1,5 @@
-//! A child: what the tutor is allowed to know. FHIR R4 `Patient`. The columns
-//! the session engine keeps are left to the code that uses them.
+//! A child: what the tutor is allowed to know, and what the session engine
+//! keeps of them between sessions. FHIR R4 `Patient`.
 
 use sea_orm::entity::prelude::*;
 
@@ -21,6 +21,10 @@ pub struct Model {
     pub tutor_persona: String,
     pub tutor_persona_note: Option<String>,
     pub created_at: DateTimeUtc,
+    /// The engine's own record of the child, from the latest session it ran.
+    #[sea_orm(column_type = "JsonBinary")]
+    pub engine_profile: Option<Json>,
+    pub engine_profile_at: Option<DateTimeUtc>,
     #[sea_orm(belongs_to, from = "family_id", to = "id", on_delete = "Cascade")]
     pub family: BelongsTo<super::family::Entity>,
 }

@@ -89,15 +89,19 @@ impl FromRequestParts<AppState> for Caller {
         if same_token(token, &state.config.admin_token) {
             return Ok(Self::Operator);
         }
-        let guardian: Option<(Uuid, Uuid)> = sqlx::query_as(
-            "select guardians.id, guardians.family_id from guardian_sessions
-             join guardians on guardians.id = guardian_sessions.guardian_id
-             where guardian_sessions.token_hash = $1 and guardian_sessions.expires_at > now()",
-        )
-        .bind(token_hash(token))
-        .fetch_optional(&state.pool)
-        .await?;
-        guardian.map(|(id, family_id)| Self::Guardian { id, family_id }).ok_or(ApiError::Unauthorized)
+        use sea_orm::ConnectionTrait;
+        let found = state
+            .db
+            .query_one_raw(sea_orm::Statement::from_sql_and_values(
+                sea_orm::DbBackend::Postgres,
+                "select guardians.id, guardians.family_id from guardian_sessions
+                 join guardians on guardians.id = guardian_sessions.guardian_id
+                 where guardian_sessions.token_hash = $1 and guardian_sessions.expires_at > now()",
+                [token_hash(token).into()],
+            ))
+            .await?;
+        let Some(found) = found else { return Err(ApiError::Unauthorized) };
+        Ok(Self::Guardian { id: found.try_get("", "id")?, family_id: found.try_get("", "family_id")? })
     }
 }
 
@@ -118,7 +122,7 @@ impl FromRequestParts<AppState> for Guardian {
     }
 }
 
-#[derive(Clone, Debug, sqlx::FromRow)]
+#[derive(Clone, Debug)]
 pub struct Session {
     pub id: Uuid,
     pub child_id: Option<Uuid>,
@@ -163,15 +167,17 @@ impl FromRequestParts<AppState> for Agent {
 
     async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
         let hash = token_hash(bearer(parts)?);
-        let session: Option<Session> = sqlx::query_as(
-            "select id, child_id, audience, room, language, status, keep_transcript, use_memory, created_at, ended_at, flow from sessions
-             where agent_token_hash = $1 and created_at > now() - make_interval(hours => $2)"
-        )
-        .bind(hash)
-        .bind(SESSION_TOKEN_HOURS)
-        .fetch_optional(&state.pool)
-        .await?;
-        session.map(Self).ok_or(ApiError::Unauthorized)
+        use sea_orm::sea_query::{Expr, ExprTrait};
+        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+        let session = crate::entity::session::Entity::find()
+            .filter(crate::entity::session::Column::AgentTokenHash.eq(hash))
+            .filter(
+                Expr::col(crate::entity::session::Column::CreatedAt)
+                    .gt(Expr::cust(format!("now() - interval '{SESSION_TOKEN_HOURS} hours'"))),
+            )
+            .one(&state.db)
+            .await?;
+        session.map(|row| Self(row.into())).ok_or(ApiError::Unauthorized)
     }
 }
 

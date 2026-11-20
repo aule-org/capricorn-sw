@@ -11,12 +11,17 @@ use async_trait::async_trait;
 use axum::extract::State;
 use axum::http::StatusCode;
 use jsonwebtoken::{Algorithm, EncodingKey, Header};
+use sea_orm::ActiveValue::Set;
+use sea_orm::sea_query::{Expr, OnConflict};
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, DbErr, EntityTrait, QueryFilter, Statement,
+};
 use serde::Deserialize;
 use serde_json::{Value, json};
-use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::auth::{Guardian, Input};
+use crate::entity::push_token;
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
 
@@ -198,28 +203,31 @@ impl Pusher for Fcm {
 /// is waiting, and forgets tokens the push service no longer knows. Returns
 /// whether any phone was reached.
 pub async fn announce(
-    pool: &PgPool,
+    db: &DatabaseConnection,
     pusher: &dyn Pusher,
     family_id: Uuid,
     notice_id: Uuid,
     kind: &str,
-) -> Result<bool, sqlx::Error> {
-    let tokens: Vec<(String, String)> = sqlx::query_as(
-        "select push_tokens.token, guardians.language from push_tokens
-         join guardians on guardians.id = push_tokens.guardian_id
-         where guardians.family_id = $1 and guardians.notices_by_push",
-    )
-    .bind(family_id)
-    .fetch_all(pool)
-    .await?;
+) -> Result<bool, DbErr> {
+    let rows = db
+        .query_all_raw(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "select push_tokens.token, guardians.language from push_tokens
+             join guardians on guardians.id = push_tokens.guardian_id
+             where guardians.family_id = $1 and guardians.notices_by_push",
+            [family_id.into()],
+        ))
+        .await?;
     let mut reached = false;
-    for (token, language) in tokens {
+    for row in rows {
+        let token: String = row.try_get("", "token")?;
+        let language: String = row.try_get("", "language")?;
         let (title, body) = text(kind, &language);
         let push = Push { title, body, data: json!({ "notice_id": notice_id, "kind": kind }) };
         match pusher.send(&token, &push).await {
             Ok(Delivery::Sent) => reached = true,
             Ok(Delivery::Gone) => {
-                sqlx::query("delete from push_tokens where token = $1").bind(&token).execute(pool).await?;
+                push_token::Entity::delete_by_id(token.clone()).exec(db).await?;
             }
             // The notice is still in the app; the push is not retried.
             Err(error) => tracing::warn!(%notice_id, %error, "a notice was not pushed"),
@@ -247,15 +255,19 @@ pub async fn register(
     if !(20..=4096).contains(&token.len()) || !PLATFORMS.contains(&platform) {
         return Err(ApiError::bad_request("a push token and a platform (android, ios or web) are needed"));
     }
-    sqlx::query(
-        "insert into push_tokens (token, guardian_id, platform) values ($1, $2, $3)
-         on conflict (token) do update set
-           guardian_id = excluded.guardian_id, platform = excluded.platform, last_seen_at = now()",
+    push_token::Entity::insert(push_token::ActiveModel {
+        token: Set(token.to_string()),
+        guardian_id: Set(guardian.id),
+        platform: Set(platform.to_string()),
+        ..Default::default()
+    })
+    .on_conflict(
+        OnConflict::column(push_token::Column::Token)
+            .update_columns([push_token::Column::GuardianId, push_token::Column::Platform])
+            .value(push_token::Column::LastSeenAt, Expr::current_timestamp())
+            .to_owned(),
     )
-    .bind(token)
-    .bind(guardian.id)
-    .bind(platform)
-    .execute(&state.pool)
+    .exec_without_returning(&state.db)
     .await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -266,10 +278,10 @@ pub async fn unregister(
     State(state): State<AppState>,
     Input(body): Input<TokenInput>,
 ) -> ApiResult<StatusCode> {
-    sqlx::query("delete from push_tokens where token = $1 and guardian_id = $2")
-        .bind(body.token.trim())
-        .bind(guardian.id)
-        .execute(&state.pool)
+    push_token::Entity::delete_many()
+        .filter(push_token::Column::Token.eq(body.token.trim()))
+        .filter(push_token::Column::GuardianId.eq(guardian.id))
+        .exec(&state.db)
         .await?;
     Ok(StatusCode::NO_CONTENT)
 }

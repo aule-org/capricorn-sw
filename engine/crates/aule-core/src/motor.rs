@@ -753,7 +753,7 @@ impl Motor {
                 FechaDicha::NoSe => {
                     self.aplicar("OBJ-10", "No se entendió la fecha: se vuelve a preguntar");
                     out.push(msg(
-                        "No te preocupes. Dime el día, por ejemplo «el jueves» o «el 20 de noviembre». Si no hay fecha, dime «no hay».",
+                        "No te preocupes. Dime el día, por ejemplo «el jueves» o «el 15». Si no hay fecha, dime «no hay».",
                     ));
                 }
             },
@@ -1567,7 +1567,7 @@ impl Motor {
                 "No alcanza el tiempo para una Etapa 1 nueva: se cierra y se retoma la próxima sesión",
             );
             out.push(msg(format!(
-                "{}, ya estamos llegando a la hora y media, así que este tema nuevo lo empezamos en nuestra próxima sesión.",
+                "{}, ya estamos llegando al final de la sesión, así que este tema nuevo lo empezamos en la próxima.",
                 self.nombre()
             )).clase(Clase::Aviso));
             self.aviso_dado = true;
@@ -1857,7 +1857,7 @@ impl Motor {
                 self.act = Actividad::Etapa1(e1);
                 if ayuda {
                     out.push(msg(
-                        "Aquí estoy mirando contigo. Si algo no se entiende, escríbeme \"no entendí\" y te lo explico de otra forma.",
+                        "Aquí estoy mirando contigo. Si algo no se entiende, dime «no entendí» y te lo explico de otra forma.",
                     ));
                 }
             }
@@ -2542,7 +2542,7 @@ impl Motor {
                 e2.actual.ayuda_usada = true;
                 let cfg = self.cfg.clone();
                 if let ResPista::Dada(t) = dar_pista(&cfg, &mut e2.actual, Disparo::Ayuda, out) {
-                    self.aplicar("PIS-01", &format!("Apretó \"Necesito ayuda\": {t}"));
+                    self.aplicar("PIS-01", &format!("Pidió ayuda: {t}"));
                 }
                 self.act = Actividad::Etapa2(e2);
             }
@@ -2550,7 +2550,7 @@ impl Motor {
                 p.actual.ayuda_usada = true;
                 let cfg = self.cfg.clone();
                 if let ResPista::Dada(t) = dar_pista(&cfg, &mut p.actual, Disparo::Ayuda, out) {
-                    self.aplicar("PIS-01", &format!("Apretó \"Necesito ayuda\": {t}"));
+                    self.aplicar("PIS-01", &format!("Pidió ayuda: {t}"));
                 }
                 self.act = Actividad::Practica(p);
             }
@@ -2623,7 +2623,7 @@ impl Motor {
                 out.push(msg("Te entiendo. Descansa un poquito."));
             }
             _ => {
-                self.aplicar("PAU-05", "Apretó \"Estoy cansado\": Pausa activa ahora");
+                self.aplicar("PAU-05", "Dijo que está cansado: Pausa activa ahora");
                 out.push(msg("Gracias por decirme. Hagamos una Pausa activa y luego seguimos donde nos quedamos.").clase(Clase::Calma));
                 self.entrar_pausa(out);
             }
@@ -2740,12 +2740,9 @@ impl Motor {
             return true;
         }
         if min >= self.cfg.sesion_maxima_min as f64 {
-            self.aplicar(
-                "SES-01",
-                "Se alcanzó el máximo de 1 hora y 30 minutos: cierre",
-            );
+            self.aplicar("SES-01", "Se alcanzó el tiempo máximo de la sesión: cierre");
             if !self.aviso_dado {
-                out.push(msg(format!("{}, ya llegamos a la hora y media de hoy, así que aquí paramos y lo retomamos la próxima sesión.", self.nombre())).clase(Clase::Aviso));
+                out.push(msg(format!("{}, ya llegamos al final de la sesión de hoy, así que aquí paramos y lo retomamos la próxima vez.", self.nombre())).clase(Clase::Aviso));
             }
             self.cerrar(out);
             return true;

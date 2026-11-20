@@ -14,6 +14,9 @@ pub struct Model {
     pub email: String,
     pub name: String,
     pub created_at: DateTimeUtc,
+    pub language: String,
+    pub notices_by_email: bool,
+    pub notices_by_push: bool,
     #[sea_orm(belongs_to, from = "family_id", to = "id", on_delete = "Cascade")]
     pub family: BelongsTo<super::family::Entity>,
 }

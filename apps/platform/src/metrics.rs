@@ -4,9 +4,9 @@
 
 use axum::Json;
 use axum::extract::{Query, State};
+use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, DbErr, Statement};
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
-use sqlx::PgPool;
 
 use crate::auth::Operator;
 use crate::error::ApiResult;
@@ -83,47 +83,68 @@ fn cents(value: f64) -> Value {
 
 /// What the sessions of each day cost, by service, from what the agent
 /// reported at their end and what the platform's own model calls used.
-async fn costs(pool: &PgPool, days: i32, offset: i32) -> Result<Map<String, Value>, sqlx::Error> {
-    type Agent = (String, i64, f64, f64, f64, f64, f64, f64, f64);
+async fn costs(db: &DatabaseConnection, days: i32, offset: i32) -> Result<Map<String, Value>, DbErr> {
     // The agent counts every prompt token, cached or not; the uncached part
     // is what is left after reads and writes.
-    let agents: Vec<Agent> = sqlx::query_as(
-        "select ((created_at + make_interval(mins => $2))::date)::text,
-                count(*),
-                coalesce(sum((agent_metrics->>'minutes')::float8), 0),
+    let agents = db
+        .query_all_raw(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "select ((created_at + make_interval(mins => $2))::date)::text as day,
+                count(*) as sessions,
+                coalesce(sum((agent_metrics->>'minutes')::float8), 0) as minutes,
                 coalesce(sum((agent_metrics->>'input_tokens')::float8
                              - coalesce((agent_metrics->>'cached_input_tokens')::float8, 0)
-                             - coalesce((agent_metrics->>'cache_write_tokens')::float8, 0)), 0),
-                coalesce(sum((agent_metrics->>'cached_input_tokens')::float8), 0),
-                coalesce(sum((agent_metrics->>'cache_write_tokens')::float8), 0),
-                coalesce(sum((agent_metrics->>'output_tokens')::float8), 0),
+                             - coalesce((agent_metrics->>'cache_write_tokens')::float8, 0)), 0) as input,
+                coalesce(sum((agent_metrics->>'cached_input_tokens')::float8), 0) as cache_read,
+                coalesce(sum((agent_metrics->>'cache_write_tokens')::float8), 0) as cache_write,
+                coalesce(sum((agent_metrics->>'output_tokens')::float8), 0) as output,
                 -- Older sessions did not report these: their length and the tutor's words stand in.
                 coalesce(sum(coalesce((agent_metrics->>'stt_seconds')::float8,
-                                      (agent_metrics->>'minutes')::float8 * 60)), 0),
-                coalesce(sum(coalesce((agent_metrics->>'tts_chars')::float8, tutor_chars)), 0)
+                                      (agent_metrics->>'minutes')::float8 * 60)), 0) as heard,
+                coalesce(sum(coalesce((agent_metrics->>'tts_chars')::float8, tutor_chars)), 0) as spoken
          from sessions
          where agent_metrics ? 'input_tokens' and created_at > now() - make_interval(days => $1 + 1)
          group by 1",
-    )
-    .bind(days)
-    .bind(offset)
-    .fetch_all(pool)
-    .await?;
-    let supervisors: Vec<(String, String, f64, f64, f64, f64)> = sqlx::query_as(
-        "select ((s.created_at + make_interval(mins => $2))::date)::text, u.model,
-                sum(u.input_tokens)::float8, sum(u.cache_read_tokens)::float8,
-                sum(u.cache_write_tokens)::float8, sum(u.output_tokens)::float8
+            [days.into(), offset.into()],
+        ))
+        .await?;
+    let supervisors = db
+        .query_all_raw(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "select ((s.created_at + make_interval(mins => $2))::date)::text as day, u.model,
+                sum(u.input_tokens)::float8 as input, sum(u.cache_read_tokens)::float8 as cache_read,
+                sum(u.cache_write_tokens)::float8 as cache_write, sum(u.output_tokens)::float8 as output
          from session_model_usage u join sessions s on s.id = u.session_id
          where s.created_at > now() - make_interval(days => $1 + 1)
          group by 1, 2",
-    )
-    .bind(days)
-    .bind(offset)
-    .fetch_all(pool)
-    .await?;
+            [days.into(), offset.into()],
+        ))
+        .await?;
+    let supervisors = supervisors
+        .iter()
+        .map(|row| {
+            Ok((
+                row.try_get::<String>("", "day")?,
+                row.try_get::<String>("", "model")?,
+                row.try_get::<f64>("", "input")?,
+                row.try_get::<f64>("", "cache_read")?,
+                row.try_get::<f64>("", "cache_write")?,
+                row.try_get::<f64>("", "output")?,
+            ))
+        })
+        .collect::<Result<Vec<_>, DbErr>>()?;
 
     let mut by_day = Map::new();
-    for (day, sessions, minutes, input, cache_read, cache_write, output, heard, spoken) in agents {
+    for row in agents {
+        let day: String = row.try_get("", "day")?;
+        let sessions: i64 = row.try_get("", "sessions")?;
+        let minutes: f64 = row.try_get("", "minutes")?;
+        let input: f64 = row.try_get("", "input")?;
+        let cache_read: f64 = row.try_get("", "cache_read")?;
+        let cache_write: f64 = row.try_get("", "cache_write")?;
+        let output: f64 = row.try_get("", "output")?;
+        let heard: f64 = row.try_get("", "heard")?;
+        let spoken: f64 = row.try_get("", "spoken")?;
         let tutor = tokens_cost(TUTOR_MODEL, Tokens { input, cache_read, cache_write, output });
         let speech_to_text = heard / 60.0 * SPEECH_TO_TEXT_PER_MINUTE;
         let voice = spoken / 1e6 * VOICE_PER_MILLION_CHARACTERS;
@@ -172,8 +193,11 @@ pub async fn daily(
 ) -> ApiResult<Json<Value>> {
     let days = query.days.unwrap_or(14).clamp(1, 90);
     let offset = state.config.timezone_offset_minutes;
-    let rows: Vec<(sqlx::types::Json<Value>,)> = sqlx::query_as(
-        "with bounds as (
+    let rows = state
+        .db
+        .query_all_raw(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "with bounds as (
            select d::date as day
            from generate_series(
              ((now() + make_interval(mins => $2))::date - ($1 - 1)),
@@ -256,21 +280,19 @@ pub async fn daily(
            )
          )
          from bounds b order by b.day desc",
-    )
-    .bind(days)
-    .bind(offset)
-    .fetch_all(&state.pool)
-    .await?;
-    let costs = costs(&state.pool, days, offset).await?;
+            [days.into(), offset.into()],
+        ))
+        .await?;
+    let costs = costs(&state.db, days, offset).await?;
     let days: Vec<Value> = rows
-        .into_iter()
-        .map(|(row,)| {
-            let mut day = row.0;
+        .iter()
+        .map(|row| {
+            let mut day: Value = row.try_get_by_index(0)?;
             let cost = day["day"].as_str().and_then(|name| costs.get(name)).cloned();
             day["cost_usd"] = cost.unwrap_or(Value::Null);
-            day
+            Ok(day)
         })
-        .collect();
+        .collect::<Result<_, DbErr>>()?;
     Ok(Json(json!({ "timezone_offset_minutes": offset, "days": days })))
 }
 

@@ -540,7 +540,7 @@ pub async fn agent_turns(
             tutor_said.push(content);
         }
     }
-    crate::practice::note_answer_said(&state.pool, session.id, &tutor_said).await?;
+    crate::practice::note_answer_said(&state.db, session.id, &tutor_said).await?;
 
     if child_spoke && state.llm.is_some() && state.watching.lock().expect("lock").insert(session.id) {
         let (state, session) = (state.clone(), session.clone());
@@ -586,7 +586,7 @@ pub async fn agent_turns(
     let mut answer = json!({ "guidance": guidance, "plan": plan, "stop": stop, "pause": pause });
     // What the engine answered to something typed on the page, for the tutor to say.
     if flow::runs(&session)
-        && let Some(script) = flow::queued(&state.pool, session.id).await?
+        && let Some(script) = flow::queued(&state.db, session.id).await?
     {
         answer["script"] = script;
     }
@@ -615,7 +615,7 @@ async fn watch(state: &AppState, session: &Session) -> ApiResult<()> {
         }
         _ => Vec::new(),
     };
-    let open_exercise = crate::practice::open_exercise(&state.pool, session.id).await?;
+    let open_exercise = crate::practice::open_exercise(&state.db, session.id).await?;
     let reading = supervisor::watch(llm.as_ref(), &brief, &turns, &memories, open_exercise.as_ref());
     let guidance = llm::SESSION
         .scope(session.id, reading)
@@ -999,7 +999,7 @@ pub async fn review_session(state: &AppState, session_id: Uuid) -> ApiResult<()>
             [session.id.into()],
         ))
         .await?;
-    flow::delete_inputs_after_review(&state.pool, session.id).await?;
+    flow::delete_inputs_after_review(&state.db, session.id).await?;
     session_row::Entity::update_many()
         .col_expr(session_row::Column::ReviewedAt, Expr::current_timestamp())
         .filter(session_row::Column::Id.eq(session.id))
@@ -1035,7 +1035,7 @@ pub async fn supervisor_view(
     let review = session_review::Entity::find_by_id(session_id).one(&state.db).await?.map(|row| {
         json!({ "guardian_summary": row.guardian_summary, "next_step": row.next_step, "flags": row.flags })
     });
-    let exercises = crate::practice::exercises(&state.pool, session_id).await?;
+    let exercises = crate::practice::exercises(&state.db, session_id).await?;
     Ok(Json(json!({
         "status": status, "brief": brief, "guidance": guidance, "review": review, "exercises": exercises,
     })))
