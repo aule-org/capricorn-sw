@@ -21,6 +21,7 @@ from .camera import Camera
 from .config import LANGUAGES, ConfigError, Settings
 from .platform import Platform, platform_session
 from .providers import build_llm, build_stt, build_tts
+from .replies import reply
 from .safety import audience_of, build_gates
 from .tutor import Persona, Tutor, persona_from
 from .usage import Usage
@@ -189,7 +190,23 @@ async def entrypoint(ctx: JobContext) -> None:
             if getattr(event.item, "type", None) == "message":
                 platform.heard(event.item.role, event.item.text_content)
 
-        tasks.append(asyncio.create_task(platform.run(tutor.advise, tutor.plan)))
+        async def stop(kind: str) -> None:
+            # A student who keeps fooling around is warned once, kindly; if it
+            # goes on, the session closes and the family is told by the platform.
+            if kind == "warn":
+                await session.say(
+                    reply("not_working_warn", language),
+                    allow_interruptions=True,
+                    add_to_chat_ctx=True,
+                )
+                return
+            platform.end_reason = "not_working"
+            await session.say(
+                reply("not_working_end", language), allow_interruptions=False, add_to_chat_ctx=False
+            )
+            session.shutdown()
+
+        tasks.append(asyncio.create_task(platform.run(tutor.advise, tutor.plan, stop)))
 
     async def cleanup() -> None:
         for task in tasks:

@@ -1,4 +1,5 @@
-"""The fixed replies a person hears when a safety gate stops a turn.
+"""The fixed replies a person hears when a safety gate stops a turn, and when
+a session is stopped because the student is not working.
 
 They are written and reviewed by people, in every supported language, and are
 never generated or translated by a model: what is said after a gate stops a
@@ -6,6 +7,20 @@ turn must not depend on the thing that was just stopped.
 """
 
 REPLIES: dict[str, dict[str, str]] = {
+    # Said once, when the student keeps fooling around: a session never ends
+    # without a warning.
+    "not_working_warn": {
+        "es": "Me parece que hoy no tenemos muchas ganas de trabajar, y no pasa nada. Pero si "
+        "seguimos así, lo dejamos por hoy y le aviso a tu familia. ¿Lo intentamos una vez más?",
+        "en": "It seems we don't feel much like working today, and that's all right. But if we "
+        "carry on like this, we stop for today and I let your family know. Shall we try once more?",
+    },
+    "not_working_end": {
+        "es": "Lo dejamos aquí por hoy. Le aviso a tu familia para buscar otro momento. "
+        "¡Nos vemos pronto!",
+        "en": "We stop here for today. I'll let your family know so we can find another time. "
+        "See you soon!",
+    },
     "redirect": {
         "es": "Con eso no puedo ayudarte. Podemos pensar en cómo cuidarnos o inventar una "
         "aventura juntos.",
