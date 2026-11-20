@@ -8,7 +8,7 @@
 use aule_platform::config::Config;
 use aule_platform::state::AppState;
 use aule_platform::{http, jobs, learning};
-use sqlx::postgres::PgPoolOptions;
+use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 
 #[derive(serde::Deserialize)]
 struct SkillFile {
@@ -65,9 +65,16 @@ async fn main() {
         eprintln!("aule-platform: {error}");
         std::process::exit(1);
     });
+    // The platform's queries are short: compiling one with JIT costs more than
+    // it saves, and a parallel plan only adds workers to wait for.
+    let options = config
+        .database_url
+        .parse::<PgConnectOptions>()
+        .unwrap_or_else(|error| fail("DATABASE_URL is not a Postgres address", error))
+        .options([("jit", "off"), ("max_parallel_workers_per_gather", "0")]);
     let pool = PgPoolOptions::new()
         .max_connections(10)
-        .connect(&config.database_url)
+        .connect_with(options)
         .await
         .unwrap_or_else(|error| fail("the database could not be reached", error));
     aule_platform::migrate(&pool).await.unwrap_or_else(|error| fail("migrations failed", error));

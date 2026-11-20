@@ -24,10 +24,12 @@ trap 'rm -f "$PART"' EXIT
 
 # --clean --if-exists: the dump restores over a database that already has the
 # schema. No owners or privileges: the user may differ where it is restored.
+# All of it at the lowest priority, the dump inside the container too, so a
+# backup never takes CPU or disk from a session in progress.
 /etc/aule/aule-compose.sh exec -T postgres \
-  pg_dump -U aule --clean --if-exists --no-owner --no-privileges aule </dev/null \
-  | gzip -9 \
-  | gpg --batch --yes --no-tty --trust-model always --recipient-file "$KEY" --encrypt --output "$PART"
+  nice -n 19 pg_dump -U aule --clean --if-exists --no-owner --no-privileges aule </dev/null \
+  | nice -n 19 ionice -c 3 gzip -9 \
+  | nice -n 19 ionice -c 3 gpg --batch --yes --no-tty --trust-model always --recipient-file "$KEY" --encrypt --output "$PART"
 
 # An empty or cut-off dump is not a backup.
 if [ "$(stat -c %s "$PART")" -lt 4096 ]; then
