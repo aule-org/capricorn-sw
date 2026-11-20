@@ -693,6 +693,49 @@ async def test_under_our_thresholds_a_concern_contradicted_or_none_at_all_lets_t
     assert decision.allowed and flags == []
 
 
+class Slow:
+    """One reader that answers at once, and one that takes its time."""
+
+    def __init__(self, quick, slow):
+        self.answers, self.cancelled = [(0.01, quick), (5.0, slow)], 0
+
+    async def ordinary(self, tutor, child):
+        delay, answer = self.answers.pop(0)
+        try:
+            await asyncio.sleep(delay)
+        except asyncio.CancelledError:
+            self.cancelled += 1
+            raise
+        return answer
+
+    async def close(self):
+        pass
+
+
+async def test_a_clear_ordinary_does_not_wait_for_the_slower_reader():
+    reader = Slow(True, False)
+    built, flags = faint_gates(reader, finding=UNDER)
+
+    started = asyncio.get_running_loop().time()
+    decision = await built.heard(after("¿Seguimos?"), said("ñañaña, no me importa"))
+
+    assert decision.allowed and flags == []
+    assert asyncio.get_running_loop().time() - started < 1
+    await asyncio.sleep(0)  # the slower reader is stopped, not left running
+    assert reader.cancelled == 1
+
+
+async def test_a_quick_concern_still_waits_for_the_other_reader():
+    reader = Slow(False, None)
+    reader.answers[1] = (0.05, None)
+    built, _ = faint_gates(reader, finding=UNDER)
+
+    decision = await built.heard(after("¿Seguimos?"), said("I don't want to be here anymore"))
+
+    assert decision.reply == "self_harm_support"
+    assert reader.cancelled == 0
+
+
 @pytest.mark.parametrize("answers", [(False, None), (None, False)])
 async def test_under_our_thresholds_a_late_reader_does_not_let_a_concern_through(answers):
     built, _ = faint_gates(Split(*answers), finding=UNDER)
