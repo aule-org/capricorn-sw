@@ -157,9 +157,9 @@ intento.
 una frase lo que trabajaron.
 
 Cómo enseñas:
-- No des la respuesta. Si se equivoca, no celebres el paso equivocado: trabaja su error \
-exacto, señala dónde mirar, no qué poner. Si suelta una pista o una contradicción, úsala \
-para que él mismo lo note.
+- No des la respuesta, tampoco si te la pide. Si se equivoca, no celebres el paso \
+equivocado: trabaja su error exacto, señala dónde mirar, no qué poner. Si suelta una pista o \
+una contradicción, úsala para que él mismo lo note.
 - Celebra el esfuerzo y el razonamiento, no solo el resultado.
 - Si dice "no sé" o se queda callado, no repitas ni alargues la explicación: ofrécele un punto de \
 partida concreto, un ejemplo, o pártelo en algo más fácil.
@@ -200,9 +200,9 @@ wait for their try.
 sentence what you worked on.
 
 How you teach:
-- Do not hand out the answer. When they are wrong, do not praise the wrong step: work their \
-exact error, point at where to look, not at what to write. If they let slip a clue or a \
-contradiction, use it so they notice it themselves.
+- Do not hand out the answer, even when they ask for it. When they are wrong, do not praise \
+the wrong step: work their exact error, point at where to look, not at what to write. If they \
+let slip a clue or a contradiction, use it so they notice it themselves.
 - Praise effort and reasoning, not only the result.
 - If they say "I don't know" or go quiet, do not repeat or lengthen the explanation: offer a \
 concrete starting point, an example, or break it into something easier.
@@ -248,6 +248,14 @@ sentence what they are looking at, without reading the whole screen to them. Num
 symbols do belong on the screen. Never show the answer, or a drawing that gives it away. The \
 screen has no colours: name none, not black or grey either. Tell things apart as shaded and \
 unshaded, and if the plan uses colours, say it that way.""",
+}
+
+# Added when the session's breaks are offered for the tutor (see ``pace``).
+PACED = {
+    "es": """Las pausas te las anuncian aparte: si está cansado o pide parar, dile en una frase \
+que lo entiendes, sin proponer tú una pausa ni qué hacer en ella.""",
+    "en": """Breaks are announced for you: if they are tired or ask to stop, say in one sentence \
+that you understand, without proposing a break or what to do in it yourself.""",
 }
 
 # Added to the instructions only when there is something to check answers with.
@@ -440,6 +448,7 @@ class Tutor(Agent):
         student_name: str | None = None,
         session_number: int | None = None,
         flow: Flow | None = None,
+        breaks: bool = False,
     ) -> None:
         # `context` is what the platform knows about this student and the
         # supervisor's plan for the session; empty when there is no platform.
@@ -464,6 +473,8 @@ class Tutor(Agent):
                 return await present(raw_arguments, gates, show)
 
             tools.append(show_tool)
+        if breaks:
+            instructions = with_notes(instructions, PACED[language])
         if checker is not None:
             instructions = with_notes(instructions, CHECKING[language])
 
@@ -511,6 +522,9 @@ class Tutor(Agent):
         self._shown: rtc.VideoFrame | None = None
         self._hazards_in_a_row = 0
         self._flow = flow
+        # Which answer of the engine is being said. Lines of an older one stop
+        # as soon as a newer answer arrives.
+        self._script_turn = 0
         self._show = show
         self._rules_for_talk = ""
         self._model_done_at = 0.0
@@ -566,14 +580,23 @@ class Tutor(Agent):
         read by people before a student hears them. They join the conversation
         so that what the student says next has something to refer to.
         """
+        self._script_turn += 1
+        turn = self._script_turn
         lines = await self._judged(lines)
+        said = 0
         for line in lines:
+            if turn != self._script_turn:
+                # A newer answer of the engine came in, for an answer written on
+                # the page: what is left of this one belongs to an exercise
+                # that is over, drawing included.
+                break
             if line.show is not None and self._show is not None:
                 await self._show(line.show)
             # One after the other: a drawing goes up with the line it belongs to.
             await self.session.say(line.say, add_to_chat_ctx=True, allow_interruptions=True)
+            said += 1
         # Counts only: what is said is never logged.
-        logger.info("said from the script", extra={"lines": len(lines)})
+        logger.info("said from the script", extra={"lines": said, "left_out": len(lines) - said})
 
     async def _judged(self, lines: tuple[Line, ...]) -> tuple[Line, ...]:
         """The lines that may be said. Those that may repeat the student's
@@ -591,7 +614,9 @@ class Tutor(Agent):
     async def scripted_lines(self, said: Reply) -> None:
         """Lines the engine wrote for something that did not come through the
         tutor: an answer typed on the page. Whatever was being said stops, as
-        when the student types to the tutor itself."""
+        when the student types to the tutor itself, and so do the lines of the
+        engine's previous answer that were still to come."""
+        self._script_turn += 1
         await self.session.interrupt()
         if said.lines:
             await self._say(said.lines)
