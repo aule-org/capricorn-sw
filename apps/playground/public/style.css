@@ -33,6 +33,10 @@
   --tile-ink: #f6f4ef;
   --serif: "Source Serif 4", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Parchment: slow, faint blotches, so a card looks aged rather than grainy. */
+  /* Hammered metal: a grain beaten lengthwise, for the buttons that do the thing. */
+  --iron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='i'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.08 .5' numOctaves='3' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1  0 0 0 0 .92  0 0 0 0 .82  0 0 0 .22 -.06'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23i)'/%3E%3C/svg%3E");
+  --parchment: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.012 .03' numOctaves='4' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .45  0 0 0 0 .3  0 0 0 0 .12  0 0 0 .16 -.03'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23p)'/%3E%3C/svg%3E");
   color-scheme: light;
 }
 
@@ -45,27 +49,37 @@
   display: none !important;
 }
 
+/* An Inca wall: fitted polygonal stone in the page's warm greys, drawn in
+   pixels, under a faint grain drawn by the browser. */
+html {
+  background-color: var(--bg);
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .32  0 0 0 0 .26  0 0 0 0 .18  0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+    url("wall.png");
+  background-size: 220px 220px, 192px 144px;
+  image-rendering: pixelated;
+}
+
 body {
   margin: 0;
   color: var(--ink);
   font: 17px/1.5 var(--sans);
   -webkit-font-smoothing: antialiased;
-  /* Paper: a warm white with a faint grain, drawn by the browser. */
-  background-color: var(--bg);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .32  0 0 0 0 .26  0 0 0 0 .18  0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  /* Only the wall and its company are drawn as pixels. */
+  image-rendering: auto;
 }
 
-/* The children of Aule: a crowd of pixel dwarves behind everything, faint as
-   a watermark, so the page reads as before. */
+/* Cuyes, a condor, choclos and a papa behind everything, drawn in pixels,
+   faint as a watermark, so the page reads as before. */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
   z-index: -1;
-  background: url("dwarves.svg") repeat;
-  background-size: 204px 204px;
+  background: url("motifs.png") repeat;
+  background-size: 384px 384px;
   image-rendering: pixelated;
-  opacity: 0.1;
+  opacity: 0.16;
   pointer-events: none;
 }
 
@@ -109,16 +123,20 @@ header p,
   color: var(--muted);
 }
 
+/* A card is parchment in a frame with stepped corners, like a woven key:
+   Kenney's Fantasy UI Borders (CC0), the line dark and the rooms its corners
+   close red. The shadow follows the frame's steps. */
 form {
   display: grid;
   gap: 16px;
   max-width: 420px;
   margin-top: 28px;
-  padding: 24px;
-  background: var(--surface);
-  border: 2px solid var(--ink);
-  border-radius: 22px;
-  box-shadow: 6px 6px 0 var(--bg-2);
+  padding: 10px;
+  border: 24px solid transparent;
+  border-image: url("frame.png") 8 stretch;
+  background: var(--parchment) var(--surface);
+  background-clip: padding-box;
+  filter: drop-shadow(4px 5px 0 rgb(63 38 49 / 0.16));
 }
 
 label {
@@ -154,7 +172,7 @@ button:hover:not(:disabled) {
 
 button[type="submit"]:hover:not(:disabled),
 button.primary:hover:not(:disabled) {
-  background: #000;
+  background: var(--iron) #000;
 }
 
 button:focus-visible,
@@ -164,10 +182,14 @@ select:focus-visible {
   outline-offset: 2px;
 }
 
+/* Hammered metal, lit along its top edge, on a copper rim. */
 button[type="submit"] {
-  background: var(--accent);
+  background: var(--iron) var(--accent);
   border-color: var(--accent);
   color: var(--accent-ink);
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 0.16),
+    inset 0 -3px 0 var(--copper);
 }
 
 button:disabled {
@@ -550,11 +572,23 @@ button.quiet {
 #signed-out {
   display: grid;
   gap: 14px;
-  padding: 24px;
-  background: var(--surface);
-  border: 2px solid var(--ink);
-  border-radius: 22px;
-  box-shadow: 6px 6px 0 var(--bg-2);
+  padding: 10px;
+  border: 24px solid transparent;
+  border-image: url("frame.png") 8 stretch;
+  background: var(--parchment) var(--surface);
+  background-clip: padding-box;
+  filter: drop-shadow(4px 5px 0 rgb(63 38 49 / 0.16));
+}
+
+/* The frame is drawn in pixels; what is inside it is not. */
+form,
+#signed-out {
+  image-rendering: pixelated;
+}
+
+form > *,
+#signed-out > * {
+  image-rendering: auto;
 }
 
 #signed-out h2,
@@ -650,6 +684,7 @@ main.in-session {
 /* In a session the page gives its room to the work: a short header, and a
    camera that leaves the board in view. */
 main.in-session header p,
+main.in-session .dancers,
 main.in-session .site-footer,
 main.in-session .cookie-notice {
   display: none;
@@ -668,11 +703,13 @@ main.in-session .cookie-notice {
   gap: 12px 16px;
   max-width: 720px;
   margin: 0 auto;
-  padding: 14px 18px;
-  background: var(--surface);
-  border: 2px solid var(--ink);
-  border-radius: 16px;
-  box-shadow: 5px 5px 0 var(--bg-2);
+  padding: 4px 8px;
+  border: 24px solid transparent;
+  border-image: url("frame.png") 8 stretch;
+  background: var(--parchment) var(--surface);
+  background-clip: padding-box;
+  filter: drop-shadow(4px 5px 0 rgb(63 38 49 / 0.16));
+  image-rendering: pixelated;
   font-size: 0.875rem;
 }
 
@@ -1348,12 +1385,13 @@ button[aria-pressed="true"]:not(.talk) {
 #signed-out.signin {
   position: relative;
   margin-top: 56px;
-  padding-top: 64px;
+  padding-top: 40px;
 }
 
+/* Placed from inside the frame: its 24px border, then half the face above it. */
 .signin-mascot {
   position: absolute;
-  top: -52px;
+  top: -76px;
   left: 50%;
   width: 104px;
   height: 104px;
@@ -1417,8 +1455,9 @@ button[aria-pressed="true"]:not(.talk) {
   margin: 0;
   padding: 0;
   border: 0;
+  border-image: none;
   background: none;
-  box-shadow: none;
+  filter: none;
   max-width: none;
 }
 
@@ -1455,3 +1494,114 @@ button[aria-pressed="true"]:not(.talk) {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* Cuyes dance on a manta at the foot of the page: six of them, drawn in
+   pixels, each with a coat of its own and two in a chullo, hop, sway and turn
+   on the beat, out of step with each other, on a band of tocapus. Not during
+   a session, and still for anyone who asks the system for less motion. */
+.dancers {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 8px;
+  height: 84px;
+  margin: 28px auto 0;
+  /* Their feet stand a little into the manta. */
+  padding-bottom: 18px;
+  background: url("manta.png") center bottom / 96px 27px repeat-x;
+  max-width: 460px;
+  image-rendering: pixelated;
+}
+
+.dancers i {
+  width: 48px;
+  height: 48px;
+  background: url("dancers.png") 0 0 / 288px 48px;
+  animation: jig 0.84s steps(1, end) infinite;
+}
+
+.dancers i:nth-child(2) {
+  background-position: -48px 0;
+  animation-name: hop;
+  animation-delay: -0.21s;
+}
+
+.dancers i:nth-child(3) {
+  background-position: -96px 0;
+  animation-delay: -0.42s;
+}
+
+.dancers i:nth-child(4) {
+  background-position: -144px 0;
+  animation-name: spin;
+  animation-duration: 1.68s;
+}
+
+.dancers i:nth-child(5) {
+  background-position: -192px 0;
+  animation-name: hop;
+  animation-delay: -0.63s;
+}
+
+.dancers i:nth-child(6) {
+  background-position: -240px 0;
+  animation-delay: -0.21s;
+}
+
+/* A jig: up and lean, down and turn. */
+@keyframes jig {
+  0% {
+    transform: translateY(0);
+  }
+  25% {
+    transform: translateY(-9px) rotate(-8deg);
+  }
+  50% {
+    transform: translateY(0) scaleX(-1);
+  }
+  75% {
+    transform: translateY(-9px) scaleX(-1) rotate(-8deg);
+  }
+}
+
+/* A hop: two short, one long. */
+@keyframes hop {
+  0% {
+    transform: translateY(0);
+  }
+  20% {
+    transform: translateY(-6px);
+  }
+  40% {
+    transform: translateY(0);
+  }
+  60% {
+    transform: translateY(-14px) scaleY(1.05);
+  }
+  80% {
+    transform: translateY(0) scaleY(0.92);
+  }
+}
+
+/* A turn on the spot, in quarter turns. */
+@keyframes spin {
+  0% {
+    transform: scaleX(1);
+  }
+  25% {
+    transform: scaleX(0.4);
+  }
+  50% {
+    transform: scaleX(-1);
+  }
+  75% {
+    transform: scaleX(-0.4) translateY(-4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dancers i {
+    animation: none;
+  }
+}
+
