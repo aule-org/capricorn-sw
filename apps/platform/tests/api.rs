@@ -1669,7 +1669,7 @@ async fn a_guardian_signs_in_with_github_into_the_family_of_that_address(pool: P
     assert_eq!(status, StatusCode::OK);
     assert_eq!(
         providers,
-        json!({ "google": GOOGLE_CLIENT, "github": "pretend-github", "meta": null, "apple": null })
+        json!({ "google": GOOGLE_CLIENT, "github": "pretend-github", "meta": null, "apple": null, "email": true })
     );
 
     // A provider that is not set up, a refused code, an outage and bad requests.
