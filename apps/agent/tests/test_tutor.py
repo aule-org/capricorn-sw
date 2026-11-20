@@ -333,9 +333,10 @@ def test_the_checking_tools_exist_only_with_something_to_check_with():
     plain = Tutor(language="es", gates=ScriptedGates())
     checking = Tutor(language="es", gates=ScriptedGates(), checker=ScriptedChecker())
 
-    assert [tool.info.name for tool in plain.tools] == []
+    drill = ["pose_phrase", "check_phrase"]
+    assert [tool.info.name for tool in plain.tools] == drill
     assert "pose_exercise" not in plain.instructions
-    assert [tool.info.name for tool in checking.tools] == ["pose_exercise", "check_answer"]
+    assert [tool.info.name for tool in checking.tools] == ["pose_exercise", "check_answer", *drill]
     assert "pose_exercise" in checking.instructions
 
 
@@ -374,7 +375,7 @@ def test_no_tool_declares_a_nullable_argument_which_the_model_api_refuses_with_a
         language="es", gates=ScriptedGates(), checker=ScriptedChecker(), show=lambda visual: None
     )
 
-    assert len(tutor.tools) == 3
+    assert len(tutor.tools) == 5
     for each in tutor.tools:
         assert not nullable(each.info.raw_schema), each.info.name
 
@@ -854,3 +855,28 @@ async def test_a_camera_with_nothing_to_show_gets_no_answer():
         assert await Tutor(language="es", gates=ScriptedGates()).show_work() is False
 
     assert not hasattr(session, "replies_to") and not hasattr(session, "interrupts")
+
+
+async def test_a_drill_measures_the_spoken_try_and_draws_its_tune():
+    import numpy as np
+
+    shown = []
+
+    async def screen(visual):
+        shown.append(visual)
+
+    tutor = Tutor(language="es", gates=ScriptedGates(), show=screen)
+    assert "check_phrase" in await tool(tutor, "pose_phrase")({"sentence": "Is it raining?"})
+    # The student's try, as speech to text receives it: a voice going up.
+    rate = 16_000
+    hz = np.linspace(200, 320, rate)
+    tone = sum(np.sin(k * 2 * np.pi * np.cumsum(hz) / rate) / k for k in range(1, 5))
+    samples = (0.3 * tone / np.max(np.abs(tone)) * 32767).astype(np.int16)
+    for start in range(0, len(samples), 160):
+        tutor._drill.hear(samples[start : start + 160], rate)
+    tutor._drill.took()
+
+    said = await tool(tutor, "check_phrase")({})
+    assert said.startswith("Their voice went up at the end")
+    assert [visual["kind"] for visual in shown] == ["contour"] and shown[0]["expected"] == "rising"
+    assert not tutor._drill.open

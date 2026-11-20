@@ -9,10 +9,11 @@ from collections.abc import AsyncIterable, Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+import numpy as np
 from livekit import rtc
 from livekit.agents import Agent, ModelSettings, StopResponse, function_tool, llm, stt
 
-from . import visuals
+from . import drill, visuals
 from .greetings import greeting as written_greeting
 from .replies import ADULT_HELP_SEQUENCE, ANSWERABLE, MEANWHILE, reply
 from .safety import Gates
@@ -51,6 +52,29 @@ POSE_EXERCISE: dict[str, Any] = {
         },
         "required": ["expression"],
     },
+}
+# English pronunciation practice: the sentence is registered, the student says
+# it, and their voice is measured (see ``drill``), not judged by the model.
+POSE_PHRASE: dict[str, Any] = {
+    "name": "pose_phrase",
+    "description": (
+        "In English speaking practice, register the short English sentence you are about to ask "
+        "the student to say back, e.g. 'Is it raining?'. Their voice is then measured to tell "
+        "whether it went up or down at the end."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {"sentence": {"type": "string"}},
+        "required": ["sentence"],
+    },
+}
+CHECK_PHRASE: dict[str, Any] = {
+    "name": "check_phrase",
+    "description": (
+        "After the student has said the registered sentence aloud: whether their voice went up or "
+        "down at the end as it should, and what to tell them."
+    ),
+    "parameters": {"type": "object", "properties": {}},
 }
 CHECK_ANSWER: dict[str, Any] = {
     "name": "check_answer",
@@ -507,6 +531,24 @@ class Tutor(Agent):
                 return await checker.answer(said) or UNCHECKED
 
             tools += [pose_exercise, check_answer]
+
+        practice = drill.Drill()
+
+        @function_tool(raw_schema=POSE_PHRASE)
+        async def pose_phrase(raw_arguments: dict[str, object]) -> str:
+            sentence = raw_arguments.get("sentence")
+            return practice.pose(sentence if isinstance(sentence, str) else "")
+
+        @function_tool(raw_schema=CHECK_PHRASE)
+        async def check_phrase(raw_arguments: dict[str, object]) -> str:
+            expected = practice.expected
+            said, contour = practice.check()
+            # The student sees the tune of their own voice, drawn from the measurement.
+            if contour is not None and expected is not None and show is not None:
+                await show(drill.visual(contour, expected, language))
+            return said
+
+        tools += [pose_phrase, check_phrase]
         # The persona's tone lines go last, after the teaching, the safety rules
         # and the supervisor's context, so they can never sit above a safety rule.
         self._rules = instructions
@@ -514,6 +556,7 @@ class Tutor(Agent):
         self._tone = persona_notes(language, persona)
         self._guidance = ""
         self._base = with_notes(with_notes(instructions, context), self._tone)
+        self._drill = practice
         super().__init__(instructions=self._base, tools=tools)
         self._language = language
         self._gates = gates
@@ -660,6 +703,8 @@ class Tutor(Agent):
         self, turn_ctx: llm.ChatContext, new_message: llm.ChatMessage
     ) -> None:
         self._meanwhile_due = True
+        # A spoken turn during a drill is the student's try (a typed one never comes here).
+        self._drill.took()
         if not await self._may_answer(turn_ctx, new_message):
             # The stopped turn never reaches the model: StopResponse discards it.
             raise StopResponse()
@@ -766,11 +811,22 @@ class Tutor(Agent):
     async def stt_node(
         self, audio: AsyncIterable[rtc.AudioFrame], model_settings: ModelSettings
     ) -> AsyncIterable[stt.SpeechEvent]:
-        async for event in Agent.default.stt_node(self, audio, model_settings):
+        async for event in Agent.default.stt_node(self, self._listened(audio), model_settings):
             final = event.type == stt.SpeechEventType.FINAL_TRANSCRIPT
             if final and event.alternatives and self._heard is not None:
                 self._heard(event.alternatives[0].confidence)
             yield event
+
+    async def _listened(
+        self, audio: AsyncIterable[rtc.AudioFrame]
+    ) -> AsyncIterable[rtc.AudioFrame]:
+        """The student's audio on its way to speech to text. A copy of its last
+        seconds is kept in memory only while a drill is open, for its measure."""
+        async for frame in audio:
+            if self._drill.open:
+                samples = np.frombuffer(frame.data, dtype=np.int16)[:: frame.num_channels]
+                self._drill.hear(samples.copy(), frame.sample_rate)
+            yield frame
 
     async def llm_node(
         self, chat_ctx: llm.ChatContext, tools: list[llm.Tool], model_settings: ModelSettings

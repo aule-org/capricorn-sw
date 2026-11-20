@@ -75,12 +75,20 @@ def test_the_tool_is_the_contract():
     tool = visuals.tool_schema()
 
     assert tool["name"] == "show"
-    assert tool["parameters"]["properties"] == visuals.schema()["properties"]
+    contract = visuals.schema()["properties"]
+    # Every field of the contract, except what only the agent draws.
+    hidden = {field for fields in visuals.DRAWN_BY_THE_AGENT.values() for field in fields}
+    shown = {key: value for key, value in contract.items() if key not in hidden | {"kind"}}
+    assert {k: v for k, v in tool["parameters"]["properties"].items() if k != "kind"} == shown
+    kinds = tool["parameters"]["properties"]["kind"]["enum"]
+    assert set(kinds) == set(contract["kind"]["enum"]) - set(visuals.DRAWN_BY_THE_AGENT)
     assert tool["parameters"]["required"] == ["kind"]
     # The model's API refuses these at the top of a tool's schema.
     assert not any(key.startswith("$") for key in tool["parameters"])
     assert not {"allOf", "anyOf", "oneOf"} & set(tool["parameters"])
     for kind in visuals.schema()["properties"]["kind"]["enum"]:
+        if kind in visuals.DRAWN_BY_THE_AGENT:
+            continue
         assert kind in tool["description"], f"the description must say what {kind} needs"
 
 
@@ -124,9 +132,10 @@ def test_the_tutor_only_talks_about_a_screen_when_there_is_one():
     without = Tutor(language="es", gates=Gate())
     with_screen = Tutor(language="es", gates=Gate(), show=Screen(), context="Plan: fracciones")
 
-    assert without.tools == []
+    # The pronunciation drill's two tools are there with or without a screen.
+    assert [tool.info.name for tool in without.tools] == ["pose_phrase", "check_phrase"]
     assert SCREEN["es"] not in without.instructions
-    assert [tool.info.name for tool in with_screen.tools] == ["show"]
+    assert [tool.info.name for tool in with_screen.tools] == ["show", "pose_phrase", "check_phrase"]
     assert SCREEN["es"] in with_screen.instructions
     assert with_screen.instructions.endswith("Plan: fracciones"), "the plan still comes last"
     assert set(SCREEN) == {"es", "en"}

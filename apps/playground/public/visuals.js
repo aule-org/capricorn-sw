@@ -427,6 +427,30 @@ function clock(v, top) {
   return out + `<circle cx="${cx}" cy="${cy}" r="8" fill="${INK}"/>`;
 }
 
+// The tune of the student's voice in a pronunciation drill, drawn by the
+// agent from a measurement: the voiced stretches as a line around the
+// speaker's own middle pitch, and an arrow for the way the end should go.
+function contour(v, top) {
+  const left = 60;
+  const right = W - 140;
+  const middle = top + (H - top) / 2;
+  const half = (H - top) / 2 - 40;
+  const x = (i) => left + (i / Math.max(1, v.count - 1)) * (right - left);
+  const y = (semitones) => middle - (Math.max(-12, Math.min(12, semitones)) / 12) * half;
+  let out = `<line x1="${left}" y1="${middle}" x2="${right}" y2="${middle}" stroke="${GREY}" stroke-width="2" stroke-dasharray="6 8"/>`;
+  for (const segment of v.segments) {
+    const points = segment.values.map((value, i) => `${x(segment.from + i)},${y(value)}`).join(" ");
+    out += segment.values.length === 1
+      ? `<circle cx="${x(segment.from)}" cy="${y(segment.values[0])}" r="6" fill="${INK}"/>`
+      : `<polyline points="${points}" fill="none" stroke="${INK}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>`;
+  }
+  // Where the end should go: a grey arrow after the line.
+  const rise = v.expected === "rising" ? -1 : 1;
+  const ax = right + 40;
+  out += `<path d="M ${ax} ${middle - rise * 50} L ${ax + 60} ${middle + rise * 50}" stroke="${GREY}" stroke-width="8" stroke-linecap="round" marker-end="url(#arrow)"/>`;
+  return out;
+}
+
 const KINDS = {
   exercise,
   fraction_bars: fractionBars,
@@ -439,6 +463,7 @@ const KINDS = {
   rectangle,
   polygon,
   clock,
+  contour,
 };
 
 /** The visual as an SVG document. Throws on a kind it does not know. */
