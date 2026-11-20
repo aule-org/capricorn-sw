@@ -1,12 +1,15 @@
 import asyncio
 import json
 
+import pytest
+
 from aule_agent.platform import (
     FLAG_COOLDOWN_SECONDS,
     MAX_FLAGS_IN_FLIGHT,
     MAX_PENDING_TURNS,
     Platform,
     PlatformSession,
+    Refused,
     platform_session,
 )
 
@@ -466,3 +469,62 @@ async def test_a_session_without_an_engine_is_not_scripted(monkeypatch):
     await platform.start()
 
     assert not platform.scripted and platform.opening() == ()
+
+
+@pytest.mark.parametrize("status", [401, 403, 409, 410])
+async def test_a_start_the_platform_refuses_is_not_tried_again_and_the_session_is_gone(status):
+    send = Recorder(Refused(status), {"instructions": "Plan"})
+    platform = Platform(SESSION, send)
+
+    assert await platform.start() == ""
+
+    assert platform.gone
+    assert len(send.calls) == 1
+
+
+@pytest.mark.parametrize("failure", [RuntimeError("down"), Refused(500), Refused(404)])
+async def test_a_platform_that_cannot_be_reached_is_not_a_refusal(monkeypatch, failure):
+    monkeypatch.setattr("aule_agent.platform.START_RETRY_SECONDS", 0)
+    send = Recorder(failure, {"instructions": "Plan"})
+    platform = Platform(SESSION, send)
+
+    # Tried once more, and the tutor works with what came back.
+    assert await platform.start() == "Plan"
+    assert not platform.gone
+
+
+async def test_a_refused_report_ends_the_reports_instead_of_retrying_them(monkeypatch):
+    monkeypatch.setattr("aule_agent.platform.REPORT_RETRY_SECONDS", 0.01)
+    send = Recorder(Refused(409))
+    platform = Platform(SESSION, send)
+    told = []
+
+    async def gone():
+        told.append("gone")
+
+    async def nothing(_):
+        return None
+
+    platform.heard("user", "hola")
+    await asyncio.wait_for(platform.run(nothing, gone=gone), timeout=1)
+    # What is said afterwards is not kept for a platform that will not take it.
+    platform.heard("user", "¿sigues ahí?")
+    await platform.end()
+
+    assert platform.gone and told == ["gone"]
+    assert [path for _, path, _ in send.calls] == ["/v1/agent/session/turns"]
+
+
+async def test_a_refusal_about_one_exercise_is_not_about_the_session():
+    send = Recorder(Refused(409), Refused(409), Refused(409), {})
+    platform = Platform(SESSION, send)
+
+    # The engine owns the exercises of its sessions and refuses the tutor's own.
+    assert await platform.pose("3/4 + 1/8", None, None) is None
+    assert await platform.answer("siete octavos") is None
+    assert await platform.said("siete octavos") is None
+
+    assert not platform.gone
+    platform.heard("user", "hola")
+    await platform.report_once()
+    assert send.calls[-1][1] == "/v1/agent/session/turns"
