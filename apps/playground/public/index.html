@@ -4,7 +4,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
-    <title>Aule</title>
+    <title>Aule · Tu tutor con IA</title>
+    <meta name="description" content="Aule, el tutor con IA que conversa por voz con tu hijo y practica matemática sin darle la respuesta. Crea tu cuenta: 7 días gratis, sin tarjeta." />
+    <meta name="theme-color" content="#f5f2ea" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="manifest.webmanifest" />
     <link rel="stylesheet" href="style.css" />
     <!-- Signing in comes first: its scripts and Google's are fetched at once. -->
     <link rel="modulepreload" href="students.js" />
@@ -29,25 +33,56 @@
 
       <section id="welcome">
         <!-- Signing in: an account the family already has, then the student this session is for. -->
-        <div id="signed-out" hidden>
-          <h2>Entra a tu sesión</h2>
+        <div id="signed-out" class="signin" hidden>
+          <!-- Aule says hello: the same face the tutor has in a session. -->
+          <wobnimo-mascot class="signin-mascot" character="mochi" state="idle" aria-hidden="true"></wobnimo-mascot>
+          <!-- Creating an account and coming back are the same steps; the words say which one. -->
+          <div class="signin-tabs" role="tablist" aria-label="Cuenta">
+            <button type="button" role="tab" id="tab-new" aria-selected="true">Crear cuenta</button>
+            <button type="button" role="tab" id="tab-back" aria-selected="false">Iniciar sesión</button>
+          </div>
+          <h2 id="signin-title">Crea tu cuenta de familia</h2>
+          <p id="signin-lead" class="signin-lead">7 días gratis, sin tarjeta. Luego decides.</p>
           <div id="google"></div>
           <!-- Each shows only when the server has that provider set up. -->
           <div class="providers">
             <a id="signin-github" class="provider" href="api/signin/github/start" hidden>
               <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"/></svg>
-              Acceder con GitHub
+              <span data-new="Registrarse con GitHub" data-back="Acceder con GitHub">Registrarse con GitHub</span>
             </a>
             <a id="signin-meta" class="provider" href="api/signin/meta/start" hidden>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#0866FF" d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.413c0-3.026 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.971H15.83c-1.491 0-1.956.93-1.956 1.886v2.264h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>
-              Acceder con Facebook
+              <span data-new="Registrarse con Facebook" data-back="Acceder con Facebook">Registrarse con Facebook</span>
             </a>
             <a id="signin-apple" class="provider" href="api/signin/apple/start" hidden>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg>
-              Acceder con Apple
+              <span data-new="Registrarse con Apple" data-back="Acceder con Apple">Registrarse con Apple</span>
             </a>
           </div>
-          <p class="note">La primera vez se crea tu cuenta de padre de familia.</p>
+          <!-- With an address alone: a six-digit code arrives by email. -->
+          <div id="email-way" class="email-way" hidden>
+            <p class="or"><span>o con tu correo</span></p>
+            <form id="email-start" class="email-form" autocomplete="on">
+              <label class="sr-only" for="email-address">Tu correo</label>
+              <input id="email-address" type="email" required autocomplete="email" placeholder="tu@correo.com" maxlength="254" />
+              <button type="submit">Enviarme un código</button>
+            </form>
+            <form id="email-verify" class="email-form" autocomplete="off" hidden>
+              <p id="email-sent" class="note"></p>
+              <label class="sr-only" for="email-code">Código de 6 dígitos</label>
+              <input id="email-code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required placeholder="Código de 6 dígitos" />
+              <label class="sr-only" for="email-name">Tu nombre</label>
+              <input id="email-name" type="text" autocomplete="name" maxlength="120" placeholder="Tu nombre (padre, madre o apoderado)" />
+              <button type="submit">Entrar</button>
+              <button type="button" id="email-back" class="quiet">Usar otro correo</button>
+            </form>
+          </div>
+          <ul class="benefits">
+            <li>Tu hijo conversa con su tutor por voz y le muestra su cuaderno.</li>
+            <li>Matemática de primaria con ejercicios propios; en lo demás, acompaña sus tareas.</li>
+            <li>Un resumen para ti después de cada sesión.</li>
+          </ul>
+          <p class="note">Tu cuenta es la del padre, la madre o el apoderado; ahí agregas a tus hijos.</p>
         </div>
 
         <form id="who" hidden autocomplete="off">
@@ -290,7 +325,7 @@
         <p>
           Usamos solo las cookies necesarias para que entres a tu cuenta y funcione la sesión; nada de
           publicidad. Si entras con Google, GitHub, Facebook o Apple, ellos usan las suyas.
-          <a href="https://meetaule.com/legal/privacy#cookies">Más información</a>
+          <a href="https://meetaule.com/legal/privacy#cookies">Política de cookies</a>
         </p>
         <button type="button" id="cookies-ok">Entendido</button>
       </div>

@@ -17,9 +17,11 @@ import {
   platform,
   PlatformError,
   readPlan,
+  emailCode,
   signIn,
   signInProviders,
   signInWithCode,
+  signInWithEmail,
   signOut,
   step,
   supervisorView,
@@ -73,6 +75,8 @@ const STATIC: Record<string, { file: string | URL; type: string }> = {
   "/visuals.js": { file: new URL("visuals.js", publicDir), type: "text/javascript; charset=utf-8" },
   "/style.css": { file: new URL("style.css", publicDir), type: "text/css; charset=utf-8" },
   "/dwarves.svg": { file: new URL("dwarves.svg", publicDir), type: "image/svg+xml" },
+  "/icon.svg": { file: new URL("icon.svg", publicDir), type: "image/svg+xml" },
+  "/manifest.webmanifest": { file: new URL("manifest.webmanifest", publicDir), type: "application/manifest+json" },
   // The team's panel. The page is the same for anyone; its data only for the team.
   "/admin": { file: new URL("admin.html", publicDir), type: "text/html; charset=utf-8" },
   "/admin.js": { file: new URL("admin.js", publicDir), type: "text/javascript; charset=utf-8" },
@@ -89,6 +93,8 @@ const MAX_SIGN_IN_BYTES = 8_000;
 const MAX_PROFILE_BYTES = 4_000;
 // Apple's form: a code, the state, a signed token and, the first time, a name.
 const MAX_FORM_BYTES = 8_000;
+// An address that looks like one; the platform checks it properly.
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SIGN_IN_PATH = /^\/api\/signin\/(github|meta|apple)\/(start|callback)$/;
 const ID = /^[0-9a-f-]{36}$/i;
 // What a student writes in the two boxes of an exercise.
@@ -110,6 +116,7 @@ function securityHeaders(settings: Settings): Record<string, string> {
       `style-src 'self' 'unsafe-inline' ${GOOGLE}style`,
       `connect-src 'self' ${signalling} ${http} ${GOOGLE}`,
       `frame-src ${GOOGLE}`,
+      "manifest-src 'self'",
       "font-src 'self'",
       "media-src 'self' blob: mediastream:",
       "img-src 'self' data:",
@@ -181,7 +188,8 @@ export function createPlayground(settings: Settings): Server {
     const ids = await signInProviders(settings);
     const clientId = ids.google;
     // The others come back to this page, so they need its public address.
-    const providers = settings.publicUrl ? CODE_PROVIDERS.filter((provider) => ids[provider]) : [];
+    const providers: string[] = settings.publicUrl ? CODE_PROVIDERS.filter((provider) => ids[provider]) : [];
+    if (ids.email) providers.push("email");
     if (!token) return reply({ google_client_id: clientId, providers, signed_in: false });
     try {
       const who = await account(settings, token);
@@ -228,6 +236,36 @@ export function createPlayground(settings: Settings): Server {
           return json(response, 403, { error: "sign_in_refused" });
         }
         throw error;
+      }
+      return whoIsHere(request, response, {
+        token: entered.token,
+        cookie: signedInCookie(entered.token, settings.basePath, entered.days),
+      });
+    }
+    if (path === "/api/signin/email/start") {
+      const email = typeof body.email === "string" ? body.email.trim() : "";
+      if (!EMAIL.test(email) || email.length > 254) return json(response, 400, { error: "bad_email" });
+      try {
+        await emailCode(settings, email);
+      } catch (error) {
+        if (error instanceof PlatformError && error.status < 500) return json(response, 400, { error: "bad_email" });
+        throw error;
+      }
+      return json(response, 200, { sent: true });
+    }
+    if (path === "/api/signin/email/verify") {
+      const email = typeof body.email === "string" ? body.email.trim() : "";
+      const code = typeof body.code === "string" ? body.code.trim() : "";
+      const name = typeof body.name === "string" && body.name.trim() ? body.name.trim().slice(0, 120) : null;
+      if (!EMAIL.test(email) || !/^\d{6}$/.test(code)) return json(response, 400, { error: "bad_request" });
+      let entered;
+      try {
+        entered = await signInWithEmail(settings, email, code, name);
+      } catch (error) {
+        if (!(error instanceof PlatformError) || error.status >= 500) throw error;
+        // A new address needs a name; a wrong or used code is refused.
+        if (error.status === 400 && error.message.includes("name")) return json(response, 400, { error: "name_needed" });
+        return json(response, 403, { error: "wrong_code" });
       }
       return whoIsHere(request, response, {
         token: entered.token,
@@ -483,6 +521,8 @@ export function createPlayground(settings: Settings): Server {
       if (signingIn) return codeSignIn(signingIn[1] as CodeProvider, signingIn[2]!, request, response);
       if (
         path === "/api/signin" ||
+        path === "/api/signin/email/start" ||
+        path === "/api/signin/email/verify" ||
         path === "/api/signout" ||
         path === "/api/student" ||
         path === "/api/student/read" ||

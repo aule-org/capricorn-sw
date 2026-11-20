@@ -50,14 +50,27 @@ export async function platform(
 }
 
 /** The public id of each provider people can sign in with; null where it is not set up. */
-export type Providers = { google: string | null; github: string | null; meta: string | null; apple: string | null };
+export type Providers = {
+  google: string | null;
+  github: string | null;
+  meta: string | null;
+  apple: string | null;
+  /** Whether a sign-in code can be sent by email. */
+  email: boolean;
+};
 
 export async function signInProviders(settings: Settings): Promise<Providers> {
-  const none = { google: null, github: null, meta: null, apple: null };
+  const none = { google: null, github: null, meta: null, apple: null, email: false };
   try {
     const answer = (await platform(settings, "/v1/auth/providers")) as Record<string, unknown>;
     const id = (value: unknown) => (typeof value === "string" && value ? value : null);
-    return { google: id(answer.google), github: id(answer.github), meta: id(answer.meta), apple: id(answer.apple) };
+    return {
+      google: id(answer.google),
+      github: id(answer.github),
+      meta: id(answer.meta),
+      apple: id(answer.apple),
+      email: answer.email === true,
+    };
   } catch (error) {
     if (error instanceof PlatformError) return none;
     throw error;
@@ -79,6 +92,28 @@ export async function readPlan(settings: Settings, token: string): Promise<Plan>
     if (error instanceof PlatformError) return { standing: null, team: false };
     throw error;
   }
+}
+
+/** Asks the platform to email a sign-in code. It answers the same whether or not the address has an account. */
+export async function emailCode(settings: Settings, email: string): Promise<void> {
+  await platform(settings, "/v1/auth/start", { email, language: "es" });
+}
+
+/** Trades an emailed code for a session; a new address needs the guardian's name. */
+export async function signInWithEmail(
+  settings: Settings,
+  email: string,
+  code: string,
+  name: string | null,
+): Promise<SignedIn> {
+  const answer = (await platform(settings, "/v1/auth/verify", {
+    email,
+    code,
+    language: "es",
+    ...(name ? { name } : {}),
+  })) as { token?: unknown; expires_in_days?: unknown };
+  if (typeof answer.token !== "string") throw new PlatformError("the platform sent no session");
+  return { token: answer.token, days: typeof answer.expires_in_days === "number" ? answer.expires_in_days : 1 };
 }
 
 /** Trades the code a provider sent back for a session of the person it names. */

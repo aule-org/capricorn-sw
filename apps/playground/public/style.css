@@ -1341,3 +1341,117 @@ button[aria-pressed="true"]:not(.talk) {
   text-align: center;
   font-family: var(--serif);
 }
+
+/* Signing in: Aule says hello, two tabs say whether this is a new account
+   or a return, and what a family gets sits under the ways in. */
+/* The id's own padding would win over a class: the room for the face is set here. */
+#signed-out.signin {
+  position: relative;
+  margin-top: 56px;
+  padding-top: 64px;
+}
+
+.signin-mascot {
+  position: absolute;
+  top: -52px;
+  left: 50%;
+  width: 104px;
+  height: 104px;
+  transform: translateX(-50%);
+}
+
+.signin h2 {
+  text-align: center;
+}
+
+.signin-lead {
+  margin: -6px 0 4px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.signin-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  background: var(--bg-2);
+  border-radius: 999px;
+}
+
+.signin-tabs button {
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  font: 600 0.9375rem/1.2 var(--sans);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.signin-tabs button[aria-selected="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
+}
+
+.or {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0 2px;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.or::before,
+.or::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--line);
+}
+
+.email-form {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  max-width: none;
+}
+
+.email-form p {
+  margin: 0;
+}
+
+.benefits {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 14px 0 0;
+  list-style: none;
+  border-top: 1px dashed var(--line);
+  font-size: 0.875rem;
+}
+
+.benefits li {
+  display: flex;
+  gap: 8px;
+}
+
+.benefits li::before {
+  content: "✓";
+  color: var(--copper);
+  font-weight: 700;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
