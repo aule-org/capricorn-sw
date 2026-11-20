@@ -1,0 +1,9 @@
+{
+  // LiveKit's signalling. Deploy: wrangler deploy -c wrangler.livekit.jsonc
+  // Its origin: wrangler secret put ORIGIN_URL -c wrangler.livekit.jsonc
+  "name": "aule-livekit",
+  "main": "src/livekit.js",
+  "compatibility_date": "2025-11-01",
+  "routes": [{ "pattern": "livekit.meetaule.com", "custom_domain": true }],
+  "observability": { "enabled": true }
+}
