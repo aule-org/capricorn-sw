@@ -6,12 +6,12 @@ DRAWING = {"kind": "dot_array", "rows": 2, "columns": 3}
 def test_lines_are_read_in_order_and_a_broken_one_is_left_out():
     lines = lines_from(
         [
-            {"say": " Hola. ", "show": None},
+            {"say": " Hola. ", "show": None, "echoes": False},
             {"say": ""},
             "not a line",
             {"say": 7},
             {"say": "x" * (MAX_LINE_CHARS + 1)},
-            {"say": "Mira.", "show": DRAWING},
+            {"say": "Mira.", "show": DRAWING, "echoes": False},
         ]
     )
 
@@ -20,7 +20,9 @@ def test_lines_are_read_in_order_and_a_broken_one_is_left_out():
 
 
 def test_a_drawing_the_screen_cannot_draw_is_dropped_and_its_line_kept():
-    assert lines_from([{"say": "Mira.", "show": {"kind": "hologram"}}]) == (Line("Mira."),)
+    line = {"say": "Mira.", "show": {"kind": "hologram"}, "echoes": False}
+
+    assert lines_from([line]) == (Line("Mira."),)
 
 
 def test_no_more_lines_than_a_turn_can_hold():
@@ -28,7 +30,36 @@ def test_no_more_lines_than_a_turn_can_hold():
 
 
 def test_a_reply_is_lines_rules_for_talking_or_both_and_nothing_is_none():
-    assert reply_from({"lines": [{"say": "Bien."}]}) == Reply(lines=(Line("Bien."),))
+    said = {"lines": [{"say": "Bien.", "echoes": False}]}
+
+    assert reply_from(said) == Reply(lines=(Line("Bien."),))
     assert reply_from({"lines": [], "converse": " No hints. "}) == Reply(converse="No hints.")
     assert reply_from({"lines": [], "converse": None}) is None
     assert reply_from({}) is None and reply_from(None) is None and reply_from([]) is None
+
+
+def test_a_line_may_repeat_the_student_unless_the_engine_says_it_does_not():
+    lines = lines_from(
+        [
+            {"say": "Dijiste tres cuartos.", "echoes": True},
+            {"say": "Pregunta 2 de 5.", "echoes": False},
+            # Said by a platform that does not tell: taken as one that may.
+            {"say": "¿Y cómo lo pensaste?"},
+            {"say": "Sigue.", "echoes": "no"},
+        ]
+    )
+
+    assert [line.echoes for line in lines] == [True, False, True, True]
+
+
+def test_the_engine_can_close_the_session_with_or_without_last_words():
+    goodbye = {"lines": [{"say": "Hasta la próxima.", "echoes": False}], "closed": True}
+
+    assert reply_from(goodbye) == Reply(lines=(Line("Hasta la próxima."),), closed=True)
+    assert reply_from({"lines": [], "closed": True}) == Reply(closed=True)
+    assert reply_from({"lines": [], "closed": "yes"}) is None
+
+
+def test_a_long_answer_fits_whole():
+    # A worked example step by step and the next question after it.
+    assert MAX_LINES >= 20
