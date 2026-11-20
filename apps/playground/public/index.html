@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -108,12 +108,12 @@
         <h2 id="lobby-title">¿Listo para entrar?</h2>
         <div class="tile preview">
           <video id="preview" autoplay muted playsinline></video>
-          <p id="preview-off" class="tile-empty" hidden>Camera off</p>
-          <div id="level" class="level" role="img" aria-label="Microphone level"><span></span></div>
+          <p id="preview-off" class="tile-empty" hidden>Cámara apagada</p>
+          <div id="level" class="level" role="img" aria-label="Nivel del micrófono"><span></span></div>
         </div>
         <div class="controls big">
-          <button type="button" id="lobby-mic" aria-pressed="true">Microphone on</button>
-          <button type="button" id="lobby-cam" aria-pressed="true">Camera on</button>
+          <button type="button" id="lobby-mic" data-icon="mic" aria-pressed="true">Micrófono</button>
+          <button type="button" id="lobby-cam" data-icon="camera" aria-pressed="true">Cámara</button>
         </div>
         <p id="lobby-note" class="note" role="status"></p>
         <div class="controls">
@@ -127,24 +127,26 @@
         <div class="work">
           <div class="tile">
             <video id="camera" autoplay muted playsinline></video>
-            <span class="tile-label">You</span>
-            <p id="camera-off" class="tile-empty" hidden>Camera off</p>
+            <span class="tile-label">Tú</span>
+            <p id="camera-off" class="tile-empty" hidden>Cámara apagada</p>
           </div>
           <figure id="board" class="board" hidden aria-live="polite"></figure>
+            <!-- Until something is drawn, the board is a quiet empty sheet. -->
+            <p class="board-empty">Aquí verás lo que Aule te muestre.</p>
           <div class="controls">
-            <button type="button" id="mic" aria-pressed="true">Microphone on</button>
-            <button type="button" id="cam" aria-pressed="true">Camera on</button>
-            <button type="button" id="device" aria-pressed="false">Device screen off</button>
-            <span id="clock" class="clock" aria-label="Time left"></span>
-            <button type="button" id="end" class="danger">End session</button>
+            <button type="button" id="mic" data-icon="mic" aria-pressed="true">Micrófono</button>
+            <button type="button" id="cam" data-icon="camera" aria-pressed="true">Cámara</button>
+            <button type="button" id="device" data-icon="device" aria-pressed="false">Modo tinta apagado</button>
+            <span id="clock" class="clock" aria-label="Tiempo que queda"></span>
+            <button type="button" id="end" data-icon="end" class="danger">Terminar</button>
           </div>
           <aside id="supervisor" class="supervisor" hidden>
             <h2>Supervisor</h2>
             <p id="plan" class="plan"></p>
             <ul id="plan-skills"></ul>
-            <ol id="notes" aria-label="Guidance to the tutor" aria-live="polite"></ol>
-            <h2 id="checked-title" hidden>Exercises checked</h2>
-            <ul id="checked" aria-label="Exercises with their answers" aria-live="polite"></ul>
+            <ol id="notes" aria-label="Indicaciones para Aule" aria-live="polite"></ol>
+            <h2 id="checked-title" hidden>Ejercicios revisados</h2>
+            <ul id="checked" aria-label="Ejercicios con sus respuestas" aria-live="polite"></ul>
           </aside>
         </div>
 
@@ -153,27 +155,27 @@
           <div class="tile tutor" id="tutor" data-state="waiting">
             <div class="orb" aria-hidden="true"></div>
             <span class="tile-label">Aule</span>
-            <p id="tutor-state" class="tile-state" role="status">Waiting for the tutor…</p>
+            <p id="tutor-state" class="tile-state" role="status">Esperando a Aule…</p>
           </div>
           <!-- The device does not listen all the time: a turn lasts while its button is held. -->
-          <button type="button" id="talk" class="talk" hidden aria-pressed="false">Hold to talk</button>
-          <ol id="transcript" aria-label="Conversation" aria-live="polite"></ol>
+          <button type="button" id="talk" data-icon="mic" class="talk" hidden aria-pressed="false">Mantén apretado para hablar</button>
+          <ol id="transcript" aria-label="Conversación" aria-live="polite"></ol>
           <form id="type" class="type" autocomplete="off">
             <input
               id="typed"
               type="text"
               maxlength="500"
-              aria-label="Message for the tutor"
-              placeholder="Or type to the tutor…"
+              aria-label="Mensaje para Aule"
+              placeholder="O escríbele a Aule…"
             />
-            <button type="submit">Send</button>
+            <button type="submit" data-icon="send">Enviar</button>
           </form>
         </div>
       </section>
 
       <!-- After a session: what the family is told. For the team only. -->
       <section id="report" class="report" hidden aria-live="polite">
-        <h2>Report for the family</h2>
+        <h2>Informe para la familia</h2>
         <p id="report-summary"></p>
         <p id="report-next" hidden></p>
         <p id="report-note" class="note"></p>
