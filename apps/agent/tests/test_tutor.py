@@ -188,7 +188,7 @@ async def test_hazards_in_a_row_get_the_full_offer_and_then_shorter_reminders():
     for _ in range(6):
         await hear(tutor, session)
 
-    keys = ["adult_help", "adult_help_riddle", "adult_help_story", "adult_help_riddle"]
+    keys = ["adult_help", "adult_help_again", "adult_help_wait", "adult_help_again"]
     assert [said[0] for said in session.said] == [
         REPLIES[key]["es"]
         for key in [*keys, "adult_help"]  # a safe turn starts over
