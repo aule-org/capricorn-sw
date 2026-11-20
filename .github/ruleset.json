@@ -52,6 +52,10 @@
           {
             "context": "Clippy and RustSec",
             "integration_id": 15368
+          },
+          {
+            "context": "Workflows, shell scripts and Dockerfiles",
+            "integration_id": 15368
           }
         ]
       }

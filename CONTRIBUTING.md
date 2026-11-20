@@ -37,6 +37,7 @@ the PR description. Keep that description focused on the final change and eviden
   formatting and tests against PostgreSQL 17 with pgvector, and all three Docker builds.
 - `Ruff`: Python lint and formatting.
 - `Clippy and RustSec`: Rust lint and the dependency audit.
+- `Workflows, shell scripts and Dockerfiles`: actionlint, ShellCheck and Hadolint.
 - `PR title`: title format and obvious placeholders.
 
 The build gate fails if any prerequisite fails, is cancelled, or is skipped.
@@ -45,6 +46,14 @@ there are no path filters that can leave required checks pending indefinitely.
 The manual runner smoke test is not a merge requirement.
 PR code runs on GitHub-hosted runners. The shared Aule runner remains limited to
 the approved default-branch workflows.
+
+## Dependencies
+
+Actions are pinned to a commit and images to a digest, each with its version in
+a comment; Dependabot proposes the updates. Nothing new comes in until it is a
+week old: Dependabot waits seven days (`cooldown`), and pnpm will not install a
+version younger than that (`minimumReleaseAge`), nor one that lost the
+provenance its earlier versions had, nor a dependency from outside the registry.
 
 ## GitHub configuration
 
