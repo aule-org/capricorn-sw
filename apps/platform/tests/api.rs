@@ -44,11 +44,15 @@ impl Llm for ScriptedLlm {
                 // A student who says "jajaja" is the one fooling around.
                 let asked: Value = serde_json::from_str(request.user).unwrap();
                 let last = asked["latest_turns"].as_array().and_then(|turns| turns.last());
-                let not_trying =
-                    last.is_some_and(|turn| turn["said"].as_str().unwrap_or_default().contains("jajaja"));
+                let said = last.map_or("", |turn| turn["said"].as_str().unwrap_or_default());
+                let not_trying = said.contains("jajaja");
                 json!({
                     "text": "Give a smaller hint and wait.",
-                    "signals": { "frustrated": true, "not_trying": not_trying }
+                    "signals": {
+                        "frustrated": true,
+                        "not_trying": not_trying,
+                        "tired": said.contains("cansado")
+                    }
                 })
             }
             "session_review" => json!({
@@ -171,6 +175,7 @@ fn app_with(pool: PgPool, events_webhook: Option<EventsWebhook>) -> App {
         }),
         agent_name: "aule-tutor".into(),
         session_minutes: 20,
+        break_every_minutes: 30,
         transcript_hours: 24,
         supervisor: None,
         embeddings: None,
@@ -607,6 +612,41 @@ async fn a_student_who_keeps_fooling_around_is_warned_and_then_the_session_close
         .call(Method::POST, "/v1/agent/session/end", agent, Some(json!({ "end_reason": "not_working" })))
         .await;
     assert_eq!(status, StatusCode::NO_CONTENT);
+}
+
+#[sqlx::test(migrator = "aule_platform::MIGRATOR")]
+async fn a_tired_student_is_offered_a_break_once_no_exercise_is_open(pool: PgPool) {
+    let app = app(pool);
+    let child = app.child().await;
+    app.consent(&child, "voice", true).await;
+    let (_, token) = app.session(&child).await;
+    let agent = Some(token.as_str());
+    app.call(Method::GET, "/v1/agent/session", agent, None).await;
+    let report = async |body: Value| {
+        let (status, answer) = app.call(Method::POST, "/v1/agent/session/turns", agent, Some(body)).await;
+        assert_eq!(status, StatusCode::OK, "{answer}");
+        eventually("guidance settled", || async { app.state.watching.lock().unwrap().is_empty() }).await;
+        answer
+    };
+    let nothing = json!({ "turns": [] });
+
+    let first = report(json!({ "turns": [{ "seq": 0, "role": "child", "content": "Hola." }] })).await;
+    assert_eq!(first["pause"], Value::Null, "a session that just started needs no break");
+
+    // An exercise is open when the student says they are tired: it is finished first.
+    let pose = json!({ "expression": "2 + 2" });
+    app.call(Method::POST, "/v1/agent/session/exercises", agent, Some(pose)).await;
+    report(json!({ "turns": [{ "seq": 1, "role": "child", "content": "Estoy cansado." }] })).await;
+    assert_eq!(report(nothing.clone()).await["pause"], Value::Null);
+    app.call(Method::POST, "/v1/agent/session/answers", agent, Some(json!({ "said": "4" }))).await;
+    assert_eq!(report(nothing.clone()).await["pause"], "offer");
+    assert_eq!(report(nothing.clone()).await["pause"], "offer", "it stands until taken or declined");
+
+    // The agent reports the break as taken: the next block starts.
+    let after = report(json!({ "turns": [], "breaks_taken": 1 })).await;
+    assert_eq!(after["pause"], Value::Null);
+    assert_eq!(app.count("select breaks::bigint from sessions").await, 1);
+    assert_eq!(report(nothing).await["pause"], Value::Null);
 }
 
 #[sqlx::test(migrator = "aule_platform::MIGRATOR")]
