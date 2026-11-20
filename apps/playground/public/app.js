@@ -18,15 +18,15 @@ const TALK_TAIL_MS = 200;
 const TUTOR_WAIT_MS = 15_000;
 
 const STATE_TEXT = {
-  waiting: "Waiting for the tutor…",
-  initializing: "The tutor is getting ready…",
-  listening: "Listening",
-  thinking: "Thinking…",
-  speaking: "Speaking",
+  waiting: "Esperando a Aule…",
+  initializing: "Aule se está preparando…",
+  listening: "Te escucho",
+  thinking: "Pensando…",
+  speaking: "Hablando",
   missing:
-    "The tutor did not join. The agent worker is probably not running or has no provider keys.",
-  left: "The tutor left the session.",
-  reconnecting: "The connection was lost. Reconnecting…",
+    "Aule no pudo entrar a la sesión. Inténtalo otra vez en un momento.",
+  left: "Aule salió de la sesión.",
+  reconnecting: "Se perdió la conexión. Reconectando…",
 };
 
 // Ways a session ends that nobody asked for.
@@ -46,8 +46,8 @@ const REPORT_WAIT_MS = 120_000;
 const CHAT_TOPIC = "lk.chat";
 
 const ERRORS = {
-  wrong_code: "That access code is not right.",
-  too_many_attempts: "Too many wrong codes. Wait a minute and try again.",
+  wrong_code: "Ese código de acceso no es correcto.",
+  too_many_attempts: "Demasiados códigos equivocados. Espera un minuto e inténtalo otra vez.",
   daily_limit: "Ya usaste las sesiones de hoy. Vuelve mañana.",
   not_signed_in: "Tu sesión se cerró. Vuelve a entrar con Google.",
 };
@@ -93,7 +93,9 @@ function setTutorState(state) {
 
 function setToggle(button, label, on) {
   button.setAttribute("aria-pressed", String(on));
-  button.textContent = `${label} ${on ? "on" : "off"}`;
+  // "Cámara apagada", "Micrófono apagado": the word follows the thing's gender.
+  const off = label.split(" ")[0].endsWith("a") ? "apagada" : "apagado";
+  button.textContent = on ? label : `${label} ${off}`;
 }
 
 function startClock(seconds) {
@@ -101,7 +103,7 @@ function startClock(seconds) {
   const tick = () => {
     const left = Math.max(0, Math.round((endsAt - Date.now()) / 1000));
     $("clock").textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
-    if (left === 0) leave("The session reached its time limit.");
+    if (left === 0) leave("Se acabó el tiempo de la sesión.");
   };
   tick();
   clock = setInterval(tick, 1000);
@@ -163,7 +165,7 @@ async function showSupervisor(id) {
     const view = await supervisorView(id);
     if (!view) return;
     $("supervisor").hidden = false;
-    $("plan").textContent = view.brief?.goal ?? "No plan for this session.";
+    $("plan").textContent = view.brief?.goal ?? "No hay plan para esta sesión.";
     $("plan-skills").replaceChildren(
       ...(view.brief?.skills ?? []).map((skill) => item(`${skill.skill_id}: ${skill.start_with}`)),
     );
@@ -175,7 +177,7 @@ async function showSupervisor(id) {
       ...checked.map((exercise) =>
         item(
           [
-            `${exercise.probe ? "Finding out" : "Practice"}: ${exercise.expression} = ${exercise.answer}`,
+            `${exercise.probe ? "Diagnóstico" : "Práctica"}: ${exercise.expression} = ${exercise.answer}`,
             exercise.status,
             `${exercise.attempts} ${exercise.attempts === 1 ? "try" : "tries"}, ${exercise.hints} ${exercise.hints === 1 ? "hint" : "hints"}`,
             exercise.misconception ? `mistake: ${exercise.misconception.replaceAll("_", " ")}` : "",
@@ -197,7 +199,7 @@ function awaitReport(id) {
   $("report").hidden = false;
   $("report-summary").textContent = "";
   $("report-next").hidden = true;
-  $("report-note").textContent = "The session is being reviewed…";
+  $("report-note").textContent = "Se está revisando la sesión…";
   const ask = async () => {
     let view = null;
     try {
@@ -212,11 +214,11 @@ function awaitReport(id) {
         ? `Note for the next session's plan (not sent to the family): ${view.review.next_step}`
         : "";
       $("report-next").hidden = !view.review.next_step;
-      $("report-note").textContent = "The summary above is what the family reads. The plan and the conversation are not sent.";
+      $("report-note").textContent = "El resumen de arriba es lo que lee la familia. El plan y la conversación no se envían.";
     } else if (Date.now() - started < REPORT_WAIT_MS) {
       reportTimer = setTimeout(ask, SUPERVISOR_POLL_MS);
     } else {
-      $("report-note").textContent = "No report was written for this session.";
+      $("report-note").textContent = "No se escribió un informe para esta sesión.";
     }
   };
   ask();
@@ -276,10 +278,10 @@ function showTalk() {
   $("talk").disabled = !wanted.mic;
   $("talk").setAttribute("aria-pressed", String(talking));
   $("talk").textContent = !wanted.mic
-    ? "Microphone is off"
+    ? "El micrófono está apagado"
     : talking
-      ? "Listening… let go to send"
-      : "Hold to talk (or hold the space bar)";
+      ? "Te escucho… suelta para enviar"
+      : "Mantén apretado para hablar (o la barra espaciadora)";
 }
 
 function turn(method) {
@@ -295,7 +297,7 @@ async function startTalking() {
     await turn("start_turn");
   } catch {
     await stopTalking("cancel_turn");
-    showMessage("The tutor could not be told that you are talking. Try again.");
+    showMessage("No se pudo avisar a Aule que estás hablando. Inténtalo otra vez.");
   }
 }
 
@@ -309,7 +311,7 @@ async function stopTalking(method = "end_turn") {
   try {
     await turn(method);
   } catch {
-    if (method === "end_turn") showMessage("The tutor did not get that. Hold the button and say it again.");
+    if (method === "end_turn") showMessage("Aule no lo escuchó. Mantén apretado el botón y dilo otra vez.");
   }
   if (!talking) await speaking.localParticipant.setMicrophoneEnabled(false);
 }
@@ -320,7 +322,7 @@ function showCamera() {
   if (on) publication.track.attach($("camera"));
   $("camera").hidden = !on;
   $("camera-off").hidden = on;
-  setToggle($("cam"), "Camera", on);
+  setToggle($("cam"), "Cámara", on);
 }
 
 async function join(session) {
@@ -345,8 +347,8 @@ async function join(session) {
     .on(RoomEvent.Disconnected, (reason) =>
       leave(
         LOST.has(reason)
-          ? "The connection was lost and the session could not be resumed. Start a new one."
-          : "The session ended.",
+          ? "Se perdió la conexión y la sesión no pudo continuar. Empieza una nueva."
+          : "La sesión terminó.",
       ),
     );
   room.registerTextStreamHandler(TRANSCRIPTION_TOPIC, (reader, participant) => {
@@ -377,7 +379,7 @@ async function join(session) {
   stage.hidden = false;
 
   await syncMicrophone();
-  setToggle($("mic"), "Microphone", wanted.mic);
+  setToggle($("mic"), "Micrófono", wanted.mic);
   showTalk();
   try {
     await room.localParticipant.setCameraEnabled(wanted.cam);
@@ -405,8 +407,8 @@ function showPreview() {
   $("preview").hidden = !seen;
   $("preview-off").hidden = seen;
   $("level").hidden = !(audio && wanted.mic);
-  setToggle($("lobby-mic"), "Microphone", wanted.mic);
-  setToggle($("lobby-cam"), "Camera", wanted.cam);
+  setToggle($("lobby-mic"), "Micrófono", wanted.mic);
+  setToggle($("lobby-cam"), "Cámara", wanted.cam);
 }
 
 // Moves a bar with the loudness of the microphone, so the person can tell it
@@ -445,11 +447,11 @@ async function openLobby() {
     wanted.cam = false;
     try {
       preview = await navigator.mediaDevices.getUserMedia({ audio: true });
-      $("lobby-note").textContent = "No camera was found or allowed. You can still join by voice.";
+      $("lobby-note").textContent = "No se encontró o no se permitió la cámara. Igual puedes entrar con voz.";
     } catch {
       wanted.mic = false;
       $("lobby-note").textContent =
-        "The browser blocked the microphone. Allow it in the address bar and go back to try again.";
+        "El navegador bloqueó el micrófono. Permítelo en la barra de direcciones y vuelve a intentarlo.";
       usable = false;
     }
   }
@@ -530,7 +532,7 @@ $("join").addEventListener("click", async () => {
     });
     const body = await response.json();
     if (!response.ok) {
-      throw new Error(ERRORS[body.error] ?? body.message ?? "The session could not be started.");
+      throw new Error(ERRORS[body.error] ?? body.message ?? "No se pudo empezar la sesión.");
     }
     // The room opens the devices itself, with what was chosen here.
     stopPreview();
@@ -538,8 +540,8 @@ $("join").addEventListener("click", async () => {
   } catch (error) {
     const text =
       error?.name === "NotAllowedError"
-        ? "The browser blocked the microphone. Allow it and start again."
-        : (error?.message ?? "The session could not be started.");
+        ? "El navegador bloqueó el micrófono. Permítelo y empieza otra vez."
+        : (error?.message ?? "No se pudo empezar la sesión.");
     if (room) leave(text);
     else {
       closeLobby();
@@ -550,7 +552,7 @@ $("join").addEventListener("click", async () => {
 
 $("mic").addEventListener("click", async () => {
   wanted.mic = !wanted.mic;
-  setToggle($("mic"), "Microphone", wanted.mic);
+  setToggle($("mic"), "Micrófono", wanted.mic);
   if (manualTurns) {
     if (!wanted.mic) await stopTalking("cancel_turn");
     showTalk();
@@ -584,7 +586,7 @@ window.addEventListener("blur", () => stopTalking("cancel_turn"));
 $("device").addEventListener("click", () => {
   const on = !$("board").classList.contains("device");
   $("board").classList.toggle("device", on);
-  setToggle($("device"), "Device screen", on);
+  setToggle($("device"), "Pantalla del dispositivo", on);
 });
 
 $("cam").addEventListener("click", async () => {
@@ -606,7 +608,7 @@ $("type").addEventListener("submit", async (event) => {
     $("transcript").append(line);
     $("transcript").scrollTop = $("transcript").scrollHeight;
   } catch {
-    showMessage("The message could not be sent.");
+    showMessage("No se pudo enviar el mensaje.");
   }
 });
 

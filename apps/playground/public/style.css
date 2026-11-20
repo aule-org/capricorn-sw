@@ -26,6 +26,9 @@
   --accent: #141414;
   --accent-ink: #fbfaf6;
   --danger: #8f1d14;
+  /* The one colour: worked copper, for what is alive on the page. */
+  --copper: #9a5b2e;
+  --copper-soft: #e9d8c4;
   --tile: #14130f;
   --tile-ink: #f6f4ef;
   --serif: "Source Serif 4", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
@@ -798,4 +801,180 @@ button[type="submit"].danger {
 
 button[type="submit"].danger:hover:not(:disabled) {
   background: #6f150e;
+}
+
+/* ------------------------------------------------------------------------
+   A craftsman's page: paper with a grain, ink, and a little worked copper.
+   Drawn here, by us; nothing is taken from anyone's book or film.
+   ------------------------------------------------------------------------ */
+body {
+  background-color: var(--bg);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .32  0 0 0 0 .26  0 0 0 0 .18  0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* A small mark between parts of the page, as on the corner of a map. */
+#team {
+  position: relative;
+  padding-top: 26px;
+}
+
+#team::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  transform: translateX(-50%) rotate(45deg);
+  border: 1.5px solid var(--copper);
+}
+
+/* Icons: one thin line, the same weight as the letters next to them. */
+button[data-icon] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+button[data-icon]::before {
+  content: "";
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  background: currentColor;
+  -webkit-mask: var(--icon) center / contain no-repeat;
+  mask: var(--icon) center / contain no-repeat;
+}
+
+button[data-icon="mic"] { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='9' y='3' width='6' height='11' rx='3'/%3E%3Cpath d='M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7'/%3E%3C/svg%3E"); }
+button[data-icon="camera"] { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='6.5' width='13' height='11' rx='2.5'/%3E%3Cpath d='M16 10.5l5-3v9l-5-3'/%3E%3C/svg%3E"); }
+button[data-icon="device"] { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3.5' y='5' width='17' height='12' rx='2'/%3E%3Cpath d='M9 20h6M12 17v3'/%3E%3Cpath d='M7 9.5h6M7 12.5h3.5'/%3E%3C/svg%3E"); }
+button[data-icon="end"] { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 4h4.5a1.5 1.5 0 0 1 1.5 1.5v13a1.5 1.5 0 0 1-1.5 1.5H14'/%3E%3Cpath d='M10 8l-4 4 4 4M6 12h9'/%3E%3C/svg%3E"); }
+button[data-icon="send"] { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 12l15-7-5.5 15-2.5-6.5z'/%3E%3Cpath d='M11 13.5l3-3'/%3E%3C/svg%3E"); }
+
+/* A switch that is off is quiet, not broken: no dashes, a line through its icon. */
+button[aria-pressed="false"] {
+  border-style: solid;
+  border-color: var(--line);
+  color: var(--muted);
+}
+
+button[aria-pressed="false"][data-icon]::before {
+  opacity: 0.55;
+}
+
+button[aria-pressed="true"]:not(.talk) {
+  border-color: var(--ink);
+}
+
+.clock {
+  font-family: var(--serif);
+  font-size: 1.05rem;
+  color: var(--ink);
+}
+
+/* The tutor: on paper like everything it says, with a ring of copper that
+   breathes when it listens and beats when it speaks. */
+.tile.tutor {
+  background: var(--surface);
+  color: var(--ink);
+  border: 2px solid var(--ink);
+  box-shadow: 5px 5px 0 var(--bg-2);
+}
+
+.tutor .tile-label {
+  background: none;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tutor .tile-state {
+  font-family: var(--serif);
+  font-size: 1rem;
+  opacity: 1;
+}
+
+.orb {
+  width: 64px;
+  height: 64px;
+  background: radial-gradient(circle, var(--copper) 0 22%, transparent 24%);
+  border: 2px solid var(--copper);
+  box-shadow: 0 0 0 6px var(--copper-soft);
+  opacity: 0.4;
+}
+
+.tutor[data-state="reconnecting"] .orb {
+  border-style: dashed;
+}
+
+/* The board: a sheet pinned to the desk. */
+.board {
+  border: 2px solid var(--ink);
+  border-radius: 16px;
+  box-shadow: 5px 5px 0 var(--bg-2);
+}
+
+.board-empty {
+  display: none;
+  margin: 0;
+  padding: 44px 16px;
+  border: 1.5px dashed var(--line);
+  border-radius: 16px;
+  color: var(--muted);
+  font-family: var(--serif);
+  text-align: center;
+}
+
+.board[hidden] + .board-empty {
+  display: block;
+}
+
+.board:not([hidden]) svg {
+  animation: drawn 0.35s ease-out;
+}
+
+@keyframes drawn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board:not([hidden]) svg {
+    animation: none;
+  }
+}
+
+.talk {
+  border-color: var(--copper);
+}
+
+.talk[aria-pressed="true"] {
+  background: var(--copper);
+  border-color: var(--copper);
+  color: var(--surface);
+}
+
+/* The buttons stay next to the camera, above the board: a drawing never
+   pushes the microphone out of reach. */
+.work > .tile {
+  order: 1;
+}
+
+.work > .controls {
+  order: 2;
+}
+
+.work > .board,
+.work > .board-empty {
+  order: 3;
+}
+
+.work > .supervisor {
+  order: 4;
 }
