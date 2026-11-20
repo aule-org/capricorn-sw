@@ -57,8 +57,7 @@ REPLIES: dict[str, dict[str, str]] = {
         "go on with what we were doing.",
     },
     "adult_help_again": {
-        "es": "No lo intentes tú; pide ayuda a un adulto de confianza cercano. Después "
-        "seguimos.",
+        "es": "No lo intentes tú; pide ayuda a un adulto de confianza cercano. Después seguimos.",
         "en": "Don't try it yourself; ask a trusted adult nearby for help. Afterwards we go on.",
     },
     "adult_help_wait": {
