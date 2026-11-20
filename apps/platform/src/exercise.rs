@@ -17,7 +17,7 @@ pub struct Rational {
     d: i64,
 }
 
-fn gcd(a: i64, b: i64) -> i64 {
+pub(crate) fn gcd(a: i64, b: i64) -> i64 {
     let (mut a, mut b) = (a.abs(), b.abs());
     while b != 0 {
         (a, b) = (b, a % b);
@@ -35,8 +35,16 @@ impl Rational {
         Some(Self { n: n.checked_mul(sign)? / g, d: d.checked_mul(sign)? / g })
     }
 
-    pub fn whole(n: i64) -> Self {
+    pub const fn whole(n: i64) -> Self {
         Self { n, d: 1 }
+    }
+
+    pub fn numerator(self) -> i64 {
+        self.n
+    }
+
+    pub fn denominator(self) -> i64 {
+        self.d
     }
 
     pub fn plus(self, other: Self) -> Option<Self> {
@@ -58,8 +66,21 @@ impl Rational {
         Self::new(self.n.checked_mul(other.d)?, self.d.checked_mul(other.n)?)
     }
 
-    fn is_whole(self) -> bool {
+    pub fn is_whole(self) -> bool {
         self.d == 1
+    }
+}
+
+// By value: the denominator is always positive, so cross products compare.
+impl Ord for Rational {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        (i128::from(self.n) * i128::from(other.d)).cmp(&(i128::from(other.n) * i128::from(self.d)))
+    }
+}
+
+impl PartialOrd for Rational {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -142,7 +163,7 @@ enum Token {
     Word,
 }
 
-fn plain(text: &str) -> String {
+pub(crate) fn plain(text: &str) -> String {
     text.to_lowercase()
         .chars()
         .map(|c| match c {
@@ -160,7 +181,7 @@ fn plain(text: &str) -> String {
         .collect()
 }
 
-fn cardinal(word: &str) -> Option<i64> {
+pub(crate) fn cardinal(word: &str) -> Option<i64> {
     const ES: [&str; 31] = [
         "cero",
         "uno",
@@ -251,7 +272,7 @@ fn cardinal(word: &str) -> Option<i64> {
 }
 
 /// "cuartos" is 4, "tercio" is 3, "doceavos" is 12, "halves" is 2.
-fn parts(word: &str) -> Option<i64> {
+pub(crate) fn parts(word: &str) -> Option<i64> {
     let known = [
         ("medio", 2),
         ("media", 2),
@@ -564,6 +585,10 @@ pub enum Form {
     Simplified,
     /// A whole number and a proper fraction when the value is above one.
     Mixed,
+    /// Algebra: a sum of terms, like terms together.
+    Expanded,
+    /// Algebra: a product of factors that cannot be split further.
+    Factored,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
@@ -599,6 +624,14 @@ pub enum Misconception {
     DividedInstead,
     /// Added where the exercise subtracts, or the other way round.
     WrongSign,
+    /// 2x + 3 = 11 → 2x = 14: a term moved across the "=" without changing its sign.
+    TransposedSign,
+    /// 2x = 8 → x = 1/4: divided the other way round.
+    DividedBackwards,
+    /// (a + b)² written a² + b²: the products in the middle are missing.
+    ForgotCrossTerms,
+    /// One solution of an equation that has two, or one unknown of two.
+    MissingSolution,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -612,7 +645,7 @@ pub struct Reading {
 fn in_form(written: &Written, value: Rational, form: Form) -> bool {
     let reduced = |(n, d): (i64, i64)| gcd(n, d) == 1 && d > 1;
     match form {
-        Form::Any => true,
+        Form::Any | Form::Expanded | Form::Factored => true,
         _ if written.decimal.is_some() => false,
         _ if value.is_whole() => written.part.is_none(),
         Form::Simplified => {

@@ -37,7 +37,11 @@ class Checker(Protocol):
 # model's API refuses an enum on a nullable type.
 POSE_EXERCISE: dict[str, Any] = {
     "name": "pose_exercise",
-    "description": "Register the computation you are about to ask, e.g. '3/4 + 1/8'.",
+    "description": (
+        "Register the computation you are about to ask, written as on a board: '3/4 + 1/8'; "
+        "in algebra '2x + 3 = 11', '(x + 2)(x - 3)' to expand, 'x^2 - 5x + 6' to factor, "
+        "'x + y = 10; x - y = 2', '3x^2 - 1 para x = 2'."
+    ),
     "parameters": {
         "type": "object",
         "properties": {
