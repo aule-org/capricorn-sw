@@ -349,6 +349,11 @@ fn tokens(text: &str) -> Vec<Token> {
                 "dividido" | "divided" => Token::Op(':'),
                 "es" | "da" | "sale" | "igual" | "resultado" | "queda" | "son" | "is" | "equals"
                 | "makes" => Token::Marker,
+                // A unit after a number changes nothing of the arithmetic.
+                "mm" | "cm" | "m" | "km" | "milimetros" | "milimetro" | "centimetros" | "centimetro"
+                | "metros" | "metro" | "kilometros" | "kilometro" | "unidades" | "unidad" | "millimetres"
+                | "centimetres" | "metres" | "kilometres" | "millimeters" | "centimeters" | "meters"
+                | "kilometers" | "units" | "unit" => continue,
                 _ => match (parts(&word), cardinal(&word)) {
                     // "un cuarto" is a quarter, but "cuarto" alone after a number is too.
                     (Some(value), _) => Token::Parts(value),
@@ -491,7 +496,11 @@ impl Exercise {
     /// Reads an expression such as "3/4 + 1/8", "2 1/2 x 4", "3/4 de 20" or
     /// "(1/2 + 1/3) : 2". None when it is not arithmetic this can work out.
     pub fn parse(expression: &str) -> Option<Self> {
-        let tokens = tokens(expression);
+        let mut tokens = tokens(expression);
+        // "6 x 4 = ?" is still 6 x 4: what follows the last number is not part of it.
+        while tokens.last() == Some(&Token::Marker) {
+            tokens.pop();
+        }
         if tokens.is_empty() || tokens.iter().any(|token| matches!(token, Token::Word | Token::Marker)) {
             return None;
         }
@@ -699,6 +708,22 @@ mod tests {
         ] {
             assert_eq!(answer(expression), expected, "{expression}");
         }
+    }
+
+    #[test]
+    fn units_and_a_trailing_question_do_not_stop_an_exercise_from_being_checked() {
+        let whole = |n: i64| Exercise::parse(&n.to_string()).unwrap().answer;
+        // A perimeter, as a tutor writes it.
+        assert_eq!(Exercise::parse("3 cm + 4 cm + 5 cm").unwrap().answer, whole(12));
+        assert_eq!(Exercise::parse("6 × 4 cm = ?").unwrap().answer, whole(24));
+        assert_eq!(Exercise::parse("6 por 4 centímetros").unwrap().answer, whole(24));
+        assert_eq!(Exercise::parse("8 m - 3 m =").unwrap().answer, whole(5));
+        // Words that are not a unit still mean it is not plain arithmetic.
+        assert!(Exercise::parse("el perímetro del hexágono").is_none());
+        assert!(Exercise::parse("3 manzanas + 4 peras").is_none());
+        assert!(Exercise::parse("= ?").is_none());
+        // A student's answer with its unit reads as the number.
+        assert_eq!(read_answer("son 24 centímetros").and_then(|written| written.value()), Some(whole(24)));
     }
 
     #[test]

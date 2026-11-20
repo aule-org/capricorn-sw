@@ -375,6 +375,8 @@ pub async fn pose(
         return Err(ApiError::bad_request("expression must have 1 to 120 characters"));
     }
     let exercise = Exercise::parse(expression).ok_or_else(|| {
+        // Counted, never quoted: how often the tutor asks for something this cannot check.
+        tracing::info!(session_id = %session.id, "exercise not checked: not plain arithmetic");
         ApiError::bad_request("expression is not arithmetic that can be checked; carry on without checking")
     })?;
     // Only a skill of the curriculum counts. An id the tutor made up is
