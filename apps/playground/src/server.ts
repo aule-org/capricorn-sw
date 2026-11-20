@@ -72,6 +72,7 @@ const STATIC: Record<string, { file: string | URL; type: string }> = {
   "/signin.js": { file: new URL("signin.js", publicDir), type: "text/javascript; charset=utf-8" },
   "/visuals.js": { file: new URL("visuals.js", publicDir), type: "text/javascript; charset=utf-8" },
   "/style.css": { file: new URL("style.css", publicDir), type: "text/css; charset=utf-8" },
+  "/dwarves.svg": { file: new URL("dwarves.svg", publicDir), type: "image/svg+xml" },
   // The team's panel. The page is the same for anyone; its data only for the team.
   "/admin": { file: new URL("admin.html", publicDir), type: "text/html; charset=utf-8" },
   "/admin.js": { file: new URL("admin.js", publicDir), type: "text/javascript; charset=utf-8" },
