@@ -35,6 +35,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
@@ -53,6 +55,8 @@ jobs:
         working-directory: apps/agent
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
@@ -83,6 +87,8 @@ jobs:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
@@ -101,6 +107,8 @@ jobs:
         working-directory: engine
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -116,6 +124,8 @@ jobs:
         app: [agent, playground, platform]
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - run: docker build --file apps/${{ matrix.app }}/Dockerfile --tag aule-${{ matrix.app }}:ci .
 
   required:

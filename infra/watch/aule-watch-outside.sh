@@ -37,8 +37,10 @@ mail() { # subject, body
   local payload
   payload=$(python3 -c 'import json, sys; print(json.dumps({"from": sys.argv[1], "to": json.loads(sys.argv[2]), "subject": sys.argv[3], "text": sys.argv[4]}))' \
     "$FROM" "$RECIPIENTS" "$1" "$2") || return 1
+  # The key goes in through a file descriptor, never on curl's command line,
+  # where anyone on the machine could read it with ps.
   curl -fsS --max-time 30 -o /dev/null https://api.resend.com/emails \
-    -H "Authorization: Bearer $(cat "$KEY_FILE")" \
+    -H @<(printf 'Authorization: Bearer %s\n' "$(cat "$KEY_FILE")") \
     -H "Content-Type: application/json" \
     --data-binary "$payload"
 }
