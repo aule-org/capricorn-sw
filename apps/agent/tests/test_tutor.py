@@ -12,6 +12,7 @@ from aule_agent.moderation import Action, Decision
 from aule_agent.replies import ADULT_HELP_SEQUENCE, REPLIES, reply
 from aule_agent.script import Line, Reply
 from aule_agent.tutor import (
+    FRESH_FRAME_SECONDS,
     INSTRUCTIONS,
     MAX_TYPED_CHARS,
     UNCHECKED,
@@ -187,7 +188,7 @@ async def test_hazards_in_a_row_get_the_full_offer_and_then_shorter_reminders():
     for _ in range(6):
         await hear(tutor, session)
 
-    keys = ["adult_help", "adult_help_riddle", "adult_help_story", "adult_help_riddle"]
+    keys = ["adult_help", "adult_help_again", "adult_help_wait", "adult_help_again"]
     assert [said[0] for said in session.said] == [
         REPLIES[key]["es"]
         for key in [*keys, "adult_help"]  # a safe turn starts over
@@ -628,8 +629,59 @@ def test_the_camera_is_looked_at_when_work_is_shown_or_asked_for(turns):
         [("assistant", "¿Cómo te fue hoy?"), ("user", "Bien, jugué fútbol.")],
         [("assistant", "¿Cuántas canicas sombreadas hay?"), ("user", "Creo que tres.")],
         [("user", "Mira mi cuaderno."), ("assistant", "Muy bien."), ("user", "¿Y ahora?")],
+        # A tutor names the homework and says "look at the screen" all the
+        # time: neither is asking to see the student's work.
+        [("assistant", "¡Hola! ¿Qué tarea traes hoy?"), ("user", "Dibújame un hexágono.")],
+        [("assistant", "Mira la pantalla: ¿cuántos lados tiene?"), ("user", "Seis.")],
+        [("assistant", "Look at the picture on the screen."), ("user", "It has six sides.")],
+        # Naming the homework is not showing it.
+        [("user", "Tengo tarea de fracciones en mi cuaderno.")],
+        [("user", "Enséñame a sumar fracciones.")],
         [],
     ],
 )
 def test_the_camera_is_left_alone_in_ordinary_talk(turns):
     assert not shows_something(conversation(*turns))
+
+
+class Lens:
+    """A camera that has, or has not, something new to show."""
+
+    def __init__(self, fresh=None, latest=None):
+        self._fresh, self._latest = fresh, latest
+        self.waited = []
+
+    async def fresh(self, timeout):
+        self.waited.append(timeout)
+        return self._fresh
+
+    def latest(self):
+        return self._latest
+
+
+async def test_the_button_that_shows_work_gets_a_look_and_an_answer_at_once():
+    lens, session = Lens(fresh="the page of the notebook", latest="a moment later"), Session()
+    tutor = Tutor(language="es", gates=ScriptedGates(), camera=lens)
+
+    with patch.object(Tutor, "session", new_callable=PropertyMock, return_value=session):
+        assert await tutor.show_work() is True
+    assert lens.waited == [FRESH_FRAME_SECONDS]
+
+    # Whatever the tutor was saying stops, and the student's turn is the button's.
+    assert session.interrupts == 1
+    assert session.replies_to == ["Mira mi trabajo."]
+    # The image is the one taken at the press, once.
+    turn = conversation(("user", "Mira mi trabajo."))
+    assert tutor._frame_for(turn) == "the page of the notebook"
+    assert tutor._frame_for(conversation(("user", "¿Está bien?"))) is None
+
+
+async def test_a_camera_with_nothing_to_show_gets_no_answer():
+    session = Session()
+    tutor = Tutor(language="es", gates=ScriptedGates(), camera=Lens(fresh=None))
+
+    with patch.object(Tutor, "session", new_callable=PropertyMock, return_value=session):
+        assert await tutor.show_work() is False
+        assert await Tutor(language="es", gates=ScriptedGates()).show_work() is False
+
+    assert not hasattr(session, "replies_to") and not hasattr(session, "interrupts")

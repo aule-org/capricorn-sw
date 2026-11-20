@@ -374,11 +374,17 @@ pub async fn pose(
     if expression.is_empty() || expression.chars().count() > 120 {
         return Err(ApiError::bad_request("expression must have 1 to 120 characters"));
     }
-    let exercise = Exercise::parse(expression).ok_or_else(|| {
+    let Some(exercise) = Exercise::parse(expression) else {
         // Counted, never quoted: how often the tutor asks for something this cannot check.
         tracing::info!(session_id = %session.id, "exercise not checked: not plain arithmetic");
-        ApiError::bad_request("expression is not arithmetic that can be checked; carry on without checking")
-    })?;
+        sqlx::query("update sessions set unchecked_exercises = unchecked_exercises + 1 where id = $1")
+            .bind(session.id)
+            .execute(&state.pool)
+            .await?;
+        return Err(ApiError::bad_request(
+            "expression is not arithmetic that can be checked; carry on without checking",
+        ));
+    };
     // Only a skill of the curriculum counts. An id the tutor made up is
     // treated as none, so it does not start a track of its own.
     let skill_id = match body.skill_id.as_deref().map(str::trim).filter(|id| learning::is_slug(id)) {
@@ -545,6 +551,35 @@ pub async fn answer(
 
 /// The exercise being worked on now, as the supervisor may know it: where it
 /// stands, never its answer.
+/// Marks the open exercise when something the tutor just said contains its
+/// answer. Only the fact is kept. An answer said in the same moment the
+/// exercise closes is missed; this undercounts rather than accuse.
+pub async fn note_answer_said(
+    pool: &PgPool,
+    session_id: Uuid,
+    tutor_said: &[String],
+) -> Result<(), sqlx::Error> {
+    if tutor_said.is_empty() {
+        return Ok(());
+    }
+    let open: Option<(i64, String)> = sqlx::query_as(
+        "select id, expression from session_exercises
+         where session_id = $1 and status = 'open' and not answer_said order by id desc limit 1",
+    )
+    .bind(session_id)
+    .fetch_optional(pool)
+    .await?;
+    let Some((id, expression)) = open else { return Ok(()) };
+    let Some(exercise) = Exercise::parse(&expression) else { return Ok(()) };
+    if tutor_said.iter().any(|said| exercise.is_given_away_by(&expression, said)) {
+        sqlx::query("update session_exercises set answer_said = true where id = $1")
+            .bind(id)
+            .execute(pool)
+            .await?;
+    }
+    Ok(())
+}
+
 pub async fn open_exercise(pool: &PgPool, session_id: Uuid) -> Result<Option<Value>, sqlx::Error> {
     let open: Option<(String, bool, i32, i32)> = sqlx::query_as(
         "select expression, probe, attempts, hints from session_exercises
