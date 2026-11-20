@@ -35,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let result = async {
         let base = url.rsplit_once('/').map_or(url.as_str(), |(base, _)| base);
         let pool = PgPoolOptions::new().max_connections(2).connect(&format!("{base}/{scratch}")).await?;
-        aule_platform::MIGRATOR.run(&pool).await?;
+        aule_platform::migrate(&pool).await?;
         let missing = schema_diff::missing(pool.clone()).await?;
         pool.close().await;
         Ok::<_, Box<dyn std::error::Error>>(missing)

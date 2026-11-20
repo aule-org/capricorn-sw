@@ -179,6 +179,12 @@ is `#[sea_orm(unique)]` on the entity.
 The server only runs the files in `migrations/` (never a schema sync), and a
 file already applied is never edited.
 
+`migrations/0017_baseline.sql` is the whole schema as 0001 to 0016 left it;
+those files are gone. At start, `migrate` (in `src/lib.rs`) marks a database
+that ran 0001 to 0016 as having run the baseline, under one lock for the API
+and the worker, and refuses one older than that (`infra/server/RESTORE.md`
+says how to restore such a backup).
+
 Not every table has an entity yet: the modules move to SeaORM one at a time.
 
 To refit the learner model's parameters from a log of answers:

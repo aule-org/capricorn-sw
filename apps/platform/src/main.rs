@@ -70,7 +70,7 @@ async fn main() {
         .connect(&config.database_url)
         .await
         .unwrap_or_else(|error| fail("the database could not be reached", error));
-    aule_platform::MIGRATOR.run(&pool).await.unwrap_or_else(|error| fail("migrations failed", error));
+    aule_platform::migrate(&pool).await.unwrap_or_else(|error| fail("migrations failed", error));
 
     let state = AppState::new(pool, config);
     match command.as_str() {
