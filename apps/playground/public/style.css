@@ -1101,3 +1101,123 @@ button[aria-pressed="true"]:not(.talk) {
 .work > .supervisor {
   order: 4;
 }
+
+/* A session the engine runs: where it is, and the exercise in hand. */
+.route {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 8px;
+  grid-column: 1 / -1;
+}
+
+.route li {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--muted);
+  display: grid;
+  gap: 2px;
+  font-size: 0.85rem;
+}
+
+.route li strong {
+  font-family: var(--serif);
+  font-size: 1rem;
+  color: inherit;
+}
+
+.route li span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.route li[data-state="current"] {
+  border: 2px solid var(--ink);
+  color: var(--ink);
+  box-shadow: 3px 3px 0 var(--copper-soft);
+}
+
+.route li[data-state="done"] {
+  color: var(--ink);
+  background: var(--copper-soft);
+  border-color: var(--copper-soft);
+}
+
+.card {
+  margin: 12px 0 0;
+  padding: 16px 18px;
+  background: #fff;
+  border: 2px solid var(--ink);
+  border-radius: 16px;
+  box-shadow: 5px 5px 0 var(--bg-2);
+}
+
+.card-title {
+  margin: 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--copper);
+  font-weight: 600;
+}
+
+.card-statement {
+  margin: 6px 0 0;
+  font-family: var(--serif);
+  font-size: 1.25rem;
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+.card form {
+  margin: 14px 0 0;
+  padding: 0;
+  max-width: none;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  gap: 12px;
+}
+
+.card textarea {
+  font: inherit;
+  color: inherit;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  padding: 10px 12px;
+  background: var(--bg);
+  resize: vertical;
+}
+
+@media (max-width: 900px) {
+  .route li span {
+    display: none;
+  }
+}
+
+/* With an exercise in hand the work comes first: the card, its drawing, the
+   buttons, and the camera small at the end, since it is only on for a picture. */
+.work.with-card > .card {
+  order: 0;
+  margin-top: 0;
+}
+
+.work.with-card > .board,
+.work.with-card > .board-empty {
+  order: 1;
+}
+
+.work.with-card > .controls {
+  order: 2;
+}
+
+.work.with-card > .tile {
+  order: 3;
+  max-height: 22vh;
+}
