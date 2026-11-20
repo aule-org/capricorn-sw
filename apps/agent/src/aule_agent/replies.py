@@ -76,11 +76,11 @@ REPLIES: dict[str, dict[str, str]] = {
     # end without a warning.
     "five_minutes_left": {
         "es": "Nos quedan cinco minutos. Terminemos esto con calma.",
-        "en": "We have five minutes left. Let's finish this calmly.",
+        "en": "We have five minutes left. Let's finish this without rushing.",
     },
     "two_minutes_left": {
         "es": "Nos quedan dos minutos. Terminemos esto con calma.",
-        "en": "We have two minutes left. Let's finish this calmly.",
+        "en": "We have two minutes left. Let's finish this without rushing.",
     },
     "goodbye": {
         "es": "Se nos acabó el tiempo por hoy. ¡Buen trabajo! Hasta la próxima.",
@@ -88,40 +88,40 @@ REPLIES: dict[str, dict[str, str]] = {
     },
     # An active break: one short thing to do away from the work, then back.
     "break_stars": {
-        "es": "Llevamos un buen rato trabajando, así que toca una pausa. Ponte de pie y haz "
-        "quince saltos de estrella, abriendo brazos y piernas. Cuando vuelvas, avísame y "
-        "seguimos.",
-        "en": "We have been working for a good while, so it is time for a break. Stand up and "
-        "do fifteen star jumps, opening your arms and legs. Tell me when you are back and we "
-        "go on.",
+        "es": "Llevamos un buen rato trabajando, así que toca una pausa. Ponte de pie donde "
+        "tengas espacio y haz quince saltos de estrella, abriendo brazos y piernas. Cuando "
+        "vuelvas, avísame y seguimos.",
+        "en": "We have been working for a good while, so it is time for a break. Stand up "
+        "where you have room and do fifteen star jumps, opening your arms and legs. Tell me "
+        "when you are back and we'll carry on.",
     },
     "break_balloon": {
-        "es": "Buen momento para una pausa. Siéntate cómodo, pon las manos en la barriga y "
-        "respira despacio cinco veces, inflándola como un globo. Cuando termines, avísame y "
-        "seguimos.",
+        "es": "Buen momento para una pausa. Busca una postura cómoda, pon las manos en la "
+        "barriga y respira despacio cinco veces, inflándola como un globo. Cuando termines, "
+        "avísame y seguimos.",
         "en": "A good moment for a break. Sit comfortably, put your hands on your belly and "
         "breathe slowly five times, filling it like a balloon. Tell me when you are done and "
-        "we go on.",
+        "we'll carry on.",
     },
     "break_mirror": {
         "es": "Toca una pausa. Ponte de pie y toca tu nariz, tus rodillas y tus hombros, cada "
         "vez más rápido. Después sacude las manos y los pies. Cuando vuelvas, avísame y "
         "seguimos.",
         "en": "Time for a break. Stand up and touch your nose, your knees and your shoulders, "
-        "faster each time. Then shake your hands and feet. Tell me when you are back and we "
-        "go on.",
+        "faster each time. Then shake your hands and feet. Tell me when you are back and "
+        "we'll carry on.",
     },
     "break_cat": {
         "es": "Hagamos una pausa. Estira los brazos hacia arriba como un gato que despierta, "
         "gira despacio el cuello a un lado y al otro, y toma agua si tienes a la mano. Cuando "
         "vuelvas, avísame y seguimos.",
         "en": "Let's take a break. Stretch your arms up like a cat waking up, turn your neck "
-        "slowly to one side and the other, and drink some water if you have it near. Tell me "
-        "when you are back and we go on.",
+        "slowly to one side and the other, and drink some water if you have some nearby. "
+        "Tell me when you are back and we'll carry on.",
     },
     "break_over": {
         "es": "Ya pasó la pausa. ¿Seguimos donde nos quedamos?",
-        "en": "The break is over. Shall we go on where we left off?",
+        "en": "The break is over. Shall we carry on where we left off?",
     },
     "context_limit": {
         "es": "Necesito ayuda de un adulto para seguir con seguridad. Pídele que revise lo que "
