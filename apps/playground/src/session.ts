@@ -26,12 +26,12 @@ export class PlatformError extends Error {
 }
 
 // `token` is a signed-in guardian's; without one the call is the team's own.
-async function platform(
+export async function platform(
   settings: Settings,
   path: string,
   body?: unknown,
   token?: string,
-  method?: "DELETE",
+  method?: "DELETE" | "PUT",
 ): Promise<unknown> {
   const response = await fetch(`${settings.platform!.url}${path}`, {
     method: method ?? (body === undefined ? "GET" : "POST"),
@@ -72,11 +72,6 @@ export async function signIn(settings: Settings, credential: string): Promise<Si
   return { token: answer.token, days: typeof answer.expires_in_days === "number" ? answer.expires_in_days : 1 };
 }
 
-/** Removes one student of the signed-in guardian's family, and everything kept about them. */
-export function removeStudent(settings: Settings, token: string, studentId: string): Promise<unknown> {
-  return platform(settings, `/v1/children/${encodeURIComponent(studentId)}`, undefined, token, "DELETE");
-}
-
 /**
  * Erases the signed-in guardian's family: the account, its students and what
  * was kept about them. The platform only does it when the address typed is the
@@ -90,7 +85,13 @@ export function signOut(settings: Settings, token: string): Promise<unknown> {
   return platform(settings, "/v1/auth/signout", {}, token);
 }
 
-export type Account = { name: string; familyId: string; students: { id: string; name: string }[] };
+export type Account = {
+  name: string;
+  familyId: string;
+  students: { id: string; name: string }[];
+  /** The subjects the platform keeps for a student; null when it keeps none. */
+  subjects: string[] | null;
+};
 
 /** Who is signed in and the students of their family. */
 export async function account(settings: Settings, token: string): Promise<Account> {
@@ -98,6 +99,7 @@ export async function account(settings: Settings, token: string): Promise<Accoun
     guardian?: { name?: unknown };
     family_id?: unknown;
     children?: { id?: unknown; nickname?: unknown }[];
+    subjects?: unknown;
   };
   if (typeof answer.family_id !== "string") throw new PlatformError("the platform sent no family");
   return {
@@ -108,52 +110,10 @@ export async function account(settings: Settings, token: string): Promise<Accoun
         ? [{ id: child.id, name: child.nickname }]
         : [],
     ),
+    subjects: Array.isArray(answer.subjects)
+      ? answer.subjects.filter((subject): subject is string => typeof subject === "string")
+      : null,
   };
-}
-
-// The terms a guardian agrees to on this page; recorded with each consent.
-const POLICY_VERSION = "playground-2026-11";
-
-/**
- * A new student in the signed-in guardian's family, with the consent they just
- * gave on the page: the voice is processed to answer and what matters is
- * remembered between sessions. Transcripts are not kept.
- */
-export async function createStudent(
-  settings: Settings,
-  token: string,
-  familyId: string,
-  name: string,
-  language: Language,
-): Promise<{ id: string; name: string }> {
-  const created = (await platform(
-    settings,
-    `/v1/families/${encodeURIComponent(familyId)}/children`,
-    { nickname: name, language },
-    token,
-  )) as { id?: unknown; child?: { id?: unknown } };
-  const id = typeof created.id === "string" ? created.id : created.child?.id;
-  if (typeof id !== "string") throw new PlatformError("the platform sent no student");
-  for (const [purpose, granted] of [["voice", true], ["memory", true], ["transcripts", false]] as const) {
-    await platform(
-      settings,
-      `/v1/children/${encodeURIComponent(id)}/consents`,
-      { purpose, granted, policy_version: POLICY_VERSION },
-      token,
-    );
-  }
-  return { id, name };
-}
-
-/** A session for one of the signed-in guardian's students. */
-export async function createStudentSession(
-  settings: Settings,
-  token: string,
-  studentId: string,
-  language: Language,
-): Promise<Session> {
-  const body = { audience: "child", language, child_id: studentId };
-  return (await platform(settings, "/v1/sessions", body, token)) as Session;
 }
 
 /** What the supervisor planned and advised in a session the platform created. */

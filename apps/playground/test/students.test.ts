@@ -1,0 +1,332 @@
+import assert from "node:assert/strict";
+import type { AddressInfo } from "node:net";
+import { createServer } from "node:http";
+import { after, before, beforeEach, test } from "node:test";
+
+import { readSettings } from "../src/config.ts";
+import { createPlayground } from "../src/server.ts";
+import { objectiveFrom, profileFrom } from "../src/students.ts";
+import { COMPLETE } from "./fixtures.ts";
+
+const TOKEN = "cd".repeat(32);
+const LIAM = "01a1f5f4-ede7-7028-a524-9d8e2f36b92c";
+const SOFIA = "02a1f5f4-ede7-7028-a524-9d8e2f36b92c";
+const NEW = "03a1f5f4-ede7-7028-a524-9d8e2f36b92c";
+const MEMORY = "04a1f5f4-ede7-7028-a524-9d8e2f36b92c";
+const SUBJECTS = ["matematica", "comunicacion", "ciencia", "personal_social", "ingles"];
+
+// Stands in for the platform: one family with two students. Sofía cannot be
+// read, as when the platform is slow or the student was just removed.
+const seen: { method: string; path: string; auth: string | undefined; body: unknown }[] = [];
+let keepsSubjects = true;
+const liam = () => ({
+  id: LIAM,
+  family_id: "fam-1",
+  nickname: "Liam",
+  birth_year: 2016,
+  grade: "P4",
+  language: "es",
+  interests: ["fútbol", "robots"],
+  notes: "from the team",
+  tutor_name: "Aule",
+  tutor_persona: "aventurero",
+  tutor_persona_note: "Ve despacio.",
+  ...(keepsSubjects ? { subjects: ["matematica", "latin"] } : {}),
+});
+const platform = createServer(async (request, response) => {
+  const chunks: Buffer[] = [];
+  for await (const chunk of request) chunks.push(chunk as Buffer);
+  const text = Buffer.concat(chunks).toString("utf8");
+  const body = text ? JSON.parse(text) : null;
+  const path = request.url ?? "";
+  const method = request.method ?? "";
+  seen.push({ method, path, auth: request.headers.authorization, body });
+  const answer = (status: number, value: unknown) => {
+    response.writeHead(status, { "Content-Type": "application/json" });
+    response.end(JSON.stringify(value));
+  };
+  if (path === "/v1/auth/google") return answer(200, { client_id: "client-1" });
+  if (request.headers.authorization !== `Bearer ${TOKEN}`) return answer(401, { error: { message: "who?" } });
+  if (path === "/v1/me") {
+    return answer(200, {
+      guardian: { name: "Ana" },
+      family_id: "fam-1",
+      children: [
+        { id: LIAM, nickname: "Liam" },
+        { id: SOFIA, nickname: "Sofía" },
+      ],
+      ...(keepsSubjects ? { subjects: SUBJECTS } : {}),
+    });
+  }
+  if (path === `/v1/children/${LIAM}` && method === "GET") {
+    return answer(200, { child: liam(), consent: { voice: true, memory: true, transcripts: false } });
+  }
+  if (path === `/v1/children/${LIAM}` && method === "PUT") return answer(200, liam());
+  if (path === "/v1/families/fam-1/children") return answer(201, { id: NEW, nickname: body.nickname });
+  if (path.endsWith("/consents")) return answer(201, {});
+  if (path === `/v1/children/${LIAM}/skills`) {
+    return answer(200, {
+      ability: -0.8,
+      skills: [
+        { skill_id: "a", attempts: 3, mastered: true },
+        { skill_id: "b", attempts: 2, mastered: false },
+        { skill_id: "c", attempts: 0, mastered: false },
+      ],
+      next: [
+        { skill_id: "b", name: "Comparar fracciones", p_now: 0.4 },
+        { skill_id: "d", name: null },
+        { skill_id: "e", name: "Fracciones equivalentes" },
+      ],
+    });
+  }
+  if (path === `/v1/children/${LIAM}/memories?limit=20`) {
+    return answer(200, {
+      memories: [{ id: MEMORY, kind: "preference", content: "Le gusta el fútbol.", created_at: "2026-11-15T10:00:00Z" }],
+    });
+  }
+  if (path === `/v1/children/${LIAM}/reviews`) {
+    return answer(200, {
+      reviews: [
+        { session_id: "s-0", summary: "Practicó fracciones.", next_step: "Sigue comparar.", flags: [], created_at: "2026-11-17T23:10:00Z" },
+      ],
+    });
+  }
+  if (path === `/v1/children/${LIAM}/memories/${MEMORY}` && method === "DELETE") return answer(204, {});
+  if (path === "/v1/sessions") return answer(201, { session_id: "s-1", serverUrl: "wss://x", token: "jwt", room: "r" });
+  answer(404, { error: { message: "no such path" } });
+});
+
+let base = "";
+let server: ReturnType<typeof createPlayground>;
+
+before(async () => {
+  await new Promise<void>((resolve) => platform.listen(0, "127.0.0.1", resolve));
+  const url = `http://127.0.0.1:${(platform.address() as AddressInfo).port}`;
+  server = createPlayground(readSettings({ ...COMPLETE, AULE_PLATFORM_URL: url, AULE_ADMIN_TOKEN: "admin" }));
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/playground`;
+});
+after(() => {
+  server.close();
+  platform.close();
+});
+beforeEach(() => {
+  seen.length = 0;
+  keepsSubjects = true;
+});
+
+const COOKIE = `aule_guardian=${TOKEN}`;
+const post = (path: string, body: unknown, cookie: string | null = COOKIE) =>
+  fetch(`${base}/api/${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(cookie ? { Cookie: cookie } : {}) },
+    body: JSON.stringify(body),
+  });
+const PROFILE = {
+  name: "Liam",
+  grade: "P5",
+  language: "es",
+  interests: ["fútbol", "ajedrez"],
+  tone: "tranquilo",
+  note: "",
+  subjects: ["matematica", "ingles"],
+  remembers: true,
+  keeps_transcripts: false,
+};
+
+test("a profile is a name and, at most, what the page offers", () => {
+  assert.deepEqual(profileFrom({ name: " Liam " }), {
+    name: "Liam",
+    grade: null,
+    language: "es",
+    interests: [],
+    tone: "calido",
+    note: "",
+    subjects: null,
+    remembers: true,
+    keepsTranscripts: false,
+  });
+  assert.deepEqual(profileFrom({ name: "Liam", interests: [" fútbol ", "fútbol"] })?.interests, ["fútbol"]);
+  assert.equal(profileFrom({ name: "Liam", grade: "" })?.grade, null, "the grade can be left out");
+  for (const wrong of [
+    {},
+    { name: "x".repeat(41) },
+    { name: "Liam", grade: "P7" },
+    { name: "Liam", tone: "estricto" },
+    { name: "Liam", interests: Array(11).fill("a").map((text, index) => `${text}${index}`) },
+    { name: "Liam", interests: ["x".repeat(41)] },
+    { name: "Liam", interests: "fútbol" },
+    { name: "Liam", note: "x".repeat(201) },
+    { name: "Liam", subjects: ["latin"] },
+    { name: "Liam", remembers: "yes" },
+  ]) {
+    assert.equal(profileFrom(wrong), null, JSON.stringify(wrong).slice(0, 60));
+  }
+});
+
+test("what a session is for is one of four kinds, a subject, and a real day", () => {
+  assert.equal(objectiveFrom(undefined), undefined);
+  assert.deepEqual(objectiveFrom({ kind: "homework", subject: "matematica", topic: " fracciones ", due: "2026-11-27" }), {
+    kind: "homework",
+    subject: "matematica",
+    topic: "fracciones",
+    due: "2026-11-27",
+  });
+  assert.deepEqual(objectiveFrom({ kind: "explore", subject: "other" }), {
+    kind: "explore",
+    subject: "other",
+    topic: "",
+    due: null,
+  });
+  for (const wrong of [
+    "homework",
+    { kind: "play", subject: "matematica" },
+    { kind: "homework", subject: "latin" },
+    { kind: "homework", subject: "matematica", topic: "x".repeat(201) },
+    { kind: "homework", subject: "matematica", due: "2026-02-30" },
+    { kind: "homework", subject: "matematica", due: "mañana" },
+  ]) {
+    assert.equal(objectiveFrom(wrong), null, JSON.stringify(wrong).slice(0, 60));
+  }
+});
+
+test("the account lists each student as the family set them up, and the subjects the platform keeps", async () => {
+  const response = await fetch(`${base}/api/account`, { headers: { Cookie: COOKIE } });
+
+  const body = await response.json();
+  assert.deepEqual(body.subjects, SUBJECTS);
+  assert.deepEqual(body.students, [
+    {
+      id: LIAM,
+      name: "Liam",
+      grade: "P4",
+      language: "es",
+      interests: ["fútbol", "robots"],
+      tone: "aventurero",
+      note: "Ve despacio.",
+      // A subject the page does not know is left out.
+      subjects: ["matematica"],
+      remembers: true,
+      keepsTranscripts: false,
+    },
+    // A student that cannot be read is still there to choose.
+    { id: SOFIA, name: "Sofía" },
+  ]);
+  // The team's notes and the year of birth are not the page's to show.
+  assert.ok(!JSON.stringify(body).includes("from the team"));
+  assert.ok(!JSON.stringify(body).includes("2016"));
+  assert.ok(seen.slice(1).every((call) => call.auth === `Bearer ${TOKEN}`), "every call is the guardian's own");
+});
+
+test("a platform that keeps no subjects is shown as one", async () => {
+  keepsSubjects = false;
+
+  const body = await (await fetch(`${base}/api/account`, { headers: { Cookie: COOKIE } })).json();
+
+  assert.equal(body.subjects, null);
+  assert.equal(body.students[0].subjects, null);
+});
+
+test("a new student carries the profile and the consents the guardian chose", async () => {
+  assert.equal((await post("student", { ...PROFILE, name: "Mateo", consent: true }, null)).status, 401);
+  assert.equal((await post("student", { ...PROFILE, name: "Mateo" })).status, 400, "not without the guardian's yes");
+  assert.equal((await post("student", { ...PROFILE, grade: "P7", consent: true })).status, 400);
+  seen.length = 0;
+
+  const response = await post("student", { ...PROFILE, name: "Mateo", remembers: false, keeps_transcripts: true, consent: true });
+
+  assert.equal(response.status, 201);
+  assert.deepEqual(await response.json(), { id: NEW, name: "Mateo" });
+  assert.deepEqual(seen.find((call) => call.path.endsWith("/children"))?.body, {
+    nickname: "Mateo",
+    grade: "P5",
+    language: "es",
+    interests: ["fútbol", "ajedrez"],
+    tutor_persona: "tranquilo",
+    tutor_persona_note: "",
+    subjects: ["matematica", "ingles"],
+  });
+  assert.deepEqual(
+    seen.filter((call) => call.path.endsWith("/consents")).map((call) => call.body),
+    [
+      { purpose: "voice", granted: true, policy_version: "playground-2026-11" },
+      { purpose: "memory", granted: false, policy_version: "playground-2026-11" },
+      { purpose: "transcripts", granted: true, policy_version: "playground-2026-11" },
+    ],
+  );
+  assert.ok(seen.every((call) => call.auth === `Bearer ${TOKEN}`), "every call is the guardian's own");
+});
+
+test("saving keeps what the page does not show and records only the consent that changed", async () => {
+  assert.equal((await post("student/save", { student_id: LIAM, ...PROFILE }, null)).status, 401);
+  assert.equal((await post("student/save", { student_id: "nope", ...PROFILE })).status, 400);
+  assert.equal((await post("student/save", { student_id: LIAM, ...PROFILE, tone: "estricto" })).status, 400);
+  seen.length = 0;
+
+  const response = await post("student/save", { student_id: LIAM, ...PROFILE, remembers: false });
+
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).id, LIAM);
+  assert.deepEqual(seen.find((call) => call.method === "PUT")?.body, {
+    nickname: "Liam",
+    grade: "P5",
+    language: "es",
+    interests: ["fútbol", "ajedrez"],
+    tutor_persona: "tranquilo",
+    // An empty note removes the one that was there.
+    tutor_persona_note: "",
+    subjects: ["matematica", "ingles"],
+    birth_year: 2016,
+    notes: "from the team",
+  });
+  assert.deepEqual(
+    seen.filter((call) => call.path.endsWith("/consents")).map((call) => call.body),
+    [{ purpose: "memory", granted: false, policy_version: "playground-2026-11" }],
+  );
+  assert.ok(seen.every((call) => call.auth === `Bearer ${TOKEN}`), "every call is the guardian's own");
+});
+
+test("subjects are not sent to a platform that does not keep them", async () => {
+  keepsSubjects = false;
+
+  await post("student/save", { student_id: LIAM, ...PROFILE });
+
+  const sent = seen.find((call) => call.method === "PUT")?.body as Record<string, unknown>;
+  assert.equal("subjects" in sent, false);
+});
+
+test("what is kept about a student is short enough to read, and one memory can be forgotten", async () => {
+  assert.equal((await post("student/known", { student_id: LIAM }, null)).status, 401);
+
+  const known = await post("student/known", { student_id: LIAM });
+
+  assert.deepEqual(await known.json(), {
+    mastered: 1,
+    practising: 1,
+    next: ["Comparar fracciones", "Fracciones equivalentes"],
+    memories: [{ id: MEMORY, text: "Le gusta el fútbol." }],
+    sessions: [{ day: "2026-11-17", summary: "Practicó fracciones.", next: "Sigue comparar." }],
+  });
+
+  assert.equal((await post("student/forget", { student_id: LIAM, memory_id: "nope" })).status, 400);
+  const forgotten = await post("student/forget", { student_id: LIAM, memory_id: MEMORY });
+  assert.equal(forgotten.status, 200);
+  assert.deepEqual(seen.at(-1), {
+    method: "DELETE",
+    path: `/v1/children/${LIAM}/memories/${MEMORY}`,
+    auth: `Bearer ${TOKEN}`,
+    body: null,
+  });
+});
+
+test("a session carries what the family said it is for, and nothing when they said nothing", async () => {
+  const objective = { kind: "exam_prep", subject: "comunicacion", topic: "el resumen", due: "2026-11-27" };
+  assert.equal((await post("session", { student_id: LIAM, objective: { kind: "play" } })).status, 400);
+  assert.equal(seen.length, 0, "a session is not asked for with an objective that is not one");
+
+  await post("session", { student_id: LIAM, language: "es", objective });
+  assert.deepEqual(seen.at(-1)?.body, { audience: "child", language: "es", child_id: LIAM, objective });
+
+  await post("session", { student_id: LIAM, language: "es" });
+  assert.deepEqual(seen.at(-1)?.body, { audience: "child", language: "es", child_id: LIAM });
+});
