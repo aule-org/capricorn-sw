@@ -22,22 +22,18 @@ const MAX_LINE_CHARS: usize = 60;
 const MAX_TITLE_CHARS: usize = 80;
 const MAX_CELL_CHARS: usize = 24;
 
-/// A screen writes "3/8" next to a bar or a circle that has no label, which
-/// is the answer when the question is which fraction is shaded. The engine
-/// writes nothing there, and the contract has no way to say "no label", so an
-/// unlabelled part carries a blank one.
-const NO_LABEL: &str = " ";
-
 fn part(shaded: u32, parts: u32, label: Option<&str>) -> Option<Value> {
     if parts == 0 || parts > MAX_DENOMINATOR || shaded > MAX_NUMERATOR {
         return None;
     }
-    let label = match label.map(str::trim) {
+    // The engine writes nothing next to a shape without a label. A screen
+    // would write the fraction, which is the answer when the question is
+    // which fraction is shaded.
+    Some(match label.map(str::trim).filter(|label| !label.is_empty()) {
         Some(label) if label.chars().count() > MAX_LABEL_CHARS => return None,
-        Some(label) if !label.is_empty() => label,
-        _ => NO_LABEL,
-    };
-    Some(json!({ "numerator": shaded, "denominator": parts, "label": label }))
+        Some(label) => json!({ "numerator": shaded, "denominator": parts, "label": label }),
+        None => json!({ "numerator": shaded, "denominator": parts, "labelled": false }),
+    })
 }
 
 /// The engine's drawing as a visual, or nothing when no kind draws it faithfully.
@@ -262,7 +258,7 @@ pub(crate) mod tests {
             drawing(&Grafico::Circulos { partes: 4, sombreadas: 7 }).unwrap(),
         ] {
             for fraction in visual["fractions"].as_array().unwrap() {
-                assert_eq!(fraction["label"], NO_LABEL, "{visual}");
+                assert_eq!((&fraction["labelled"], fraction.get("label")), (&json!(false), None), "{visual}");
             }
         }
         // A label the bank wrote is kept: it is part of the drawing.

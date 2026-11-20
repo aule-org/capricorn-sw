@@ -67,6 +67,10 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 20
+          },
+          "labelled": {
+            "type": "boolean",
+            "description": "false draws the shape with nothing written next to it, for when the fraction is what the student has to find. Left out, the label is written, or the fraction itself when there is no label."
           }
         }
       }

@@ -128,6 +128,8 @@ function fractionBars(v, top) {
         cells += `<line x1="${x}" y1="${y}" x2="${x}" y2="${y + height}" stroke="${k < shaded ? "#fff" : INK}" stroke-width="2"/>`;
       }
       cells += rect(left, y, width, height);
+      // Nothing is written next to a shape whose fraction is the question.
+      if (fraction.labelled === false) return cells;
       const label = fraction.label ?? `${fraction.numerator}/${fraction.denominator}`;
       return cells + text(left + width + 20, y + height / 2 + 8, label, { size: 24, anchor: "start", weight: 600, room: W - left - width - 30 });
     })
@@ -162,6 +164,7 @@ function fractionCircle(v, top) {
           out += `<path d="M ${cx} ${cy} L ${show(x0)} ${show(y0)} A ${radius} ${radius} 0 ${large} 1 ${show(x1)} ${show(y1)} Z" fill="${k < shaded ? INK : "#fff"}" stroke="${INK}" stroke-width="2"/>`;
         }
       }
+      if (fraction.labelled === false) return out;
       const label = fraction.label ?? `${fraction.numerator}/${fraction.denominator}`;
       return out + text(cx, cy + radius + 28, label, { size: 22, weight: 600, room: slot - 8 });
     })

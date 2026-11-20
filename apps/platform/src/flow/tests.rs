@@ -13,6 +13,7 @@ fn setup(goal: Goal) -> Setup {
         today: NaiveDate::from_ymd_opt(2026, 11, 14).unwrap(),
         goal,
         due: NaiveDate::from_ymd_opt(2026, 11, 19),
+        start: Start { minutes: 90, kept: Kept::default() },
     }
 }
 
@@ -32,7 +33,12 @@ struct Student {
 
 impl Student {
     fn new(goal: Goal) -> Self {
-        let mut student = Self { flow: flow(goal), now: 0, records: Vec::new(), turns: Vec::new() };
+        Self::from(setup(goal))
+    }
+
+    fn from(setup: Setup) -> Self {
+        let flow = Flow::new(setup, bank().unwrap());
+        let mut student = Self { flow, now: 0, records: Vec::new(), turns: Vec::new() };
         let opening = student.flow.open(0);
         student.keep(opening);
         student
@@ -312,6 +318,7 @@ fn assert_no_answer(student: &Student) {
         "numerator",
         "denominator",
         "label",
+        "labelled",
         "groups",
         "count",
         "fill",
@@ -702,4 +709,274 @@ fn the_opening_is_the_same_until_something_happens() {
     assert_eq!(again.lines.len(), 1);
     assert_eq!(again.lines[0].say, flow.card().unwrap().enunciado);
     assert!(flow.unsaved().is_empty());
+}
+
+/// A session that starts from what an earlier one left.
+fn next_session(goal: Goal, kept: Kept) -> Student {
+    let mut setup = setup(goal);
+    setup.start.kept = kept;
+    Student::from(setup)
+}
+
+#[test]
+fn a_student_who_was_screened_is_not_screened_again() {
+    let mut first = in_screening();
+    first.answers(true);
+    first.answers(true);
+    for _ in 0..3 {
+        first.answers(false);
+    }
+    assert!(first.at().starts_with("etapa1:3"), "{}", first.at());
+    first.says("me gustaría aprender de zanahorias moradas");
+    let kept = first.flow.kept();
+    assert_eq!(kept.levels.get("Fracciones"), Some(&2));
+    assert_eq!(kept.sessions, 1);
+    assert!(kept.unfinished_screenings.is_empty());
+
+    // What is kept is levels and ids: no name, nothing the student said.
+    let stored = serde_json::to_value(&kept).unwrap();
+    let text = stored.to_string();
+    for word in ["Mateo", "Ana", "fútbol", "zanahorias"] {
+        assert!(!text.contains(word), "{word} is kept: {text}");
+    }
+    let fields: Vec<&str> = stored.as_object().unwrap().keys().map(String::as_str).collect();
+    assert_eq!(
+        fields,
+        ["levels", "minutes_per_level", "sessions", "unfinished_screenings", "used_exercises"]
+    );
+    let kept: Kept = serde_json::from_value(stored).unwrap();
+
+    // The next session goes straight to the level after the one reached.
+    let mut second = next_session(Goal::Homework, kept.clone());
+    let started = second.says("sí");
+    assert_eq!(second.at(), "etapa1:3:teoria", "{}", said_by_tutor(&started));
+    assert!(!said_by_tutor(&started).contains("Pregunta 1 de 5"));
+    assert!(!said_by_tutor(&started).contains("Tamizaje"));
+    assert_eq!(second.flow.kept().sessions, 2);
+
+    // A session rebuilt from its inputs starts from the same profile.
+    second.until("etapa2:3");
+    second.answers(true);
+    let mut setup = setup(Goal::Homework);
+    setup.start.kept = kept;
+    let rebuilt = Flow::replay(setup, bank().unwrap(), &second.records);
+    assert_eq!(rebuilt.step(second.now), second.flow.step(second.now));
+    // ...and not from nothing: without the profile the same inputs give another session.
+    let blank = Flow::replay(self::setup(Goal::Homework), bank().unwrap(), &second.records);
+    assert_ne!(blank.step(second.now), second.flow.step(second.now));
+}
+
+#[test]
+fn a_screening_left_half_way_is_taken_up_where_it_stopped() {
+    // The engine's rule (TAM-06): out with no wrong answer yet, the screening
+    // goes on next time from the last level answered, with another question.
+    let mut first = in_screening();
+    first.answers(true);
+    first.says("quiero salir del tamizaje");
+    let kept = first.flow.kept();
+    assert_eq!(kept.unfinished_screenings.len(), 1, "{kept:?}");
+
+    let mut second = next_session(Goal::Homework, kept);
+    let started = second.says("sí");
+    let said = said_by_tutor(&started);
+    assert!(said.contains("La vez pasada empezamos el Tamizaje"), "{said}");
+    assert!(said.contains("Pregunta 1 de 5") && !said.contains("Es el Tamizaje: son 5 preguntas"), "{said}");
+    assert_ne!(second.flow.card().unwrap().id, Some("n1-t1".to_string()), "another question of that level");
+
+    // Closed by the agent in the middle of the screening: the same.
+    let mut cut = in_screening();
+    cut.answers(true);
+    cut.answers(true);
+    let mut third = next_session(Goal::Homework, cut.flow.kept());
+    assert!(said_by_tutor(&third.says("sí")).contains("Pregunta 3 de 5"));
+}
+
+#[test]
+fn every_graded_exercise_is_evidence_for_the_learner_model() {
+    // The screening: one answer each, right or not.
+    let mut student = in_screening();
+    student.answers(true);
+    student.answers(false);
+    student.says("no sé");
+    student.says("¿qué significa simplificar?");
+    student.answers(true);
+    student.answers(true);
+    let credits: Vec<(&str, f64)> =
+        student.flow.outcomes().iter().map(|outcome| (outcome.exercise.as_str(), outcome.credit)).collect();
+    assert_eq!(credits, [("n1-t1", 1.0), ("n2-t1", 0.0), ("n3-t1", 0.0), ("n4-t1", 1.0), ("n5-t1", 1.0)]);
+    assert_eq!(student.flow.outcomes()[0].skill, Some("fracciones.concepto-numerador-y-denominador"));
+    assert_eq!(student.flow.outcomes()[4].skill, Some("fracciones.fraccion-de-una-cantidad"));
+
+    // Practice: full credit at the first try, half after a wrong answer or a hint.
+    student.until("etapa2:2");
+    let before = student.flow.outcomes().len();
+    student.answers(true);
+    student.answers(false);
+    student.answers(true);
+    student.says("dame una pista");
+    student.answers(true);
+    // An answer nobody could read is not an attempt.
+    student.now += 1000;
+    let unread = student.flow.said(student.now, "hola", None, true);
+    student.keep(unread);
+    student.answers(true);
+    let practice: Vec<f64> = student.flow.outcomes()[before..].iter().map(|outcome| outcome.credit).collect();
+    assert_eq!(practice, [1.0, 0.5, 0.5, 1.0]);
+    assert!(student.flow.outcomes()[before..].iter().all(|outcome| outcome.skill.is_some()));
+    assert!(student.flow.outcomes().iter().any(|outcome| outcome.choice));
+
+    // Wrong through every hint and the worked example: the engine goes back
+    // to the theory, and the exercise counts as not solved.
+    let before = student.flow.outcomes().len();
+    for _ in 0..12 {
+        if student.at().starts_with("etapa1") {
+            break;
+        }
+        student.answers(false);
+    }
+    assert!(student.at().starts_with("etapa1"), "{}", student.at());
+    let failed: Vec<f64> = student.flow.outcomes()[before..].iter().map(|outcome| outcome.credit).collect();
+    assert_eq!(failed, [0.0]);
+
+    // A rebuilt engine has the same evidence, so it can be recorded from the stored inputs.
+    let rebuilt = Flow::replay(setup(Goal::Homework), bank().unwrap(), &student.records);
+    assert_eq!(rebuilt.outcomes(), student.flow.outcomes());
+}
+
+#[test]
+fn every_exercise_of_the_bank_practises_a_skill_of_the_curriculum() {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../curriculum/math-primaria.json");
+    let catalog: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+    let known: Vec<&str> =
+        catalog["skills"].as_array().unwrap().iter().map(|skill| skill["id"].as_str().unwrap()).collect();
+    for (_, _, skill) in SKILLS {
+        assert!(known.contains(&skill), "{skill} is not in the catalog");
+    }
+    let bank = bank().unwrap();
+    let all: Vec<&Ejercicio> = bank
+        .niveles
+        .iter()
+        .flat_map(|level| level.tamizaje.iter().chain(&level.ejercicios).chain(&level.simulacion))
+        .chain(bank.tareas.iter().flat_map(|homework| &homework.ejercicios))
+        .collect();
+    assert!(all.len() > 80);
+    let skill = |id: &str| {
+        let exercise = all.iter().find(|exercise| exercise.id == id).unwrap_or_else(|| panic!("no {id}"));
+        skill_of(exercise).unwrap()
+    };
+    for exercise in &all {
+        assert!(skill_of(exercise).is_some_and(|skill| known.contains(&skill)), "{}", exercise.id);
+    }
+    for (id, expected) in [
+        ("n1-e10", "fracciones.concepto-numerador-y-denominador"),
+        ("n2-t2", "fracciones.comparar-distinto-denominador"),
+        ("n2-e03", "fracciones.equivalentes-y-simplificar"),
+        ("n2-e09", "fracciones.equivalentes-y-simplificar"),
+        ("n3-t1", "fracciones.sumar-igual-denominador"),
+        ("n3-e03", "fracciones.restar-igual-denominador"),
+        ("n3-e04", "fracciones.numeros-mixtos-e-impropias"),
+        ("n3-e08", "fracciones.numeros-mixtos-e-impropias"),
+        ("n4-e03", "fracciones.sumar-distinto-denominador"),
+        ("n4-e08", "fracciones.restar-distinto-denominador"),
+        ("n5-e03", "fracciones.fraccion-de-una-cantidad"),
+        ("n5-e06", "fracciones.problemas-con-fracciones"),
+        ("n5-e09", "fracciones.problemas-con-fracciones"),
+        ("tar-2", "fracciones.numeros-mixtos-e-impropias"),
+        ("tar-4", "fracciones.restar-distinto-denominador"),
+    ] {
+        assert_eq!(skill(id), expected, "{id}");
+    }
+}
+
+#[test]
+fn time_acts_without_the_student_speaking() {
+    // Before the session started, time does nothing and starts nothing.
+    let mut idle = flow(Goal::Homework);
+    assert_eq!(idle.pass(60_000), Turn { lines: Vec::new(), converse: None, closed: false });
+    assert!(!idle.started() && idle.unsaved().is_empty());
+
+    let mut student = in_practice();
+    let exercise = student.flow.card().unwrap();
+    let inputs = student.records.len();
+    // A moment later: nothing to say, nothing stored.
+    student.now += 5_000;
+    let quiet = student.flow.pass(student.now);
+    assert_eq!((quiet.lines.len(), quiet.converse.clone()), (0, None));
+    assert!(student.flow.unsaved().is_empty());
+
+    // Past the exercise's time: the engine's hint, with nobody having spoken.
+    student.now += 10 * 60_000;
+    let late = student.flow.pass(student.now);
+    let late = student.keep(late);
+    assert!(said_by_tutor(&late).contains("te está tomando un ratito"), "{late:?}");
+    assert_eq!(late.converse, None);
+    assert_eq!(student.records[inputs..], [Record { at_ms: student.now, input: Input::Tick }]);
+    // It was not an answer: the same exercise, no attempt, and only one hint by time.
+    assert_eq!(student.flow.card().unwrap().enunciado, exercise.enunciado);
+    assert!(student.flow.outcomes().iter().all(|outcome| outcome.exercise != exercise.id.clone().unwrap()));
+    student.now += 10 * 60_000;
+    assert!(student.flow.pass(student.now).lines.is_empty());
+    // The hint counts when the exercise is then solved.
+    student.answers(true);
+    assert_eq!(student.flow.outcomes().last().unwrap().credit, 0.5);
+
+    // A break ends on its own, and the exercise is said again.
+    student.says("estoy cansado");
+    assert_eq!(student.at(), "pausa");
+    student.now += 4 * 60_000;
+    assert!(student.flow.pass(student.now).lines.is_empty(), "still in the break");
+    student.now += 61_000;
+    let back = student.flow.pass(student.now);
+    let back = student.keep(back);
+    assert!(said_by_tutor(&back).contains("Se terminó la Pausa activa"), "{back:?}");
+    assert_eq!(back.lines.last().unwrap().say, student.flow.card().unwrap().enunciado);
+    assert!(student.at().starts_with("etapa2"));
+    let rebuilt = Flow::replay(setup(Goal::Homework), bank().unwrap(), &student.records);
+    assert_eq!(rebuilt.step(student.now), student.flow.step(student.now));
+}
+
+/// A whole session of `minutes`, answered right at a steady pace: when it
+/// closed, in minutes, and how many breaks the engine gave.
+fn length_and_breaks(minutes: u32) -> (u64, usize) {
+    let mut setup = setup(Goal::Homework);
+    setup.start.minutes = minutes;
+    let mut student = Student::from(setup);
+    student.says("sí");
+    student.answers(true);
+    for _ in 0..4 {
+        student.answers(false);
+    }
+    for _ in 0..600 {
+        if student.flow.closed() {
+            break;
+        }
+        student.answers(true);
+    }
+    assert!(student.flow.closed(), "{minutes}: still at {}", student.at());
+    let breaks = student
+        .turns
+        .iter()
+        .flat_map(|turn| &turn.lines)
+        .filter(|line| line.say.starts_with("¡Pausa activa!"))
+        .count();
+    (student.now / 60_000, breaks)
+}
+
+#[test]
+fn the_engines_session_is_as_long_as_the_platforms() {
+    // Inside what the engine's rules allow: 30 minutes to an hour and a half.
+    for (platform, engine) in [(1, 30), (20, 30), (30, 30), (45, 45), (60, 60), (90, 90), (120, 90)] {
+        let settings = settings(platform);
+        assert_eq!(settings.sesion_maxima_min, engine, "{platform}");
+        assert!(settings.sesion_recomendada_min <= settings.sesion_maxima_min);
+    }
+    // A short session has no break and closes by itself before its time is
+    // up (the engine does not start what it cannot finish); a 45-minute one
+    // has the break at 30; a long one has both.
+    let (length, breaks) = length_and_breaks(30);
+    assert!(length <= 31 && breaks == 0, "{length} minutes, {breaks} breaks");
+    let (length, breaks) = length_and_breaks(45);
+    assert!((31..=46).contains(&length) && breaks == 1, "{length} minutes, {breaks} breaks");
+    let (length, breaks) = length_and_breaks(90);
+    assert!((61..=91).contains(&length) && breaks == 2, "{length} minutes, {breaks} breaks");
 }

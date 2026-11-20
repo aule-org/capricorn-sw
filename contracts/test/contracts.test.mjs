@@ -63,3 +63,10 @@ test('a visual without what its kind needs, or with unknown fields, is rejected'
   assert.equal(validateVisual({ kind: 'exercise', lines: ['2 + 2 = ?'], html: '<b>x</b>' }), false);
   assert.equal(validateVisual({ kind: 'hologram' }), false);
 });
+
+test('a fraction can be drawn with nothing written next to it', () => {
+  const fraction = { numerator: 3, denominator: 8 };
+  assert.ok(validateVisual({ kind: 'fraction_circle', fractions: [{ ...fraction, labelled: false }] }));
+  assert.ok(validateVisual({ kind: 'fraction_bars', fractions: [{ ...fraction, label: '3/8', labelled: true }] }));
+  assert.equal(validateVisual({ kind: 'fraction_bars', fractions: [{ ...fraction, labelled: 'no' }] }), false);
+});
