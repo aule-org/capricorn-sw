@@ -137,6 +137,14 @@ async def entrypoint(ctx: JobContext) -> None:
     await ctx.connect()
     camera = Camera(ctx.room)
     context = await platform.start() if platform else ""
+    if platform and platform.gone:
+        # The session is over for the platform and a page came back to its
+        # room. Nobody is greeted: there is no session to hold.
+        logger.warning("session refused: the platform no longer serves it")
+        await gates.close()
+        await platform.end()
+        ctx.shutdown(reason="the platform no longer serves this session")
+        return
 
     async def show(visual: dict[str, Any]) -> None:
         # Every Aule screen (the playground today, the device's e-ink
@@ -211,7 +219,12 @@ async def entrypoint(ctx: JobContext) -> None:
             )
             session.shutdown()
 
-        tasks.append(asyncio.create_task(platform.run(tutor.advise, tutor.plan, stop)))
+        async def gone() -> None:
+            # The platform ended the session, or stopped knowing it: the tutor
+            # leaves without a word instead of talking to nobody's account.
+            session.shutdown()
+
+        tasks.append(asyncio.create_task(platform.run(tutor.advise, tutor.plan, stop, gone)))
 
     async def cleanup() -> None:
         for task in tasks:

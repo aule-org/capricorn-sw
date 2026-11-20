@@ -49,7 +49,21 @@ FLAG_COOLDOWN_SECONDS = 300.0
 FLAG_TIMEOUT_SECONDS = 2.0
 MAX_FLAGS_IN_FLIGHT = 4
 
+# What the platform answers, on the calls that speak for the whole session,
+# when the session is over for it: it has ended, or the agent's token is no
+# longer good. The same statuses elsewhere say something about that one call
+# (an exercise the engine owns, for one), and 404 can be an older platform.
+SESSION_OVER = frozenset({401, 403, 409, 410})
+
 Send = Callable[[str, str, dict[str, Any] | None, float], Awaitable[dict[str, Any] | None]]
+
+
+class Refused(Exception):
+    """The platform answered, and the answer was no."""
+
+    def __init__(self, status: int) -> None:
+        super().__init__(f"platform answered {status}")
+        self.status = status
 
 
 @dataclass(frozen=True)
@@ -115,6 +129,10 @@ class Platform:
         self._stops_done: set[str] = set()
         # Why the session ended, when it was not the clock or the person leaving.
         self.end_reason: str | None = None
+        # The platform no longer serves this session. Nothing more is sent to
+        # it, and the session has nobody to work for. An unreachable platform
+        # is not this: the tutor carries on without it.
+        self.gone = False
 
     async def _http(
         self, method: str, path: str, body: dict[str, Any] | None, timeout: float
@@ -133,28 +151,45 @@ class Platform:
                 return {}
             if response.status not in (200, 201):
                 # The body may repeat what was sent, so only the status is kept.
-                raise RuntimeError(f"platform answered {response.status}")
+                raise Refused(response.status)
             return await response.json()
 
     async def _call(
-        self, method: str, path: str, body: dict[str, Any] | None, timeout: float
+        self,
+        method: str,
+        path: str,
+        body: dict[str, Any] | None,
+        timeout: float,
+        *,
+        for_the_session: bool = False,
     ) -> dict[str, Any] | None:
+        """One call. None when it failed. ``for_the_session`` marks the calls
+        whose refusal means the session itself is over for the platform."""
+        if self.gone:
+            return None
         try:
             return await self._send(method, path, body, timeout)
         except asyncio.CancelledError:
             raise
         except Exception as error:  # the tutor never stops because of the platform
+            status = error.status if isinstance(error, Refused) else None
             logger.warning(
-                "platform call failed", extra={"path": path, "error": type(error).__name__}
+                "platform call failed",
+                extra={"path": path, "error": type(error).__name__, "status": status},
             )
+            if for_the_session and status in SESSION_OVER:
+                self.gone = True
+                # Nothing kept for later: there is nobody to send it to.
+                self._pending.clear()
+                logger.warning("the platform no longer serves this session")
             return None
 
     async def start(self) -> str:
         """What the tutor should know before it says hello. Empty if unknown."""
-        answer = await self._call("GET", "/v1/agent/session", None, START_TIMEOUT_SECONDS)
-        if answer is None:
+        answer = await self._ask_to_start()
+        if answer is None and not self.gone:
             await asyncio.sleep(START_RETRY_SECONDS)
-            answer = await self._call("GET", "/v1/agent/session", None, START_TIMEOUT_SECONDS)
+            answer = await self._ask_to_start()
         answer = answer or {}
         tutor = answer.get("tutor")
         if isinstance(tutor, dict):
@@ -170,6 +205,11 @@ class Platform:
             self._opening = lines_from(script.get("lines"))
         instructions = answer.get("instructions")
         return instructions if isinstance(instructions, str) else ""
+
+    def _ask_to_start(self) -> Awaitable[dict[str, Any] | None]:
+        return self._call(
+            "GET", "/v1/agent/session", None, START_TIMEOUT_SECONDS, for_the_session=True
+        )
 
     @property
     def scripted(self) -> bool:
@@ -217,7 +257,7 @@ class Platform:
     def heard(self, role: str, text: str | None) -> None:
         """Queues one finished turn. Never waits."""
         text = (text or "").strip()
-        if role not in ROLES or not text:
+        if role not in ROLES or not text or self.gone:
             return
         self._pending.append({"seq": self._next_seq, "role": ROLES[role], "content": text})
         self._next_seq += 1
@@ -274,6 +314,7 @@ class Platform:
                 "/v1/agent/session/turns",
                 {"turns": batch, "after_guidance": self._after_guidance},
                 REPORT_TIMEOUT_SECONDS,
+                for_the_session=True,
             )
             if answer is None:
                 break
@@ -298,14 +339,20 @@ class Platform:
         advise: Callable[[str], Awaitable[None]],
         plan: Callable[[str], Awaitable[None]] | None = None,
         stop: Callable[[str], Awaitable[None]] | None = None,
+        gone: Callable[[], Awaitable[None]] | None = None,
     ) -> None:
         """Reports turns as they come and hands the plan, once, and guidance to
         the tutor; and a warning or the end, once each, when the platform asks
-        for it. Runs until cancelled."""
+        for it. Runs until cancelled, or until the platform refuses the
+        session: then it says so, once, and stops."""
         while True:
             await self._wake.wait()
             self._wake.clear()
             guidance = await self.report_once()
+            if self.gone:
+                if gone:
+                    await gone()
+                return
             if plan and self._late_plan and not self._plan_given:
                 # Before the guidance of the same answer, which builds on it.
                 self._plan_given = True
@@ -320,6 +367,13 @@ class Platform:
                 self._wake.set()
 
     async def end(self) -> None:
+        if self.gone:
+            # Refused already: nothing to flush and nobody to tell.
+            for task in self._flags:
+                task.cancel()
+            await asyncio.gather(*self._flags, return_exceptions=True)
+            await self._close()
+            return
         if self._flags:
             # Flags are best effort; the end of a session does not wait long for them.
             _, late = await asyncio.wait(self._flags, timeout=FLAG_TIMEOUT_SECONDS)
@@ -340,5 +394,8 @@ class Platform:
         if self.end_reason and not self._pending:
             body = {"end_reason": self.end_reason}
         await self._call("POST", "/v1/agent/session/end", body, REPORT_TIMEOUT_SECONDS)
+        await self._close()
+
+    async def _close(self) -> None:
         if self._http_session is not None:
             await self._http_session.close()
