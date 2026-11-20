@@ -1,0 +1,9 @@
+{
+  // The session page. Deploy: wrangler deploy -c wrangler.playground.jsonc
+  // Its origin: wrangler secret put ORIGIN_URL -c wrangler.playground.jsonc
+  "name": "aule-playground-funnel",
+  "main": "src/playground.js",
+  "compatibility_date": "2025-11-01",
+  "routes": [{ "pattern": "playground.meetaule.com", "custom_domain": true }],
+  "observability": { "enabled": true }
+}
