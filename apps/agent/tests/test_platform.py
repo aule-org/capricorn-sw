@@ -396,3 +396,35 @@ async def test_a_plan_that_arrives_late_reaches_the_tutor_once_and_before_guidan
     await asyncio.gather(worker, return_exceptions=True)
 
     assert told == [("plan", "Plan: fractions."), ("guidance", "Slow down.")]
+
+
+async def test_a_warning_and_then_the_end_are_each_asked_of_the_tutor_once():
+    send = Recorder({"stop": "warn"}, {"stop": "warn"}, {"stop": "end"}, {"stop": None}, {})
+    platform = Platform(SESSION, send)
+    asked: list[str] = []
+
+    async def advise(_):
+        pass
+
+    async def stop(kind):
+        asked.append(kind)
+
+    worker = asyncio.create_task(platform.run(advise, None, stop))
+    for turn in range(5):
+        platform.heard("user", f"jaja {turn}")
+        await asyncio.sleep(0.01)
+    worker.cancel()
+    await asyncio.gather(worker, return_exceptions=True)
+
+    # The end stands even when the platform stops repeating it.
+    assert asked == ["warn", "end"]
+
+
+async def test_a_session_stopped_for_not_working_ends_saying_so():
+    send = Recorder()
+    platform = Platform(SESSION, send)
+    platform.end_reason = "not_working"
+
+    await platform.end()
+
+    assert send.calls[-1] == ("POST", "/v1/agent/session/end", {"end_reason": "not_working"})
