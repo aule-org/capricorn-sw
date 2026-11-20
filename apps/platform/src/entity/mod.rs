@@ -26,6 +26,7 @@ pub mod session_brief;
 pub mod session_exercise;
 pub mod session_flag;
 pub mod session_guidance;
+pub mod session_model_usage;
 pub mod session_review;
 pub mod session_turn;
 pub mod skill;
@@ -60,4 +61,5 @@ pub fn schema() -> sea_orm::SchemaBuilder {
         .register(guardian_session::Entity)
         .register(notice::Entity)
         .register(push_token::Entity)
+        .register(session_model_usage::Entity)
 }
