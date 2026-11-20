@@ -48,7 +48,7 @@ image=$(remote "docker inspect aule-sw-postgres-1 --format '{{.Config.Image}}'")
 PW=$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')
 # An internal network: the test database and the platform's migrate reach each other and nothing else.
 remote "docker rm -f $TEST >/dev/null 2>&1; docker network rm aule-restore-net >/dev/null 2>&1; docker network create --internal aule-restore-net >/dev/null && docker run -d --name $TEST --network aule-restore-net --memory 1g --tmpfs /var/lib/postgresql/data:rw,size=2g -e POSTGRES_USER=aule -e POSTGRES_PASSWORD=$PW -e POSTGRES_DB=aule $image >/dev/null"
-for i in $(seq 1 30); do remote "docker exec $TEST pg_isready -U aule -d aule -q" && break; sleep 2; done
+for _ in $(seq 1 30); do remote "docker exec $TEST pg_isready -U aule -d aule -q" && break; sleep 2; done
 sleep 3
 
 if restore "$newest" newest; then ok "newest backup restores with no error (ON_ERROR_STOP)"; else ko "newest backup did not restore"; fi
