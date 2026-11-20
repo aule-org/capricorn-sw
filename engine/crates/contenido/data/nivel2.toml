@@ -67,7 +67,7 @@ verificar = "3/5"
 
 [[etapa1.asistidos]]
 enunciado = "Ahora tú: completa la fracción equivalente 3/4 = ?/20."
-secuencia = ["Ver por cuánto se multiplicó el denominador", "Multiplicar el numerador por lo mismo", "Escribir la fracción"]
+secuencia = ["Ver por cuánto se multiplicó el denominador", "Multiplicar el numerador por lo mismo", "Formar la fracción"]
 respuesta = "15/20"
 verificar = "3/4"
 [[etapa1.asistidos.pasos]]
@@ -132,7 +132,7 @@ texto = "La regla de oro: si haces lo mismo arriba y abajo (multiplicar o dividi
 [[ejercicios]]
 id = "n2-e01"
 angulo = "grafica"
-enunciado = "Mira la barra. Escribe la fracción pintada y luego simplifícala. ¿Qué fracción simplificada está pintada?"
+enunciado = "Mira la barra. ¿Qué fracción está pintada? Dila ya simplificada."
 grafico = { tipo = "barra", partes = 10, sombreadas = 4 }
 respuesta = "2/5"
 forma = "simplificada"
@@ -141,7 +141,7 @@ tiempo_s = 90
 pistas = ["¿Qué fracción ves si cuentas todas las partes y las pintadas?", "¿Qué número divide a la vez a 4 y a 10?"]
 pista_grafica = { texto = "Si juntas las partes de dos en dos, la barra queda en 5 partes.", grafico = { tipo = "barras", filas = [{ partes = 10, sombreadas = 4, etiqueta = "4/10" }, { partes = 5, sombreadas = 2, etiqueta = "?" }] } }
 [ejercicios.similar]
-enunciado = "Escribe, simplificada, la fracción pintada de esta barra."
+enunciado = "¿Qué fracción de esta barra está pintada? Dila simplificada."
 grafico = { tipo = "barra", partes = 6, sombreadas = 3 }
 pasos = ["La barra tiene 6 partes y 3 pintadas: 3/6.", "3 y 6 se dividen entre 3: 3 ÷ 3 = 1 y 6 ÷ 3 = 2.", "La fracción simplificada es 1/2."]
 respuesta = "1/2"
@@ -200,15 +200,15 @@ verificar = "5/6 > 3/4"
 [[ejercicios]]
 id = "n2-e05"
 angulo = "contexto"
-enunciado = "Ana pintó 3/8 de una pared y Beto pintó 1/4 de otra pared igual. ¿Quién pintó más? Escribe la fracción mayor."
-contextos = { futbol = "En el entrenamiento, tú corriste 3/8 de la cancha y tu amigo corrió 1/4 de la misma cancha. ¿Quién corrió más? Escribe la fracción mayor.", videojuegos = "Completaste 3/8 de un nivel y tu amigo completó 1/4 del mismo nivel. ¿Quién avanzó más? Escribe la fracción mayor.", dinosaurios = "Un estegosaurio comió 3/8 de un helecho y un braquiosaurio comió 1/4 de otro helecho igual. ¿Quién comió más? Escribe la fracción mayor.", cocina = "Usaste 3/8 de una bolsa de harina y tu hermana usó 1/4 de otra bolsa igual. ¿Quién usó más harina? Escribe la fracción mayor.", musica = "Ensayaste 3/8 de una canción y tu amiga ensayó 1/4 de la misma canción. ¿Quién ensayó más? Escribe la fracción mayor." }
+enunciado = "Ana pintó 3/8 de una pared y Beto pintó 1/4 de otra pared igual. ¿Quién pintó más? Di la fracción mayor."
+contextos = { futbol = "En el entrenamiento, tú corriste 3/8 de la cancha y tu amigo corrió 1/4 de la misma cancha. ¿Quién corrió más? Di la fracción mayor.", videojuegos = "Completaste 3/8 de un nivel y tu amigo completó 1/4 del mismo nivel. ¿Quién avanzó más? Di la fracción mayor.", dinosaurios = "Un estegosaurio comió 3/8 de un helecho y un braquiosaurio comió 1/4 de otro helecho igual. ¿Quién comió más? Di la fracción mayor.", cocina = "Usaste 3/8 de una bolsa de harina y tu hermana usó 1/4 de otra bolsa igual. ¿Quién usó más harina? Di la fracción mayor.", musica = "Ensayaste 3/8 de una canción y tu amiga ensayó 1/4 de la misma canción. ¿Quién ensayó más? Di la fracción mayor." }
 respuesta = "3/8"
 verificar = "3/8"
 tiempo_s = 120
 pistas = ["¿Cuántos octavos es lo mismo que 1/4?", "Con el mismo denominador, ¿cuál tiene más partes?"]
 pista_grafica = { texto = "Mira 1/4 convertido en octavos junto a 3/8.", grafico = { tipo = "barras", filas = [{ partes = 8, sombreadas = 3, etiqueta = "3/8" }, { partes = 8, sombreadas = 2, etiqueta = "1/4 = 2/8" }] } }
 [ejercicios.similar]
-enunciado = "Rosa leyó 2/3 de un libro y Juan leyó 3/4 de otro libro igual. ¿Quién leyó más? Escribe la fracción mayor."
+enunciado = "Rosa leyó 2/3 de un libro y Juan leyó 3/4 de otro libro igual. ¿Quién leyó más? Di la fracción mayor."
 pasos = ["Busco un denominador común para 3 y 4: el 12.", "2/3 = 8/12 y 3/4 = 9/12.", "9/12 > 8/12, así que Juan leyó más: la mayor es 3/4."]
 respuesta = "3/4"
 verificar = "3/4"
@@ -216,16 +216,16 @@ verificar = "3/4"
 [[ejercicios]]
 id = "n2-e06"
 angulo = "contexto"
-enunciado = "Tienes 20 canicas y 15 son azules. ¿Qué fracción de tus canicas son azules? Escríbela simplificada."
-contextos = { futbol = "Tu equipo jugó 20 partidos y ganó 15. ¿Qué fracción de los partidos ganó? Escríbela simplificada.", videojuegos = "Un videojuego tiene 20 misiones y ya hiciste 15. ¿Qué fracción de las misiones hiciste? Escríbela simplificada.", dinosaurios = "En un museo hay 20 esqueletos de dinosaurio y 15 son de carnívoros. ¿Qué fracción de los esqueletos son de carnívoros? Escríbela simplificada.", cocina = "Horneaste 20 galletas y 15 llevan chispas de chocolate. ¿Qué fracción de las galletas lleva chispas? Escríbela simplificada.", musica = "Tu lista tiene 20 canciones y 15 son de rock. ¿Qué fracción de las canciones son de rock? Escríbela simplificada." }
+enunciado = "Tienes 20 canicas y 15 son azules. ¿Qué fracción de tus canicas son azules? Dila simplificada."
+contextos = { futbol = "Tu equipo jugó 20 partidos y ganó 15. ¿Qué fracción de los partidos ganó? Dila simplificada.", videojuegos = "Un videojuego tiene 20 misiones y ya hiciste 15. ¿Qué fracción de las misiones hiciste? Dila simplificada.", dinosaurios = "En un museo hay 20 esqueletos de dinosaurio y 15 son de carnívoros. ¿Qué fracción de los esqueletos son de carnívoros? Dila simplificada.", cocina = "Horneaste 20 galletas y 15 llevan chispas de chocolate. ¿Qué fracción de las galletas lleva chispas? Dila simplificada.", musica = "Tu lista tiene 20 canciones y 15 son de rock. ¿Qué fracción de las canciones son de rock? Dila simplificada." }
 respuesta = "3/4"
 forma = "simplificada"
 verificar = "15/20"
 tiempo_s = 120
-pistas = ["¿Qué fracción escribes primero con el total abajo y las azules arriba?", "¿Qué número divide a la vez a 15 y a 20?"]
+pistas = ["¿Qué fracción formas con el total abajo y las azules arriba?", "¿Qué número divide a la vez a 15 y a 20?"]
 pista_grafica = { texto = "Agrupa las canicas de 5 en 5: ¿cuántos grupos hay y cuántos son azules?", grafico = { tipo = "conjunto", total = 20, marcados = 15 } }
 [ejercicios.similar]
-enunciado = "Tienes 12 lápices y 8 son rojos. ¿Qué fracción de los lápices son rojos? Escríbela simplificada."
+enunciado = "Tienes 12 lápices y 8 son rojos. ¿Qué fracción de los lápices son rojos? Dila simplificada."
 pasos = ["Total abajo y rojos arriba: 8/12.", "8 y 12 se dividen entre 4: 8 ÷ 4 = 2 y 12 ÷ 4 = 3.", "La fracción simplificada es 2/3."]
 respuesta = "2/3"
 verificar = "8/12"
@@ -254,7 +254,7 @@ verificar = "3/4 < 3/8"
 [[ejercicios]]
 id = "n2-e08"
 angulo = "error"
-enunciado = "Luis quiso simplificar 6/9: le restó 3 arriba y abajo y obtuvo 3/6. ¿Cuál es la simplificación correcta de 6/9? Escríbela y explica el error de Luis."
+enunciado = "Luis quiso simplificar 6/9: le restó 3 arriba y abajo y obtuvo 3/6. ¿Cuál es la simplificación correcta de 6/9? Dímela y explica el error de Luis."
 respuesta = "2/3"
 forma = "simplificada"
 verificar = "6/9"
@@ -328,7 +328,7 @@ tiempo_s = 90
 
 [[simulacion]]
 id = "n2-s4"
-enunciado = "¿Qué fracción es mayor, 7/10 o 3/4? Escribe la fracción mayor."
+enunciado = "¿Qué fracción es mayor, 7/10 o 3/4? Di la fracción mayor."
 respuesta = "3/4"
 verificar = "3/4"
 tiempo_s = 120

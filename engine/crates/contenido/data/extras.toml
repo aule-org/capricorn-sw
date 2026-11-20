@@ -29,7 +29,7 @@ verificar = "3/8 + 4/8"
 id = "tar-2"
 nivel = 3
 angulo = "calculo"
-enunciado = "Resuelve en tu cuaderno: escribe 11/4 como número mixto."
+enunciado = "Resuelve en tu cuaderno: pasa 11/4 a número mixto."
 respuesta = "2 3/4"
 forma = "mixto"
 verificar = "11/4"
@@ -37,7 +37,7 @@ tiempo_s = 90
 pistas = ["¿Cuántos cuartos necesitas para formar 1 entero?", "¿Cuántas veces cabe 4 en 11 y cuánto sobra?"]
 pista_grafica = { texto = "11 cuartos repartidos en círculos de 4 partes.", grafico = { tipo = "circulos", partes = 4, sombreadas = 11 } }
 [tareas.ejercicios.similar]
-enunciado = "Escribe 7/3 como número mixto."
+enunciado = "Pasa 7/3 a número mixto."
 pasos = ["Cada entero tiene 3 tercios.", "7 ÷ 3 = 2 y sobra 1.", "Entonces 7/3 = 2 1/3."]
 respuesta = "2 1/3"
 verificar = "7/3"
