@@ -41,6 +41,7 @@ uuid = { version = "1", features = ["v4", "v7", "serde"] }
 lettre = { version = "0.11", default-features = false, features = ["tokio1-rustls-tls", "smtp-transport", "builder"] }
 semver = "1"
 jsonwebtoken = { version = "12", features = ["aws_lc_rs"] }
+sea-orm = { version = "2.0.4", default-features = false, features = ["sqlx-postgres", "runtime-tokio-rustls", "macros", "with-uuid", "with-chrono", "with-json", "postgres-array", "postgres-vector"] }
 
 [dev-dependencies]
 jsonschema = "0.61.2"

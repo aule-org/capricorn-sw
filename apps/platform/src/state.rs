@@ -16,6 +16,8 @@ use crate::push::{Fcm, Pusher, ServiceAccount};
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
+    /// The same pool, for the code that goes through SeaORM.
+    pub db: sea_orm::DatabaseConnection,
     pub config: Arc<Config>,
     /// The supervisor's model. Without one, plans come from the learner model
     /// alone and there is no guidance or review.
@@ -72,6 +74,7 @@ impl AppState {
         let google =
             config.google_client_id.clone().map(|id| Arc::new(Google::new(id)) as Arc<dyn IdentityProvider>);
         Self {
+            db: sea_orm::SqlxPostgresConnector::from_sqlx_postgres_pool(pool.clone()),
             pool,
             config: Arc::new(config),
             llm,

@@ -6,12 +6,19 @@ use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use chrono::{DateTime, Datelike, Utc};
+use sea_orm::ActiveValue::{Set, Unchanged};
+use sea_orm::sea_query::{Expr, OnConflict};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter,
+    QuerySelect, TransactionTrait,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use sqlx::{PgExecutor, PgPool};
+use sqlx::PgExecutor;
 use uuid::Uuid;
 
 use crate::auth::{Caller, Input, Operator};
+use crate::entity::{child, family, guardian, guardian_child};
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
 use crate::supervisor::ChildContext;
@@ -51,29 +58,26 @@ pub async fn create_family(
     }
 
     let (family_id, guardian_id) = (Uuid::now_v7(), Uuid::now_v7());
-    let mut tx = state.pool.begin().await?;
-    sqlx::query("insert into families (id, name) values ($1, $2)")
-        .bind(family_id)
-        .bind(&name)
-        .execute(&mut *tx)
-        .await?;
-    let inserted = sqlx::query(
-        "insert into guardians (id, family_id, email, name) values ($1, $2, $3, $4) on conflict (email) do nothing",
-    )
-    .bind(guardian_id)
-    .bind(family_id)
-    .bind(&email)
-    .bind(&guardian_name)
-    .execute(&mut *tx)
+    let txn = state.db.begin().await?;
+    family::ActiveModel { id: Set(family_id), name: Set(name), ..Default::default() }.insert(&txn).await?;
+    let inserted = guardian::Entity::insert(guardian::ActiveModel {
+        id: Set(guardian_id),
+        family_id: Set(family_id),
+        email: Set(email),
+        name: Set(guardian_name),
+        ..Default::default()
+    })
+    .on_conflict(OnConflict::column(guardian::Column::Email).do_nothing().to_owned())
+    .exec_without_returning(&txn)
     .await?;
-    if inserted.rows_affected() == 0 {
+    if inserted == 0 {
         return Err(ApiError::Conflict("a guardian with that email already exists"));
     }
-    tx.commit().await?;
+    txn.commit().await?;
     Ok((StatusCode::CREATED, Json(json!({ "family_id": family_id, "guardian_id": guardian_id }))))
 }
 
-#[derive(Clone, Debug, Serialize, sqlx::FromRow)]
+#[derive(Clone, Debug, Serialize)]
 pub struct Child {
     pub id: Uuid,
     pub family_id: Uuid,
@@ -152,21 +156,34 @@ impl Child {
     }
 }
 
-pub async fn find_child(pool: &PgPool, child_id: Uuid) -> ApiResult<Child> {
-    sqlx::query_as(
-        "select id, family_id, nickname, birth_year, grade, language, interests, subjects, notes, tutor_name, tutor_persona, tutor_persona_note, created_at
-         from children where id = $1",
-    )
-    .bind(child_id)
-    .fetch_optional(pool)
-    .await?
-    .ok_or(ApiError::NotFound("child"))
+impl From<child::Model> for Child {
+    fn from(row: child::Model) -> Self {
+        Self {
+            id: row.id,
+            family_id: row.family_id,
+            nickname: row.nickname,
+            birth_year: row.birth_year,
+            grade: row.grade,
+            language: row.language,
+            interests: row.interests,
+            subjects: row.subjects,
+            notes: row.notes,
+            tutor_name: row.tutor_name,
+            tutor_persona: row.tutor_persona,
+            tutor_persona_note: row.tutor_persona_note,
+            created_at: row.created_at,
+        }
+    }
+}
+
+pub async fn find_child(db: &DatabaseConnection, child_id: Uuid) -> ApiResult<Child> {
+    child::Entity::find_by_id(child_id).one(db).await?.map(Child::from).ok_or(ApiError::NotFound("child"))
 }
 
 /// The child, if the caller may see them. A child of another family does not
 /// exist as far as a guardian can tell.
-pub async fn child_for(pool: &PgPool, caller: &Caller, child_id: Uuid) -> ApiResult<Child> {
-    let child = find_child(pool, child_id).await?;
+pub async fn child_for(db: &DatabaseConnection, caller: &Caller, child_id: Uuid) -> ApiResult<Child> {
+    let child = find_child(db, child_id).await?;
     if caller.may_access(child.family_id) { Ok(child) } else { Err(ApiError::NotFound("child")) }
 }
 
@@ -292,7 +309,7 @@ impl ChildInput {
 /// Records or removes how the calling guardian is related to the child. Only a
 /// guardian has a relationship to state.
 async fn set_relationship(
-    conn: &mut sqlx::PgConnection,
+    db: &impl ConnectionTrait,
     caller: &Caller,
     child_id: Uuid,
     relationship: Option<Option<String>>,
@@ -303,37 +320,37 @@ async fn set_relationship(
     };
     match relationship {
         Some(code) => {
-            sqlx::query(
-                "insert into guardian_children (guardian_id, child_id, relationship) values ($1, $2, $3)
-                 on conflict (guardian_id, child_id) do update set relationship = $3, updated_at = now()",
+            guardian_child::Entity::insert(guardian_child::ActiveModel {
+                guardian_id: Set(guardian_id),
+                child_id: Set(child_id),
+                relationship: Set(code),
+                ..Default::default()
+            })
+            .on_conflict(
+                OnConflict::columns([guardian_child::Column::GuardianId, guardian_child::Column::ChildId])
+                    .update_column(guardian_child::Column::Relationship)
+                    .value(guardian_child::Column::UpdatedAt, Expr::current_timestamp())
+                    .to_owned(),
             )
-            .bind(guardian_id)
-            .bind(child_id)
-            .bind(code)
-            .execute(conn)
+            .exec_without_returning(db)
             .await?;
         }
         None => {
-            sqlx::query("delete from guardian_children where guardian_id = $1 and child_id = $2")
-                .bind(guardian_id)
-                .bind(child_id)
-                .execute(conn)
-                .await?;
+            guardian_child::Entity::delete_by_id((guardian_id, child_id)).exec(db).await?;
         }
     }
     Ok(())
 }
 
 /// The calling guardian's relationship to the child, if they stated one.
-async fn relationship_of(pool: &PgPool, caller: &Caller, child_id: Uuid) -> ApiResult<Option<String>> {
+async fn relationship_of(
+    db: &DatabaseConnection,
+    caller: &Caller,
+    child_id: Uuid,
+) -> ApiResult<Option<String>> {
     let Some(guardian_id) = caller.guardian_id() else { return Ok(None) };
-    Ok(sqlx::query_scalar(
-        "select relationship from guardian_children where guardian_id = $1 and child_id = $2",
-    )
-    .bind(guardian_id)
-    .bind(child_id)
-    .fetch_optional(pool)
-    .await?)
+    let row = guardian_child::Entity::find_by_id((guardian_id, child_id)).one(db).await?;
+    Ok(row.map(|row| row.relationship))
 }
 
 pub async fn create_child(
@@ -346,36 +363,28 @@ pub async fn create_child(
         return Err(ApiError::NotFound("family"));
     }
     let child = body.checked(Utc::now())?;
-    let family: Option<Uuid> = sqlx::query_scalar("select id from families where id = $1")
-        .bind(family_id)
-        .fetch_optional(&state.pool)
-        .await?;
-    family.ok_or(ApiError::NotFound("family"))?;
-    let mut tx = state.pool.begin().await?;
-    let created: Child = sqlx::query_as(
-        "insert into children (id, family_id, nickname, birth_year, grade, language, interests, notes,
-                               tutor_name, tutor_persona, tutor_persona_note, subjects)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, coalesce($9, 'Aule'), coalesce($10, 'calido'), $11,
-                 coalesce($12, '{}'))
-         returning id, family_id, nickname, birth_year, grade, language, interests, subjects, notes, tutor_name, tutor_persona, tutor_persona_note, created_at",
-    )
-    .bind(Uuid::now_v7())
-    .bind(family_id)
-    .bind(child.nickname)
-    .bind(child.birth_year)
-    .bind(child.grade)
-    .bind(child.language)
-    .bind(child.interests)
-    .bind(child.notes)
-    .bind(child.tutor_name)
-    .bind(child.tutor_persona)
-    .bind(child.tutor_persona_note.flatten())
-    .bind(child.subjects)
-    .fetch_one(&mut *tx)
+    family::Entity::find_by_id(family_id).one(&state.db).await?.ok_or(ApiError::NotFound("family"))?;
+    let txn = state.db.begin().await?;
+    let created = child::ActiveModel {
+        id: Set(Uuid::now_v7()),
+        family_id: Set(family_id),
+        nickname: Set(child.nickname),
+        birth_year: Set(child.birth_year),
+        grade: Set(child.grade),
+        language: Set(child.language),
+        interests: Set(child.interests),
+        notes: Set(child.notes),
+        tutor_name: Set(child.tutor_name.unwrap_or_else(|| TUTOR_NAME.to_string())),
+        tutor_persona: Set(child.tutor_persona.unwrap_or_else(|| TUTOR_PERSONAS[0].to_string())),
+        tutor_persona_note: Set(child.tutor_persona_note.flatten()),
+        subjects: Set(child.subjects.unwrap_or_default()),
+        ..Default::default()
+    }
+    .insert(&txn)
     .await?;
-    set_relationship(&mut tx, &caller, created.id, child.relationship).await?;
-    tx.commit().await?;
-    Ok((StatusCode::CREATED, Json(created)))
+    set_relationship(&txn, &caller, created.id, child.relationship).await?;
+    txn.commit().await?;
+    Ok((StatusCode::CREATED, Json(created.into())))
 }
 
 pub async fn update_child(
@@ -384,34 +393,39 @@ pub async fn update_child(
     Path(child_id): Path<Uuid>,
     Input(body): Input<ChildInput>,
 ) -> ApiResult<Json<Child>> {
-    child_for(&state.pool, &caller, child_id).await?;
+    child_for(&state.db, &caller, child_id).await?;
     let child = body.checked(Utc::now())?;
-    let mut tx = state.pool.begin().await?;
-    let updated: Option<Child> = sqlx::query_as(
-        "update children set nickname = $2, birth_year = $3, grade = $4, language = $5, interests = $6, notes = $7,
-           tutor_name = coalesce($8, tutor_name), tutor_persona = coalesce($9, tutor_persona),
-           tutor_persona_note = case when $10 then $11 else tutor_persona_note end,
-           subjects = coalesce($12, subjects)
-         where id = $1 returning id, family_id, nickname, birth_year, grade, language, interests, subjects, notes, tutor_name, tutor_persona, tutor_persona_note, created_at"
-    )
-    .bind(child_id)
-    .bind(child.nickname)
-    .bind(child.birth_year)
-    .bind(child.grade)
-    .bind(child.language)
-    .bind(child.interests)
-    .bind(child.notes)
-    .bind(child.tutor_name)
-    .bind(child.tutor_persona)
-    .bind(child.tutor_persona_note.is_some())
-    .bind(child.tutor_persona_note.flatten())
-    .bind(child.subjects)
-    .fetch_optional(&mut *tx)
-    .await?;
-    let updated = updated.ok_or(ApiError::NotFound("child"))?;
-    set_relationship(&mut tx, &caller, child_id, child.relationship).await?;
-    tx.commit().await?;
-    Ok(Json(updated))
+    let mut row = child::ActiveModel {
+        id: Unchanged(child_id),
+        nickname: Set(child.nickname),
+        birth_year: Set(child.birth_year),
+        grade: Set(child.grade),
+        language: Set(child.language),
+        interests: Set(child.interests),
+        notes: Set(child.notes),
+        ..Default::default()
+    };
+    // Left out, these keep their value.
+    if let Some(name) = child.tutor_name {
+        row.tutor_name = Set(name);
+    }
+    if let Some(persona) = child.tutor_persona {
+        row.tutor_persona = Set(persona);
+    }
+    if let Some(note) = child.tutor_persona_note {
+        row.tutor_persona_note = Set(note);
+    }
+    if let Some(subjects) = child.subjects {
+        row.subjects = Set(subjects);
+    }
+    let txn = state.db.begin().await?;
+    let updated = row.update(&txn).await.map_err(|error| match error {
+        DbErr::RecordNotUpdated => ApiError::NotFound("child"),
+        other => other.into(),
+    })?;
+    set_relationship(&txn, &caller, child_id, child.relationship).await?;
+    txn.commit().await?;
+    Ok(Json(updated.into()))
 }
 
 pub async fn get_child(
@@ -419,9 +433,9 @@ pub async fn get_child(
     State(state): State<AppState>,
     Path(child_id): Path<Uuid>,
 ) -> ApiResult<Json<Value>> {
-    let child = child_for(&state.pool, &caller, child_id).await?;
+    let child = child_for(&state.db, &caller, child_id).await?;
     let consent = current_consent(&state.pool, child_id).await?;
-    let relationship = relationship_of(&state.pool, &caller, child_id).await?;
+    let relationship = relationship_of(&state.db, &caller, child_id).await?;
     Ok(Json(json!({ "child": child, "consent": consent, "relationship": relationship })))
 }
 
@@ -433,10 +447,9 @@ pub async fn delete_child(
     State(state): State<AppState>,
     Path(child_id): Path<Uuid>,
 ) -> ApiResult<StatusCode> {
-    child_for(&state.pool, &caller, child_id).await?;
-    let deleted =
-        sqlx::query("delete from children where id = $1").bind(child_id).execute(&state.pool).await?;
-    if deleted.rows_affected() == 0 {
+    child_for(&state.db, &caller, child_id).await?;
+    let deleted = child::Entity::delete_by_id(child_id).exec(&state.db).await?;
+    if deleted.rows_affected == 0 {
         return Err(ApiError::NotFound("child"));
     }
     Ok(StatusCode::NO_CONTENT)
@@ -484,7 +497,7 @@ pub async fn record_consent(
     if !PURPOSES.contains(&body.purpose.as_str()) {
         return Err(ApiError::bad_request(format!("purpose must be one of: {}", PURPOSES.join(", "))));
     }
-    let child = child_for(&state.pool, &caller, child_id).await?;
+    let child = child_for(&state.db, &caller, child_id).await?;
     // A guardian answers for themselves; only the operator records an answer
     // given some other way, and must say how.
     let (guardian_id, source) = match caller.guardian_id() {
@@ -495,12 +508,13 @@ pub async fn record_consent(
         }
     };
     if let Some(guardian_id) = guardian_id {
-        let belongs: Option<Uuid> =
-            sqlx::query_scalar("select id from guardians where id = $1 and family_id = $2")
-                .bind(guardian_id)
-                .bind(child.family_id)
-                .fetch_optional(&state.pool)
-                .await?;
+        let belongs: Option<Uuid> = guardian::Entity::find_by_id(guardian_id)
+            .filter(guardian::Column::FamilyId.eq(child.family_id))
+            .select_only()
+            .column(guardian::Column::Id)
+            .into_tuple()
+            .one(&state.db)
+            .await?;
         belongs.ok_or(ApiError::Forbidden("that guardian is not in the child's family"))?;
     }
     let mut tx = state.pool.begin().await?;
