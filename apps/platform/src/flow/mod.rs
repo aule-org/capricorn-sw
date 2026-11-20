@@ -211,7 +211,9 @@ fn engine(setup: &Setup, bank: Arc<Banco>, clock: Clock) -> Motor {
         curso: bank.curso.clone(),
         tema: bank.tema.clone(),
         fecha: setup.due,
-        sin_fecha_confirmado: false,
+        // The family was asked for the date when it said what the session is
+        // for; an empty date is their answer, so the student is not asked again.
+        sin_fecha_confirmado: setup.due.is_none(),
         nivel_objetivo: None,
         tarea_id: (kind == TipoObjetivo::Tarea).then(|| bank.tareas.first().map(|t| t.id.clone())).flatten(),
         evaluacion_id: None,
