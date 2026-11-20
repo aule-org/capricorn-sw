@@ -125,6 +125,11 @@ REPLIES: dict[str, dict[str, str]] = {
         "es": "Ya pasó la pausa. ¿Seguimos donde nos quedamos?",
         "en": "The break is over. Shall we carry on where we left off?",
     },
+    # Said while a tool does its work, in place of whatever the model wrote in
+    # that step: short, true whatever the tool is, never the model's own words.
+    "meanwhile_see": {"es": "A ver.", "en": "Let's see."},
+    "meanwhile_look": {"es": "Veamos.", "en": "Let me see."},
+    "meanwhile_moment": {"es": "Un momento.", "en": "One moment."},
     "context_limit": {
         "es": "Necesito ayuda de un adulto para seguir con seguridad. Pídele que revise lo que "
         "pasa y vuelva a iniciar la sesión.",
@@ -146,6 +151,9 @@ ANSWERABLE = frozenset({*ADULT_HELP_SEQUENCE, "clarify"})
 # One activity per break, in turn: one that wakes up, then one that calms. They
 # are the four the session engine proposes, shortened to be heard.
 BREAKS = ("break_stars", "break_balloon", "break_mirror", "break_cat")
+
+# What is said while a tool works, in turn.
+MEANWHILE = ("meanwhile_see", "meanwhile_look", "meanwhile_moment")
 
 
 def reply(key: str, language: str) -> str:

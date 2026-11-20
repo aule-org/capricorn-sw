@@ -1,6 +1,7 @@
 """The tutor: what it is told to be, and where the gates and the camera plug in."""
 
 import asyncio
+import itertools
 import logging
 import re
 import time
@@ -13,7 +14,7 @@ from livekit.agents import Agent, ModelSettings, StopResponse, function_tool, ll
 
 from . import visuals
 from .greetings import greeting as written_greeting
-from .replies import ADULT_HELP_SEQUENCE, ANSWERABLE, reply
+from .replies import ADULT_HELP_SEQUENCE, ANSWERABLE, MEANWHILE, reply
 from .safety import Gates
 from .script import Flow, Line, Reply
 
@@ -344,14 +345,51 @@ def for_the_student(text: str) -> str:
     return paragraphs[-1] if len(paragraphs) > 1 else text
 
 
-async def checked(stream: AsyncIterable[Any], gates: Gates, language: str) -> AsyncIterable[Any]:
-    """The model's reply once the gate on what is spoken has approved all of it.
+def _calls_of(chunk: Any) -> list[Any]:
+    delta = getattr(chunk, "delta", None)
+    return list((delta.tool_calls if delta is not None else None) or [])
 
-    Nothing reaches the voice before the whole reply has been judged: a safe
-    beginning says nothing about how a sentence ends. A reply that does not
-    pass is replaced by a fixed one.
+
+async def checked(
+    stream: AsyncIterable[Any],
+    gates: Gates,
+    language: str,
+    meanwhile: Callable[[], str] | None = None,
+) -> AsyncIterable[Any]:
+    """What reaches the voice from one step of the model.
+
+    A step that calls a tool is work, not talk: every tool answers with what
+    to say next, and what the model writes on its way there is its own
+    reasoning ("the plan says start easy, so I show the bars before asking",
+    "there is an exercise open, so I check what they said") or words said too
+    soon. None of it is spoken. What ``meanwhile`` gives is said in its place:
+    one short fixed line, so the student is not left in silence while the tool
+    works, or nothing when the turn already had its line.
+
+    Any other step is the reply. Nothing of it reaches the voice before the
+    gate on what is spoken has approved all of it: a safe beginning says
+    nothing about how a sentence ends. A reply that does not pass is replaced
+    by a fixed one.
     """
     chunks = [chunk async for chunk in stream]
+    if meanwhile is not None and any(_calls_of(chunk) for chunk in chunks):
+        left_out = sum(len(_text_of(chunk)) for chunk in chunks)
+        if left_out:
+            # Counts only: what was left out is never logged.
+            logger.info(
+                "nothing of the model's said in a step with a tool", extra={"chars": left_out}
+            )
+        line = meanwhile()
+        if line:
+            yield line
+        for chunk in chunks:
+            if not _text_of(chunk):
+                yield chunk
+        return
+    if not gates.checks_spoken:
+        for chunk in chunks:
+            yield chunk
+        return
     written = "".join(_text_of(chunk) for chunk in chunks)
     spoken = for_the_student(written)
     decision = await gates.spoken(spoken)
@@ -464,6 +502,11 @@ class Tutor(Agent):
         self._language = language
         self._gates = gates
         self._camera = camera
+        # The short lines said while a tool works, one after the other, and
+        # whether this turn of the student still has one coming: a second tool
+        # in the same turn works in silence, or the lines would pile up.
+        self._meanwhiles = itertools.cycle(MEANWHILE)
+        self._meanwhile_due = True
         # The frame taken when the student pressed the button, until it is used.
         self._shown: rtc.VideoFrame | None = None
         self._hazards_in_a_row = 0
@@ -584,6 +627,7 @@ class Tutor(Agent):
     async def on_user_turn_completed(
         self, turn_ctx: llm.ChatContext, new_message: llm.ChatMessage
     ) -> None:
+        self._meanwhile_due = True
         if not await self._may_answer(turn_ctx, new_message):
             # The stopped turn never reaches the model: StopResponse discards it.
             raise StopResponse()
@@ -625,6 +669,7 @@ class Tutor(Agent):
         text = text.strip()[:MAX_TYPED_CHARS]
         if not text:
             return
+        self._meanwhile_due = True
         await self.session.interrupt()
         message = llm.ChatMessage(role="user", content=[text])
         if not await self._may_answer(self.chat_ctx.copy(), message):
@@ -636,6 +681,12 @@ class Tutor(Agent):
             return
         self.session.generate_reply(user_input=text)
 
+    def _meanwhile(self) -> str:
+        if not self._meanwhile_due:
+            return ""
+        self._meanwhile_due = False
+        return reply(next(self._meanwhiles), self._language)
+
     async def show_work(self) -> bool:
         """The student pressed the button that shows their work: the tutor
         looks at what the camera sees now and answers at once. False when the
@@ -646,6 +697,7 @@ class Tutor(Agent):
         if frame is None:
             return False
         self._shown = frame
+        self._meanwhile_due = True
         await self.session.interrupt()
         self.session.generate_reply(user_input=SHOWN[self._language])
         return True
@@ -684,10 +736,13 @@ class Tutor(Agent):
     ) -> AsyncIterable[llm.ChatChunk | str]:
         frame = self._frame_for(chat_ctx)
         stream = Agent.default.llm_node(self, with_frame(chat_ctx, frame), tools, model_settings)
-        if self._gates.checks_spoken:
+        if tools or self._gates.checks_spoken:
             # Buffering costs the time to the first word, so it is only paid
-            # when there is a gate to wait for.
-            stream = checked(stream, self._gates, self._language)
+            # when there is a gate to wait for or a tool whose step must be
+            # known whole before any of it is said.
+            stream = checked(
+                stream, self._gates, self._language, self._meanwhile if tools else None
+            )
         started = time.monotonic()
         chars, called = 0, []
         async for chunk in stream:
