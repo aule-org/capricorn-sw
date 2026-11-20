@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync, readdirSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import { createServer, type IncomingMessage } from "node:http";
 import { after, before, test } from "node:test";
@@ -322,4 +323,18 @@ test("the account is erased only with the address typed again, and the cookie go
   assert.deepEqual(await response.json(), { signed_in: false, erased: true });
   assert.match(response.headers.get("set-cookie") ?? "", /^aule_guardian=; Max-Age=0;/);
   assert.deepEqual(seen.at(-1)?.body, { confirm_email: "ana@example.org" });
+});
+
+test("every script the page's scripts import is served", async () => {
+  const dir = new URL("../public/", import.meta.url);
+  const imported = new Set<string>();
+  for (const file of readdirSync(dir).filter((name) => name.endsWith(".js"))) {
+    for (const found of readFileSync(new URL(file, dir), "utf8").matchAll(/from "\.\/([\w-]+\.js)"/g)) imported.add(found[1]);
+  }
+  assert.ok(imported.has("mail.js") && imported.has("texts.js"));
+  for (const file of imported) {
+    const response = await fetch(`${base}/${file}`);
+    assert.equal(response.status, 200, file);
+    assert.match(response.headers.get("content-type") ?? "", /javascript/, file);
+  }
 });

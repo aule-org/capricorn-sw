@@ -59,6 +59,8 @@ const STATIC: Record<string, { file: string | URL; type: string }> = {
   "/app.js": { file: new URL("app.js", publicDir), type: "text/javascript; charset=utf-8" },
   "/students.js": { file: new URL("students.js", publicDir), type: "text/javascript; charset=utf-8" },
   "/signin.js": { file: new URL("signin.js", publicDir), type: "text/javascript; charset=utf-8" },
+  "/mail.js": { file: new URL("mail.js", publicDir), type: "text/javascript; charset=utf-8" },
+  "/texts.js": { file: new URL("texts.js", publicDir), type: "text/javascript; charset=utf-8" },
   "/visuals.js": { file: new URL("visuals.js", publicDir), type: "text/javascript; charset=utf-8" },
   "/style.css": { file: new URL("style.css", publicDir), type: "text/css; charset=utf-8" },
   "/fonts/serif.woff2": { file: join(serif, "source-serif-4-latin-wght-normal.woff2"), type: "font/woff2" },
