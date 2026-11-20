@@ -87,8 +87,8 @@ async fn child_skills(
 ) -> ApiResult<Json<Value>> {
     let child = child_for(&state.db, &caller, child_id).await?;
     let now = Utc::now();
-    let trace = learning::trace_child(&state.pool, child_id, now).await?;
-    let catalog = learning::catalog(&state.pool).await?;
+    let trace = learning::trace_child(&state.db, child_id, now).await?;
+    let catalog = learning::catalog(&state.db).await?;
     let next = learning::candidates(&trace.skills, &catalog, child.grade.as_deref(), now);
     Ok(Json(json!({ "ability": trace.ability, "skills": trace.skills, "next": next })))
 }
@@ -115,7 +115,7 @@ async fn record_attempts(
         return Err(ApiError::bad_request("send 1 to 500 attempts"));
     }
     child_for(&state.db, &caller, child_id).await?;
-    let recorded = learning::record(&state.pool, child_id, None, source, &body.attempts, Utc::now()).await?;
+    let recorded = learning::record(&state.db, child_id, None, source, &body.attempts, Utc::now()).await?;
     Ok((StatusCode::CREATED, Json(json!({ "recorded": recorded }))))
 }
 
@@ -137,13 +137,18 @@ async fn record_correction(
         return Err(ApiError::bad_request("skill_id must be a valid id and level a number from 0 to 1"));
     }
     child_for(&state.db, &caller, child_id).await?;
-    sqlx::query("insert into corrections (id, child_id, skill_id, level, at) values ($1, $2, $3, $4, now())")
-        .bind(Uuid::now_v7())
-        .bind(child_id)
-        .bind(&body.skill_id)
-        .bind(body.level)
-        .execute(&state.pool)
-        .await?;
+    <crate::entity::correction::Entity as sea_orm::EntityTrait>::insert(
+        crate::entity::correction::ActiveModel {
+            id: sea_orm::ActiveValue::Set(Uuid::now_v7()),
+            child_id: sea_orm::ActiveValue::Set(child_id),
+            skill_id: sea_orm::ActiveValue::Set(body.skill_id.clone()),
+            level: sea_orm::ActiveValue::Set(body.level),
+            at: sea_orm::ActiveValue::Set(Utc::now()),
+            ..Default::default()
+        },
+    )
+    .exec_without_returning(&state.db)
+    .await?;
     Ok(StatusCode::CREATED)
 }
 
@@ -221,9 +226,9 @@ async fn put_skills(
     if body.skills.len() > 2000 {
         return Err(ApiError::bad_request("at most 2000 skills per request"));
     }
-    Ok(Json(json!({ "stored": learning::upsert_skills(&state.pool, &body.skills).await? })))
+    Ok(Json(json!({ "stored": learning::upsert_skills(&state.db, &body.skills).await? })))
 }
 
 async fn get_skills(_: Caller, State(state): State<AppState>) -> ApiResult<Json<Value>> {
-    Ok(Json(json!({ "skills": learning::catalog(&state.pool).await? })))
+    Ok(Json(json!({ "skills": learning::catalog(&state.db).await? })))
 }

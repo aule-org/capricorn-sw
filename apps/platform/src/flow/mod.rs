@@ -1323,7 +1323,7 @@ pub async fn conclude(state: &AppState, session: &Session) -> ApiResult<Option<S
 
     // Only skills of the catalog count, as for the tutor's own exercises.
     let catalog: Vec<String> =
-        crate::learning::catalog(&state.pool).await?.into_iter().map(|skill| skill.id).collect();
+        crate::learning::catalog(&state.db).await?.into_iter().map(|skill| skill.id).collect();
     let attempts: Vec<crate::learning::NewAttempt> = live
         .flow
         .outcomes()
@@ -1345,7 +1345,7 @@ pub async fn conclude(state: &AppState, session: &Session) -> ApiResult<Option<S
         .bind(session.id)
         .execute(&state.pool)
         .await?;
-    crate::learning::record(&state.pool, child_id, Some(session.id), "engine", &attempts, Utc::now()).await?;
+    crate::learning::record(&state.db, child_id, Some(session.id), "engine", &attempts, Utc::now()).await?;
     Ok(live.flow.report())
 }
 

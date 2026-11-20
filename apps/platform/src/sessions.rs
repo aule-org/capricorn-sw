@@ -241,8 +241,8 @@ pub async fn open_session(
 
 async fn prepare_brief(state: &AppState, session_id: Uuid, child: &Child, use_memory: bool) -> ApiResult<()> {
     let now = Utc::now();
-    let trace = learning::trace_child(&state.pool, child.id, now).await?;
-    let catalog = learning::catalog(&state.pool).await?;
+    let trace = learning::trace_child(&state.db, child.id, now).await?;
+    let catalog = learning::catalog(&state.db).await?;
     let objective: Option<Value> = sqlx::query_scalar("select objective from sessions where id = $1")
         .bind(session_id)
         .fetch_optional(&state.pool)
@@ -853,9 +853,9 @@ pub async fn review_session(state: &AppState, session_id: Uuid) -> ApiResult<()>
         let now = Utc::now();
         let brief = stored_brief(&state.pool, session.id).await?.unwrap_or_default();
         let mut known: Vec<String> =
-            learning::catalog(&state.pool).await?.into_iter().map(|skill| skill.id).collect();
+            learning::catalog(&state.db).await?.into_iter().map(|skill| skill.id).collect();
         known.extend(
-            learning::trace_child(&state.pool, child_id, now).await?.skills.into_iter().map(|s| s.skill_id),
+            learning::trace_child(&state.db, child_id, now).await?.skills.into_iter().map(|s| s.skill_id),
         );
         known.sort();
         known.dedup();
@@ -900,7 +900,7 @@ pub async fn review_session(state: &AppState, session_id: Uuid) -> ApiResult<()>
                 at: Some(at),
             })
             .collect();
-        learning::record(&state.pool, child_id, Some(session.id), "review", &attempts, now).await?;
+        learning::record(&state.db, child_id, Some(session.id), "review", &attempts, now).await?;
 
         if session.use_memory {
             let embedder = state.embedder.as_deref();
