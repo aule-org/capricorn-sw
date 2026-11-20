@@ -235,3 +235,13 @@ async def test_silence_while_the_tutor_talks_or_on_a_break_is_not_inactivity():
     await made.take_a_break()
     await watched(made, time, IDLE_ASK_SECONDS * 2)
     assert [text for _, text, _, _ in session.said] == [line(BREAKS[0])]
+
+
+async def test_a_goodbye_is_said_back_once_and_closes_the_session():
+    made, session, time = pace()
+
+    await made.farewell()
+    await made.farewell()
+
+    assert [said[1] for said in session.said] == [REPLIES["farewell"]["es"]]
+    assert session.closed_at is not None and made.closed_after_goodbye
