@@ -22,6 +22,7 @@ from livekit.agents import llm
 
 from .config import Settings
 from .moderation import Action, Decision, Finding, Moderator, classify_heard, classify_spoken
+from .opinion import SecondOpinion
 from .physical_safety import PhysicalSafetyGuard, Verdict, combine_input_decisions
 
 logger = logging.getLogger("capricorn.agent.safety")
@@ -103,7 +104,9 @@ class Gates:
         moderation: Moderator | None = None,
         physical_safety: PhysicalSafetyGuard | None = None,
         report: Report | None = None,
+        second_opinion: SecondOpinion | None = None,
     ) -> None:
+        self._second_opinion = second_opinion
         self._moderation = moderation
         self._physical_safety = physical_safety
         self._report = report
@@ -169,6 +172,12 @@ class Gates:
         except Exception as error:
             return self._broken("moderation_output", error)
         decision = classify_spoken(finding)
+        if not decision.allowed and finding.unsure and self._second_opinion is not None:
+            # The provider did not act on it and a score cannot tell a teaching
+            # sentence from a bad one: one more reader decides, and only a clear
+            # yes lets the reply through.
+            if await self._second_opinion.safe(text):
+                return Decision(Action.ALLOW)
         if not decision.allowed:
             self._flag("moderation_output", decision.action.value, moderation_categories(finding))
         return decision
@@ -193,6 +202,8 @@ class Gates:
             await self._moderation.close()
         if self._physical_safety is not None:
             await self._physical_safety.close()
+        if self._second_opinion is not None:
+            await self._second_opinion.close()
 
 
 def build_gates(settings: Settings, report: Report | None = None) -> Gates:
@@ -203,4 +214,7 @@ def build_gates(settings: Settings, report: Report | None = None) -> Gates:
             PhysicalSafetyGuard(settings.typesafe_api_key) if settings.typesafe_api_key else None
         ),
         report=report,
+        # Only what the tutor is about to say gets a second reader, and only
+        # where there is a moderation gate to be unsure.
+        second_opinion=SecondOpinion() if settings.openai_api_key else None,
     )

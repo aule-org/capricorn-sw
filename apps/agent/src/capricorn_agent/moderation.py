@@ -145,6 +145,10 @@ class Finding:
     categories: tuple[str, ...] = ()
     # Swearing is kept apart: a child who swears is not stopped, the tutor is.
     profanity: bool = False
+    # True when all that was found is a sexual score over our threshold that the
+    # provider itself did not act on. Ordinary teaching sentences land here as
+    # often as bad ones, so a score cannot settle it (see ``opinion``).
+    unsure: bool = False
 
     @property
     def flagged(self) -> bool:
@@ -168,6 +172,17 @@ def local_category(text: str) -> str | None:
         if pattern.search(normalized):
             return category
     return None
+
+
+def provider_is_unsure(response: Any) -> bool:
+    """Whether the only thing found is "sexual", by our threshold and not by the
+    provider's own verdict. Call after ``provider_categories`` accepted the response."""
+    result = response.results[0]
+    return (
+        provider_categories(response) == ("sexual",)
+        and result.flagged is False
+        and result.categories.sexual is False
+    )
 
 
 def provider_categories(response: Any) -> tuple[str, ...]:
@@ -210,6 +225,7 @@ class Moderator:
         local = local_category(text)
         categories: tuple[str, ...] = ()
         available = False
+        unsure = False
         # A local match never skips the provider: swearing must not hide a
         # graver category in the same sentence.
         if len(text) <= MAX_CHARS:
@@ -219,6 +235,7 @@ class Moderator:
                 async with asyncio.timeout(timeout):
                     response = await self._client.moderations.create(model=MODEL, input=text)
                 categories = provider_categories(response)
+                unsure = provider_is_unsure(response)
                 available = True
             except asyncio.CancelledError:
                 raise
@@ -227,7 +244,11 @@ class Moderator:
         if local and local != "profanity" and local not in categories:
             categories = (*categories, local)
         finding = Finding(
-            available=available, categories=categories, profanity=local == "profanity"
+            available=available,
+            categories=categories,
+            profanity=local == "profanity",
+            # A word of our own list is a finding of its own: nothing to be unsure about.
+            unsure=unsure and local is None,
         )
         if finding.flagged or not finding.available:
             logger.info(
