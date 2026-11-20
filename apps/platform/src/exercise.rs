@@ -577,6 +577,9 @@ pub enum Verdict {
     Unreadable,
     /// "No sé": not a wrong answer, a request for help.
     DontKnow,
+    /// Numbers, but about something else: another calculation or a question
+    /// of the student's own. It does not count as a try.
+    NotAnAnswer,
 }
 
 /// A mistake with a name: it tells the tutor what the student did, so the
@@ -675,6 +678,53 @@ pub fn says_dont_know(said: &str) -> bool {
         || has(&["don", "t", "know"])
         || has(&["dont", "know"])
         || has(&["no", "idea"])
+}
+
+/// Whether what was said is about something other than this exercise: it
+/// states a calculation that shares no number with it ("siete por ocho es
+/// 54" while "3 x 4" is open), or asks a question with numbers of its own
+/// ("una cancha mide 18 de largo y 9 de ancho, ¿cuánto mide su perímetro?").
+/// Deliberately narrow: an explanation that names the exercise's own numbers,
+/// or a bare number, is always an answer.
+pub fn is_about_something_else(expression: &str, said: &str) -> bool {
+    // The exercise's numbers, and the tops and bottoms of its fractions: an
+    // explanation works with those too.
+    let mut own = numbers(expression);
+    own.extend(tokens(expression).iter().filter_map(|token| match token {
+        Token::Int(value) | Token::Parts(value) => Some(Rational::whole(*value)),
+        _ => None,
+    }));
+    let tokens = tokens(said);
+    let mut stated = Vec::new();
+    let mut at = 0;
+    while at < tokens.len() {
+        let Some((left, used)) = number(&tokens[at..]) else {
+            at += 1;
+            continue;
+        };
+        let mut next = at + used;
+        if matches!(tokens.get(next), Some(Token::Op(_))) {
+            next += 1;
+            if tokens.get(next) == Some(&Token::Over) {
+                next += 1;
+            }
+            if let Some((right, _)) = tokens.get(next..).and_then(number) {
+                stated.push((left.value(), right.value()));
+            }
+        }
+        at += used.max(1);
+    }
+    let shares = |value: &Option<Rational>| value.is_some_and(|value| own.contains(&value));
+    if !stated.is_empty() {
+        return stated.iter().all(|(left, right)| !shares(left) && !shares(right));
+    }
+    let text = plain(said);
+    let asks = text.contains('?')
+        && text.split(|c: char| !c.is_alphanumeric()).any(|word| {
+            matches!(word, "cuanto" | "cuantos" | "cuanta" | "cuantas" | "cual" | "how" | "what" | "which")
+        });
+    let said = numbers(said);
+    asks && said.len() >= 2 && said.iter().all(|value| !own.contains(value))
 }
 
 /// Judges what the student said against the exercise.
@@ -877,5 +927,22 @@ mod tests {
         assert_eq!(r(11, 8).to_string(), "11/8 (1 3/8)");
         assert_eq!(read_answer("dos enteros y un cuarto").unwrap().to_string(), "2 1/4");
         assert_eq!(read_answer("0,75").unwrap().to_string(), "3/4");
+    }
+    #[test]
+    fn talk_about_another_calculation_is_not_an_answer() {
+        // Another calculation, or a question with numbers of its own.
+        assert!(is_about_something_else("3 x 4", "Seven times eight is 54"));
+        assert!(is_about_something_else("3 x 4", "siete por ocho es 54"));
+        assert!(is_about_something_else(
+            "6 + 8 + 10",
+            "El siguiente: una cancha mide 18 metros de largo y 9 de ancho. ¿Cuánto mide su perímetro?"
+        ));
+        // An answer, however it is said, stays an answer.
+        for said in ["24", "¿54 metros?", "Creo que es 20 centímetros", "Oh, it's 56", "no sé"] {
+            assert!(!is_about_something_else("6 + 8 + 10", said), "{said}");
+        }
+        assert!(!is_about_something_else("5 + 7 + 9", "sumé 5 más 7 es 12, más 9 es 21"));
+        assert!(!is_about_something_else("2/3 + 1/4", "8 más 3 es 11, entonces 11/12"));
+        assert!(!is_about_something_else("3 x 4", "tres por cuatro es 11"));
     }
 }
