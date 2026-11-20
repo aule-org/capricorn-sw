@@ -141,6 +141,11 @@ REPLIES: dict[str, dict[str, str]] = {
     "meanwhile_see": {"es": "A ver.", "en": "Let's see."},
     "meanwhile_look": {"es": "Veamos.", "en": "Let me see."},
     "meanwhile_moment": {"es": "Un momento.", "en": "One moment."},
+    # Said when the tutor drew something and had no words left for it.
+    "look_at_screen": {
+        "es": "Mira la pantalla y cuéntame qué ves.",
+        "en": "Look at the screen and tell me what you see.",
+    },
     "context_limit": {
         "es": "Necesito ayuda de un adulto para seguir con seguridad. Pídele que revise lo que "
         "pasa y vuelva a iniciar la sesión.",

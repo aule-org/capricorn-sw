@@ -5,7 +5,7 @@ from unittest.mock import PropertyMock, patch
 
 import pytest
 from livekit import rtc
-from livekit.agents import StopResponse, llm
+from livekit.agents import Agent, StopResponse, llm
 
 from aule_agent.greetings import GREETINGS, greeting
 from aule_agent.moderation import Action, Decision
@@ -855,6 +855,33 @@ async def test_a_camera_with_nothing_to_show_gets_no_answer():
         assert await Tutor(language="es", gates=ScriptedGates()).show_work() is False
 
     assert not hasattr(session, "replies_to") and not hasattr(session, "interrupts")
+
+
+async def test_a_drawing_is_never_left_without_a_word():
+    tutor = Tutor(language="es", gates=ScriptedGates(ALLOW, ALLOW))
+    tutor._drew = True
+
+    async def nothing(*_):
+        return
+        yield
+
+    with patch.object(Agent.default, "llm_node", side_effect=lambda *a: nothing()):
+        said = [chunk async for chunk in tutor.llm_node(llm.ChatContext.empty(), [], None)]
+
+    assert said == [REPLIES["look_at_screen"]["es"]]
+
+
+async def test_an_empty_step_with_no_drawing_stays_empty():
+    tutor = Tutor(language="es", gates=ScriptedGates(ALLOW))
+
+    async def nothing(*_):
+        return
+        yield
+
+    with patch.object(Agent.default, "llm_node", side_effect=lambda *a: nothing()):
+        said = [chunk async for chunk in tutor.llm_node(llm.ChatContext.empty(), [], None)]
+
+    assert said == []
 
 
 async def test_a_drill_measures_the_spoken_try_and_draws_its_tune():
