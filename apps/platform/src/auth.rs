@@ -122,8 +122,7 @@ impl FromRequestParts<AppState> for Guardian {
     }
 }
 
-// sqlx::FromRow until the session engine's code moves to SeaORM.
-#[derive(Clone, Debug, sqlx::FromRow)]
+#[derive(Clone, Debug)]
 pub struct Session {
     pub id: Uuid,
     pub child_id: Option<Uuid>,

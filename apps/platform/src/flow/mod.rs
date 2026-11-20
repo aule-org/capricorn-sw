@@ -35,12 +35,18 @@ use aule_core::texto;
 use axum::Json;
 use axum::extract::{Path, State};
 use chrono::{DateTime, Duration, NaiveDate, Utc};
+use sea_orm::ActiveValue::Set;
+use sea_orm::sea_query::Expr;
+use sea_orm::{
+    ColumnTrait, Condition, ConnectionTrait, DatabaseConnection, DbBackend, DbErr, EntityTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Statement, TransactionTrait,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::auth::{Agent, Caller, Input as Body, Session};
+use crate::entity::{attempt, child, guardian, session as session_row, session_flow_input};
 use crate::error::{ApiError, ApiResult};
 use crate::families::{child_for, find_child};
 use crate::state::AppState;
@@ -1104,29 +1110,24 @@ async fn setup(state: &AppState, session: &Session) -> ApiResult<Setup> {
     let not_runnable = ApiError::Conflict("the session cannot be run by the session engine");
     let Some(child_id) = session.child_id else { return Err(not_runnable) };
     let child = find_child(&state.db, child_id).await?;
-    let guardian: Option<String> =
-        sqlx::query_scalar("select name from guardians where family_id = $1 order by created_at limit 1")
-            .bind(child.family_id)
-            .fetch_optional(&state.pool)
-            .await?;
-    let objective: Option<Value> = sqlx::query_scalar("select objective from sessions where id = $1")
-        .bind(session.id)
-        .fetch_optional(&state.pool)
-        .await?
-        .flatten();
+    let guardian: Option<String> = guardian::Entity::find()
+        .filter(guardian::Column::FamilyId.eq(child.family_id))
+        .order_by_asc(guardian::Column::CreatedAt)
+        .select_only()
+        .column(guardian::Column::Name)
+        .into_tuple()
+        .one(&state.db)
+        .await?;
+    let stored = session_row::Entity::find_by_id(session.id).one(&state.db).await?;
+    let objective: Option<Value> = stored.as_ref().and_then(|row| row.objective.clone());
     let Some((goal, due)) = goal(objective.as_ref(), &session.language) else { return Err(not_runnable) };
     // The session's own day, so an engine rebuilt after midnight is the same one.
     let today = (session.created_at + Duration::minutes(i64::from(state.config.timezone_offset_minutes)))
         .date_naive();
-    let start: Option<sqlx::types::Json<Start>> =
-        sqlx::query_scalar("select flow_start from sessions where id = $1")
-            .bind(session.id)
-            .fetch_optional(&state.pool)
-            .await?
-            .flatten();
+    let start: Option<Start> =
+        stored.and_then(|row| row.flow_start).and_then(|start| serde_json::from_value(start).ok());
     // A session from before this was stored started from nothing, at the engine's own length.
-    let start =
-        start.map_or(Start { minutes: *ENGINE_MINUTES.end(), kept: Kept::default() }, |start| start.0);
+    let start = start.unwrap_or(Start { minutes: *ENGINE_MINUTES.end(), kept: Kept::default() });
     Ok(Setup {
         student: child.nickname,
         interests: child.interests,
@@ -1142,16 +1143,20 @@ async fn setup(state: &AppState, session: &Session) -> ApiResult<Setup> {
 async fn load(state: &AppState, session: &Session) -> ApiResult<Live> {
     let bank = bank().ok_or(ApiError::Unavailable("the session engine's bank is not valid"))?;
     let setup = setup(state, session).await?;
-    let rows: Vec<(i64, sqlx::types::Json<Input>, DateTime<Utc>)> =
-        sqlx::query_as("select at_ms, input, at from session_flow_inputs where session_id = $1 order by seq")
-            .bind(session.id)
-            .fetch_all(&state.pool)
-            .await?;
-    let anchor = rows.first().map_or_else(Utc::now, |(_, _, at)| *at);
+    let rows = session_flow_input::Entity::find()
+        .filter(session_flow_input::Column::SessionId.eq(session.id))
+        .order_by_asc(session_flow_input::Column::Seq)
+        .all(&state.db)
+        .await?;
+    let anchor = rows.first().map_or_else(Utc::now, |row| row.at);
     let records: Vec<Record> = rows
         .into_iter()
-        .map(|(at_ms, input, _)| Record { at_ms: at_ms.max(0) as u64, input: input.0 })
-        .collect();
+        .map(|row| {
+            let input: Input = serde_json::from_value(row.input)
+                .map_err(|_| ApiError::Conflict("a stored input of the session engine cannot be read"))?;
+            Ok(Record { at_ms: row.at_ms.max(0) as u64, input })
+        })
+        .collect::<ApiResult<_>>()?;
     Ok(Live {
         flow: Flow::replay(setup, bank, &records),
         anchor,
@@ -1178,32 +1183,31 @@ pub fn forget(state: &AppState, session_id: Uuid) {
 /// Stores the inputs applied since the last time. `queued` are lines the
 /// tutor still has to be handed, kept with the last of them.
 async fn save(
-    pool: &PgPool,
+    db: &DatabaseConnection,
     session_id: Uuid,
     live: &mut Live,
     queued: Option<&Value>,
-) -> Result<(), sqlx::Error> {
+) -> Result<(), DbErr> {
     let records = live.flow.unsaved();
     if records.is_empty() {
         return Ok(());
     }
-    let mut tx = pool.begin().await?;
+    let txn = db.begin().await?;
     for (i, record) in records.iter().enumerate() {
         let last = i + 1 == records.len();
-        sqlx::query(
-            "insert into session_flow_inputs (session_id, seq, at_ms, input, queued, at)
-             values ($1, $2, $3, $4, $5, $6)",
-        )
-        .bind(session_id)
-        .bind((live.flow.stored() + i) as i32)
-        .bind(record.at_ms as i64)
-        .bind(sqlx::types::Json(&record.input))
-        .bind(queued.filter(|_| last))
-        .bind(live.anchor + Duration::milliseconds(record.at_ms as i64))
-        .execute(&mut *tx)
+        let input = serde_json::to_value(&record.input).map_err(|error| DbErr::Custom(error.to_string()))?;
+        session_flow_input::Entity::insert(session_flow_input::ActiveModel {
+            session_id: Set(session_id),
+            seq: Set((live.flow.stored() + i) as i32),
+            at_ms: Set(record.at_ms as i64),
+            input: Set(input),
+            queued: Set(queued.filter(|_| last).cloned()),
+            at: Set(live.anchor + Duration::milliseconds(record.at_ms as i64)),
+        })
+        .exec_without_returning(&txn)
         .await?;
     }
-    tx.commit().await?;
+    txn.commit().await?;
     live.flow.saved();
     Ok(())
 }
@@ -1218,11 +1222,11 @@ async fn with_engine<T>(
     let live = live(state, session).await?;
     let mut live = live.lock().await;
     // Another process may have taken inputs, or the last call here failed half way.
-    let stored: i64 = sqlx::query_scalar("select count(*) from session_flow_inputs where session_id = $1")
-        .bind(session.id)
-        .fetch_one(&state.pool)
+    let stored = session_flow_input::Entity::find()
+        .filter(session_flow_input::Column::SessionId.eq(session.id))
+        .count(&state.db)
         .await?;
-    if !live.settled || stored != live.flow.stored() as i64 {
+    if !live.settled || stored != live.flow.stored() as u64 {
         *live = load(state, session).await?;
     }
     live.settled = false;
@@ -1232,7 +1236,7 @@ async fn with_engine<T>(
     }
     let at_ms = (Utc::now() - live.anchor).num_milliseconds().max(0) as u64;
     let (result, queued) = act(&mut live.flow, at_ms)?;
-    save(&state.pool, session.id, &mut live, queued.as_ref()).await?;
+    save(&state.db, session.id, &mut live, queued.as_ref()).await?;
     live.settled = true;
     Ok(result)
 }
@@ -1252,27 +1256,30 @@ pub async fn open(state: &AppState, session: &Session) -> ApiResult<Value> {
 
 /// Lines from answers typed on the page since the tutor last asked, in
 /// order. They are handed over once.
-pub async fn queued(pool: &PgPool, session_id: Uuid) -> Result<Option<Value>, sqlx::Error> {
-    let queued: Vec<sqlx::types::Json<Value>> = sqlx::query_scalar(
-        "with due as (
-             select seq, queued from session_flow_inputs
-             where session_id = $1 and queued is not null for update
-         ), handed as (
-             update session_flow_inputs input set queued = null from due
-             where input.session_id = $1 and input.seq = due.seq
-         ) select queued from due order by seq",
-    )
-    .bind(session_id)
-    .fetch_all(pool)
-    .await?;
+pub async fn queued(db: &DatabaseConnection, session_id: Uuid) -> Result<Option<Value>, DbErr> {
+    let rows = db
+        .query_all_raw(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "with due as (
+                 select seq, queued from session_flow_inputs
+                 where session_id = $1 and queued is not null for update
+             ), handed as (
+                 update session_flow_inputs input set queued = null from due
+                 where input.session_id = $1 and input.seq = due.seq
+             ) select queued from due order by seq",
+            [session_id.into()],
+        ))
+        .await?;
+    let queued: Vec<Value> =
+        rows.iter().map(|row| row.try_get("", "queued")).collect::<Result<_, DbErr>>()?;
     if queued.is_empty() {
         return Ok(None);
     }
     let mut lines = Vec::new();
     let mut closed = false;
     for part in queued {
-        lines.extend(part.0["lines"].as_array().cloned().unwrap_or_default());
-        closed |= part.0["closed"] == true;
+        lines.extend(part["lines"].as_array().cloned().unwrap_or_default());
+        closed |= part["closed"] == true;
     }
     Ok(Some(json!({ "lines": lines, "closed": closed })))
 }
@@ -1284,14 +1291,13 @@ pub async fn start_for(
     child_id: Uuid,
     minutes: u32,
 ) -> Result<Value, sea_orm::DbErr> {
-    let row = db
-        .query_one_raw(sea_orm::Statement::from_sql_and_values(
-            sea_orm::DbBackend::Postgres,
-            "select engine_profile from children where id = $1",
-            [child_id.into()],
-        ))
-        .await?;
-    let kept: Option<Value> = row.map(|row| row.try_get("", "engine_profile")).transpose()?.flatten();
+    let kept: Option<Value> = child::Entity::find_by_id(child_id)
+        .select_only()
+        .column(child::Column::EngineProfile)
+        .into_tuple::<Option<Value>>()
+        .one(db)
+        .await?
+        .flatten();
     let kept: Kept = kept.and_then(|kept| serde_json::from_value(kept).ok()).unwrap_or_default();
     serde_json::to_value(Start { minutes, kept }).map_err(|error| sea_orm::DbErr::Custom(error.to_string()))
 }
@@ -1314,15 +1320,19 @@ pub async fn conclude(state: &AppState, session: &Session) -> ApiResult<Option<S
         return Ok(None);
     }
     // A session reviewed late does not undo what a later one learned.
-    sqlx::query(
-        "update children set engine_profile = $2, engine_profile_at = $3
-         where id = $1 and (engine_profile_at is null or engine_profile_at < $3)",
-    )
-    .bind(child_id)
-    .bind(sqlx::types::Json(live.flow.kept()))
-    .bind(session.created_at)
-    .execute(&state.pool)
-    .await?;
+    let kept =
+        serde_json::to_value(live.flow.kept()).map_err(|error| ApiError::Internal(error.to_string()))?;
+    child::Entity::update_many()
+        .col_expr(child::Column::EngineProfile, Expr::value(kept))
+        .col_expr(child::Column::EngineProfileAt, Expr::value(session.created_at))
+        .filter(child::Column::Id.eq(child_id))
+        .filter(
+            Condition::any()
+                .add(child::Column::EngineProfileAt.is_null())
+                .add(child::Column::EngineProfileAt.lt(session.created_at)),
+        )
+        .exec(&state.db)
+        .await?;
 
     // Only skills of the catalog count, as for the tutor's own exercises.
     let catalog: Vec<String> =
@@ -1344,22 +1354,23 @@ pub async fn conclude(state: &AppState, session: &Session) -> ApiResult<Option<S
         })
         .collect();
     // A second run replaces what the first one wrote.
-    sqlx::query("delete from attempts where session_id = $1 and source = 'engine'")
-        .bind(session.id)
-        .execute(&state.pool)
+    attempt::Entity::delete_many()
+        .filter(attempt::Column::SessionId.eq(session.id))
+        .filter(attempt::Column::Source.eq("engine"))
+        .exec(&state.db)
         .await?;
     crate::learning::record(&state.db, child_id, Some(session.id), "engine", &attempts, Utc::now()).await?;
     Ok(live.flow.report())
 }
 
 /// The same delete as for a session's turns, for its inputs.
-pub async fn delete_inputs_after_review(pool: &PgPool, session_id: Uuid) -> Result<(), sqlx::Error> {
-    sqlx::query(
+pub async fn delete_inputs_after_review(db: &DatabaseConnection, session_id: Uuid) -> Result<(), DbErr> {
+    db.execute_raw(Statement::from_sql_and_values(
+        DbBackend::Postgres,
         "delete from session_flow_inputs using sessions
          where session_flow_inputs.session_id = sessions.id and sessions.id = $1 and not sessions.keep_transcript",
-    )
-    .bind(session_id)
-    .execute(pool)
+        [session_id.into()],
+    ))
     .await?;
     Ok(())
 }
@@ -1417,14 +1428,11 @@ pub async fn said(
 
 /// The session, for the operator or a guardian of its child.
 async fn session_for(state: &AppState, caller: &Caller, session_id: Uuid) -> ApiResult<Session> {
-    let session: Option<Session> = sqlx::query_as(
-        "select id, child_id, audience, room, language, status, keep_transcript, use_memory, created_at, ended_at, flow
-         from sessions where id = $1",
-    )
-    .bind(session_id)
-    .fetch_optional(&state.pool)
-    .await?;
-    let session = session.ok_or(ApiError::NotFound("session"))?;
+    let session = session_row::Entity::find_by_id(session_id)
+        .one(&state.db)
+        .await?
+        .map(Session::from)
+        .ok_or(ApiError::NotFound("session"))?;
     match (caller, session.child_id) {
         // A session of another family does not exist as far as a guardian can tell.
         (_, Some(child_id)) => {
