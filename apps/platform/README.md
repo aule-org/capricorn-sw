@@ -54,7 +54,7 @@ Devices do not use a bearer token: they sign with the key burned into them.
 | Route | What it does |
 |---|---|
 | `POST /v1/families/{id}/children` | A child's profile. `grade` is `P1` to `P6` or `S1` to `S5` |
-| `GET`, `PUT`, `DELETE /v1/children/{id}` | Read, replace or erase a child and everything derived from them. `tutor_name` (1 to 20 letters, default `Aule`), `tutor_persona` (`calido`, `jugueton`, `aventurero` or `tranquilo`) and `tutor_persona_note` (one line, up to 200 characters; empty removes it) say how the tutor presents itself, and keep their value when left out |
+| `GET`, `PUT`, `DELETE /v1/children/{id}` | Read, replace or erase a child and everything derived from them. `tutor_name` (1 to 20 letters, default `Aule`), `tutor_persona` (`calido`, `jugueton`, `aventurero` or `tranquilo`) and `tutor_persona_note` (one line, up to 200 characters; empty removes it) say how the tutor presents itself, and keep their value when left out. `subjects` are the school subjects the family wants reinforced, from the list `GET /v1/me` returns; left out of a `PUT`, they keep their value |
 | `POST /v1/children/{id}/consents` | Grant or take back `voice`, `transcripts` or `memory` |
 | `GET /v1/children/{id}/skills` | What the child knows now, and what the model would work on next |
 | `POST /v1/children/{id}/attempts` | Answers reported by a guardian (the operator can also import past records) |
@@ -62,7 +62,7 @@ Devices do not use a bearer token: they sign with the key burned into them.
 | `GET /v1/children/{id}/memories?query=` | What is remembered, closest to the query first |
 | `DELETE /v1/children/{id}/memories/{memory_id}` | Forget one thing |
 | `GET /v1/children/{id}/reviews` | Notes from past sessions |
-| `POST /v1/sessions` | A session and its room token. A guardian can only start a child's session |
+| `POST /v1/sessions` | A session and its room token. A guardian can only start a child's session. Optional `objective`: what the family says the session is for, `{kind: homework, exam_prep, exam_review or explore, subject (one of the subjects, or other), topic (up to 200 characters), due (a date)}`; the supervisor plans for it first |
 | `GET /v1/skills` | The skill catalog |
 
 ### Devices

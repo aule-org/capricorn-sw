@@ -82,6 +82,8 @@ pub struct Child {
     pub grade: Option<String>,
     pub language: String,
     pub interests: Vec<String>,
+    /// The subjects the family wants reinforced, from `SUBJECTS`.
+    pub subjects: Vec<String>,
     pub notes: Option<String>,
     pub tutor_name: String,
     pub tutor_persona: String,
@@ -90,6 +92,8 @@ pub struct Child {
 }
 
 pub const TUTOR_NAME: &str = "Aule";
+/// The subjects a family can ask to reinforce.
+pub const SUBJECTS: [&str; 5] = ["matematica", "comunicacion", "ciencia", "personal_social", "ingles"];
 pub const TUTOR_PERSONAS: [&str; 4] = ["calido", "jugueton", "aventurero", "tranquilo"];
 
 /// How the tutor presents itself, as the agent is told. The note is the
@@ -136,6 +140,7 @@ impl Child {
             grade: self.grade.clone(),
             language: self.language.clone(),
             interests: self.interests.clone(),
+            subjects: self.subjects.clone(),
             notes: self.notes.clone(),
         }
     }
@@ -143,7 +148,7 @@ impl Child {
 
 pub async fn find_child(pool: &PgPool, child_id: Uuid) -> ApiResult<Child> {
     sqlx::query_as(
-        "select id, family_id, nickname, birth_year, grade, language, interests, notes, tutor_name, tutor_persona, tutor_persona_note, created_at
+        "select id, family_id, nickname, birth_year, grade, language, interests, subjects, notes, tutor_name, tutor_persona, tutor_persona_note, created_at
          from children where id = $1",
     )
     .bind(child_id)
@@ -170,6 +175,9 @@ pub struct ChildInput {
     language: Option<String>,
     #[serde(default)]
     interests: Vec<String>,
+    /// Keeps its value when left out.
+    #[serde(default)]
+    subjects: Option<Vec<String>>,
     #[serde(default)]
     notes: Option<String>,
     /// The three below keep their value when they are left out.
@@ -188,6 +196,7 @@ struct CheckedChild {
     grade: Option<String>,
     language: String,
     interests: Vec<String>,
+    subjects: Option<Vec<String>>,
     notes: Option<String>,
     tutor_name: Option<String>,
     tutor_persona: Option<String>,
@@ -215,6 +224,17 @@ impl ChildInput {
         if self.interests.len() > 10 {
             return Err(ApiError::bad_request("at most 10 interests"));
         }
+        let mut subjects = self.subjects;
+        if let Some(subjects) = &mut subjects {
+            if subjects.iter().any(|subject| !SUBJECTS.contains(&subject.as_str())) {
+                return Err(ApiError::bad_request(format!(
+                    "subjects must be among: {}",
+                    SUBJECTS.join(", ")
+                )));
+            }
+            subjects.sort();
+            subjects.dedup();
+        }
         if self.tutor_persona.as_deref().is_some_and(|persona| !TUTOR_PERSONAS.contains(&persona)) {
             return Err(ApiError::bad_request(
                 "tutor_persona must be calido, jugueton, aventurero or tranquilo",
@@ -235,6 +255,7 @@ impl ChildInput {
                 .iter()
                 .map(|item| text(item, "an interest", 40))
                 .collect::<ApiResult<_>>()?,
+            subjects,
             notes: optional(self.notes, "notes", 1000)?,
             tutor_name: self.tutor_name.as_deref().map(tutor_name).transpose()?,
             tutor_persona: self.tutor_persona,
@@ -260,9 +281,10 @@ pub async fn create_child(
     family.ok_or(ApiError::NotFound("family"))?;
     let created: Child = sqlx::query_as(
         "insert into children (id, family_id, nickname, birth_year, grade, language, interests, notes,
-                               tutor_name, tutor_persona, tutor_persona_note)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, coalesce($9, 'Aule'), coalesce($10, 'calido'), $11)
-         returning id, family_id, nickname, birth_year, grade, language, interests, notes, tutor_name, tutor_persona, tutor_persona_note, created_at",
+                               tutor_name, tutor_persona, tutor_persona_note, subjects)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, coalesce($9, 'Aule'), coalesce($10, 'calido'), $11,
+                 coalesce($12, '{}'))
+         returning id, family_id, nickname, birth_year, grade, language, interests, subjects, notes, tutor_name, tutor_persona, tutor_persona_note, created_at",
     )
     .bind(Uuid::now_v7())
     .bind(family_id)
@@ -275,6 +297,7 @@ pub async fn create_child(
     .bind(child.tutor_name)
     .bind(child.tutor_persona)
     .bind(child.tutor_persona_note.flatten())
+    .bind(child.subjects)
     .fetch_one(&state.pool)
     .await?;
     Ok((StatusCode::CREATED, Json(created)))
@@ -291,8 +314,9 @@ pub async fn update_child(
     let updated: Option<Child> = sqlx::query_as(
         "update children set nickname = $2, birth_year = $3, grade = $4, language = $5, interests = $6, notes = $7,
            tutor_name = coalesce($8, tutor_name), tutor_persona = coalesce($9, tutor_persona),
-           tutor_persona_note = case when $10 then $11 else tutor_persona_note end
-         where id = $1 returning id, family_id, nickname, birth_year, grade, language, interests, notes, tutor_name, tutor_persona, tutor_persona_note, created_at"
+           tutor_persona_note = case when $10 then $11 else tutor_persona_note end,
+           subjects = coalesce($12, subjects)
+         where id = $1 returning id, family_id, nickname, birth_year, grade, language, interests, subjects, notes, tutor_name, tutor_persona, tutor_persona_note, created_at"
     )
     .bind(child_id)
     .bind(child.nickname)
@@ -305,6 +329,7 @@ pub async fn update_child(
     .bind(child.tutor_persona)
     .bind(child.tutor_persona_note.is_some())
     .bind(child.tutor_persona_note.flatten())
+    .bind(child.subjects)
     .fetch_optional(&state.pool)
     .await?;
     updated.map(Json).ok_or(ApiError::NotFound("child"))
