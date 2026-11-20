@@ -721,7 +721,10 @@ pub fn is_about_something_else(expression: &str, said: &str) -> bool {
     let text = plain(said);
     let asks = text.contains('?')
         && text.split(|c: char| !c.is_alphanumeric()).any(|word| {
-            matches!(word, "cuanto" | "cuantos" | "cuanta" | "cuantas" | "cual" | "how" | "what" | "which")
+            matches!(
+                word,
+                "que" | "cuanto" | "cuantos" | "cuanta" | "cuantas" | "cual" | "how" | "what" | "which"
+            )
         });
     let said = numbers(said);
     asks && said.len() >= 2 && said.iter().all(|value| !own.contains(value))
@@ -944,5 +947,10 @@ mod tests {
         assert!(!is_about_something_else("5 + 7 + 9", "sumé 5 más 7 es 12, más 9 es 21"));
         assert!(!is_about_something_else("2/3 + 1/4", "8 más 3 es 11, entonces 11/12"));
         assert!(!is_about_something_else("3 x 4", "tres por cuatro es 11"));
+        // A question about a clock while 2 x 4 is open.
+        assert!(is_about_something_else(
+            "2 * 4",
+            "¿Y qué hora es cuando la aguja larga está en el 3 y la corta en el 9?"
+        ));
     }
 }
