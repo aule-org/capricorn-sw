@@ -348,7 +348,11 @@ async fn past(
 }
 
 fn running(session: &Session) -> ApiResult<()> {
-    if session.status == "ended" { Err(ApiError::Conflict("the session has ended")) } else { Ok(()) }
+    if session.status == "ended" {
+        return Err(ApiError::Conflict("the session has ended"));
+    }
+    // The engine poses and checks its own exercises.
+    crate::flow::free(session)
 }
 
 #[derive(Deserialize)]

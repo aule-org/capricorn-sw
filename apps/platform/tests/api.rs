@@ -198,6 +198,7 @@ fn app_with(pool: PgPool, events_webhook: Option<EventsWebhook>) -> App {
         google: Some(Arc::new(PretendGoogle)),
         watching: Arc::new(Mutex::new(HashSet::new())),
         claim_attempts: Arc::new(Mutex::new(HashMap::new())),
+        flows: Default::default(),
     };
     App { phones, router: http::router(state.clone()), state, llm, mail }
 }
@@ -1847,4 +1848,497 @@ async fn the_platform_checks_the_tutors_exercises_and_says_what_to_do_next(pool:
     assert_eq!(app.count("select count(*) from attempts where source = 'review'").await, 0);
     assert_eq!(app.count("select count(*) from attempts").await, 5);
     assert_eq!(pose("1/2 + 1/2").await.0, StatusCode::CONFLICT, "the session has ended");
+}
+
+// ------------------------------------------------ the session engine
+
+/// The agent's token of a session, from the dispatch metadata in its room token.
+fn agent_token(session: &Value) -> String {
+    let claims = session["token"].as_str().unwrap().split('.').nth(1).unwrap().to_string();
+    let claims: Value =
+        serde_json::from_slice(&base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(claims).unwrap())
+            .unwrap();
+    let dispatch: Value =
+        serde_json::from_str(claims["roomConfig"]["agents"][0]["metadata"].as_str().unwrap()).unwrap();
+    dispatch["platform_token"].as_str().unwrap().to_string()
+}
+
+fn fractions(kind: &str) -> Value {
+    json!({ "kind": kind, "subject": "matematica", "topic": "Fracciones", "due": "2026-12-03" })
+}
+
+/// A child's session that asks for the engine; returns what the API answered and the agent's token.
+async fn engine_session(app: &App, child: &str, objective: Value) -> (Value, String) {
+    let body = json!({ "child_id": child, "audience": "child", "objective": objective, "flow": "engine" });
+    let (status, session) = app.admin(Method::POST, "/v1/sessions", Some(body)).await;
+    assert_eq!(status, StatusCode::CREATED, "{session}");
+    let token = agent_token(&session);
+    (session, token)
+}
+
+fn visual_contract() -> jsonschema::Validator {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../contracts/visuals/visual.v1.schema.json");
+    let schema: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+    jsonschema::validator_for(&schema).unwrap()
+}
+
+/// Lines as the agent expects them: exactly these four fields, and a screen
+/// that follows the visual contract.
+fn assert_lines(contract: &jsonschema::Validator, lines: &Value) {
+    for line in lines.as_array().expect("lines is a list") {
+        let fields: Vec<&str> = line.as_object().unwrap().keys().map(String::as_str).collect();
+        assert_eq!(fields, ["echoes", "reword", "say", "show"], "{line}");
+        assert!(!line["say"].as_str().unwrap().trim().is_empty(), "{line}");
+        assert!(line["reword"].is_boolean() && line["echoes"].is_boolean(), "{line}");
+        if !line["show"].is_null() {
+            assert!(contract.is_valid(&line["show"]), "{line}");
+        }
+    }
+}
+
+fn said_in(response: &Value) -> String {
+    let lines = response["lines"].as_array().unwrap();
+    lines.iter().map(|line| line["say"].as_str().unwrap()).collect::<Vec<_>>().join(" | ")
+}
+
+/// What to say to the card on the student's screen, right or wrong. The API
+/// never tells the answer; the test reads it from the bank's own key.
+fn solve(card: &Value, right: bool) -> (String, Option<String>) {
+    use aule_core::banco::Ejercicio;
+    let bank = contenido::cargar_validado().unwrap();
+    let statement = card["statement"].as_str().unwrap();
+    let wrong = |answer: &str, options: &[String]| {
+        options.iter().find(|option| option.as_str() != answer).cloned().unwrap_or_else(|| "97/98".into())
+    };
+    let reasons = |keys: &[Vec<String>]| {
+        let words: Vec<&str> = keys.iter().filter_map(|group| group.first()).map(String::as_str).collect();
+        format!("lo pensé así: {}", words.join(" y "))
+    };
+    match card["mode"].as_str().unwrap() {
+        "teoria" | "ejemplo_no_asistido" => ("entendido, sigue".into(), None),
+        "explicar" => {
+            let level =
+                bank.niveles.iter().find(|level| level.etapa1.explicar.pregunta == statement).unwrap();
+            (reasons(&level.etapa1.explicar.claves), None)
+        }
+        "ejemplo_asistido" => {
+            let asked = card["note"].as_str().unwrap();
+            let step = bank
+                .niveles
+                .iter()
+                .flat_map(|level| &level.etapa1.asistidos)
+                .flat_map(|example| &example.pasos)
+                .find(|step| step.indicacion == asked)
+                .unwrap();
+            (if right { step.respuesta.clone() } else { wrong(&step.respuesta, &step.opciones) }, None)
+        }
+        _ => {
+            let all: Vec<&Ejercicio> = bank
+                .niveles
+                .iter()
+                .flat_map(|level| level.tamizaje.iter().chain(&level.ejercicios).chain(&level.simulacion))
+                .chain(bank.tareas.iter().flat_map(|homework| &homework.ejercicios))
+                .collect();
+            let exercise = all
+                .into_iter()
+                .find(|e| e.enunciado == statement || e.contextos.values().any(|text| text == statement))
+                .unwrap_or_else(|| panic!("no exercise says: {statement}"));
+            let answer = if right {
+                exercise.respuesta.clone()
+            } else {
+                wrong(&exercise.respuesta, &exercise.opciones)
+            };
+            (answer, exercise.pide_explicacion.then(|| reasons(&exercise.claves_explicacion)))
+        }
+    }
+}
+
+/// The student of an engine's session, through the API: looks at the screen
+/// like the page does and speaks through the agent.
+struct Pupil<'a> {
+    app: &'a App,
+    session: String,
+    token: String,
+    contract: jsonschema::Validator,
+}
+
+impl Pupil<'_> {
+    async fn step(&self) -> Value {
+        let (status, step) =
+            self.app.admin(Method::GET, &format!("/v1/sessions/{}/step", self.session), None).await;
+        assert_eq!(status, StatusCode::OK, "{step}");
+        let fields: Vec<&str> = step.as_object().unwrap().keys().map(String::as_str).collect();
+        assert_eq!(fields, ["card", "closed", "elapsed_seconds", "progress", "route", "stage"], "{step}");
+        step
+    }
+
+    async fn says(&self, body: Value) -> Value {
+        let (status, response) =
+            self.app.call(Method::POST, "/v1/agent/session/said", Some(&self.token), Some(body)).await;
+        assert_eq!(status, StatusCode::OK, "{response}");
+        let fields: Vec<&str> = response.as_object().unwrap().keys().map(String::as_str).collect();
+        assert_eq!(fields, ["closed", "converse", "lines"], "{response}");
+        assert!(response["closed"].is_boolean(), "{response}");
+        assert!(response["converse"].is_null() || response["converse"].is_string(), "{response}");
+        assert_lines(&self.contract, &response["lines"]);
+        response
+    }
+
+    /// Answers what is on the screen and returns what the tutor is told to do.
+    async fn answers(&self, right: bool) -> Value {
+        let step = self.step().await;
+        let body = match (&step["card"], step["stage"].as_str().unwrap()) {
+            (Value::Null, "Aprendizaje extracurricular") => json!({ "said": "prefiero terminar por hoy" }),
+            (Value::Null, _) => json!({ "said": "sí" }),
+            (card, _) => match solve(card, right) {
+                (said, Some(explanation)) => json!({ "said": said, "explanation": explanation }),
+                (said, None) => json!({ "said": said }),
+            },
+        };
+        let response = self.says(body).await;
+        // Answering what is awaited is the engine's script: no model needed.
+        assert!(response["converse"].is_null(), "{response}");
+        response
+    }
+
+    async fn progress(&self) -> String {
+        self.step().await["progress"].as_str().unwrap().to_string()
+    }
+}
+
+#[sqlx::test(migrator = "aule_platform::MIGRATOR")]
+async fn the_session_engine_runs_a_session_from_the_greeting_to_the_family_report(pool: PgPool) {
+    let app = app(pool);
+    let child = app.child().await;
+    app.consent(&child, "voice", true).await;
+    let contract = visual_contract();
+
+    // Asked for and not possible: the session is created as always.
+    for (body, why) in [
+        (json!({ "child_id": child, "audience": "child", "flow": "engine" }), "no objective"),
+        (
+            json!({ "child_id": child, "audience": "child", "flow": "engine",
+                    "objective": { "kind": "homework", "subject": "matematica", "topic": "decimales" } }),
+            "a topic the bank does not have",
+        ),
+        (
+            json!({ "child_id": child, "audience": "child", "flow": "engine", "language": "en",
+                    "objective": fractions("homework") }),
+            "the engine speaks Spanish only",
+        ),
+        (json!({ "audience": "operator", "flow": "engine", "objective": fractions("homework") }), "no child"),
+        (json!({ "child_id": child, "audience": "child", "objective": fractions("homework") }), "not asked"),
+    ] {
+        let (status, session) = app.admin(Method::POST, "/v1/sessions", Some(body)).await;
+        assert_eq!(status, StatusCode::CREATED, "{why}: {session}");
+        assert_eq!(session["flow"], Value::Null, "{why}");
+        let token = agent_token(&session);
+        let (status, start) = app.call(Method::GET, "/v1/agent/session", Some(&token), None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(start.get("script").is_none(), "{why}: {start}");
+        let said = json!({ "said": "hola" });
+        let (status, _) = app.call(Method::POST, "/v1/agent/session/said", Some(&token), Some(said)).await;
+        assert_eq!(status, StatusCode::CONFLICT, "{why}");
+        let step = format!("/v1/sessions/{}/step", session["session_id"].as_str().unwrap());
+        assert_eq!(app.admin(Method::GET, &step, None).await.0, StatusCode::CONFLICT, "{why}");
+    }
+    let unknown = json!({ "child_id": child, "audience": "child", "flow": "script" });
+    assert_eq!(app.admin(Method::POST, "/v1/sessions", Some(unknown)).await.0, StatusCode::BAD_REQUEST);
+    assert_eq!(app.count("select count(*) from session_flow_inputs").await, 0);
+
+    // The engine runs this one.
+    let (session, token) = engine_session(&app, &child, fractions("homework")).await;
+    assert_eq!(session["flow"], "engine");
+    let session = session["session_id"].as_str().unwrap().to_string();
+    let agent = Some(token.as_str());
+    let pupil = Pupil { app: &app, session: session.clone(), token: token.clone(), contract };
+
+    // The page before the tutor joined: nothing started, and nothing to answer.
+    let step = pupil.step().await;
+    assert_eq!(
+        (step["stage"].as_str(), &step["card"], &step["closed"]),
+        (Some("Antes de empezar"), &Value::Null, &json!(false))
+    );
+    let typed = json!({ "answer": "3/8" });
+    let (status, _) = app.admin(Method::POST, &format!("/v1/sessions/{session}/answers"), Some(typed)).await;
+    assert_eq!(status, StatusCode::CONFLICT);
+
+    // The tutor joins: the engine's opening lines come with the session.
+    let (status, start) = app.call(Method::GET, "/v1/agent/session", agent, None).await;
+    assert_eq!(status, StatusCode::OK, "{start}");
+    assert!(start["instructions"].as_str().unwrap().contains("Mateo"));
+    let script = &start["script"];
+    assert_lines(&pupil.contract, &script["lines"]);
+    assert_eq!(script["closed"], false);
+    let opening = said_in(script);
+    assert!(opening.contains("¡Hola, Mateo!") && opening.contains("Tarea de Fracciones"), "{opening}");
+    assert_eq!(script["lines"][0]["reword"], true);
+    // Asked again before anything was said: the same opening, started once.
+    let (_, again) = app.call(Method::GET, "/v1/agent/session", agent, None).await;
+    assert_eq!(again["script"], start["script"]);
+    assert_eq!(app.count("select count(*) from session_flow_inputs").await, 1);
+
+    // The free mode's exercises stay out of a session the engine runs.
+    let pose = json!({ "expression": "1/2 + 1/4" });
+    let (status, body) = app.call(Method::POST, "/v1/agent/session/exercises", agent, Some(pose)).await;
+    assert_eq!(status, StatusCode::CONFLICT, "{body}");
+    let check = json!({ "said": "tres cuartos" });
+    let (status, _) = app.call(Method::POST, "/v1/agent/session/answers", agent, Some(check)).await;
+    assert_eq!(status, StatusCode::CONFLICT);
+
+    // "Sí" starts the screening. The first question is said and shown, with no answer on it.
+    let first = pupil.says(json!({ "said": "sí, empecemos" })).await;
+    assert!(said_in(&first).contains("Pregunta 1 de 5"), "{first}");
+    assert_eq!(first["converse"], Value::Null);
+    let question = first["lines"].as_array().unwrap().last().unwrap();
+    assert_eq!(question["show"]["kind"], "fraction_circle", "{question}");
+    assert_eq!(pupil.progress().await, "Pregunta 1 de 5");
+
+    // Five questions: right, wrong, "no sé", right, right. The screening never says which was which.
+    let mut screening = vec![pupil.answers(true).await, pupil.answers(false).await];
+    assert_eq!(pupil.progress().await, "Pregunta 3 de 5");
+    screening.push(pupil.says(json!({ "said": "no sé" })).await);
+    assert_eq!(pupil.progress().await, "Pregunta 4 de 5");
+    screening.push(pupil.answers(true).await);
+    for response in &screening {
+        assert_eq!(response["converse"], Value::Null, "{response}");
+        assert!(said_in(response).contains("¡Gracias! Lo anoto."), "{response}");
+    }
+    let last = pupil.answers(true).await;
+    assert!(said_in(&last).contains("Etapa 1: Descubrimiento"), "{last}");
+
+    // A question about a word is the model's to answer, under the engine's rules.
+    let step = pupil.step().await;
+    assert_eq!(
+        (step["stage"].as_str(), step["card"]["mode"].as_str()),
+        (Some("Etapa 1: Descubrimiento"), Some("teoria"))
+    );
+    let aside = pupil.says(json!({ "said": "¿por qué se llaman equivalentes?" })).await;
+    assert_eq!(aside["lines"], json!([]));
+    assert!(aside["converse"].as_str().unwrap().contains("Nunca des la respuesta"), "{aside}");
+    assert_eq!(pupil.step().await["card"], step["card"], "talk moves nothing");
+
+    // Discovery, step by step, until the student practises alone.
+    let mut seen = HashSet::new();
+    for _ in 0..60 {
+        let step = pupil.step().await;
+        if step["stage"] == "Etapa 2: Refuerzo" {
+            break;
+        }
+        seen.insert(step["card"]["mode"].as_str().unwrap().to_string());
+        pupil.answers(true).await;
+    }
+    for mode in ["teoria", "ejemplo_no_asistido", "ejemplo_asistido", "explicar"] {
+        assert!(seen.contains(mode), "{mode} was never on the screen: {seen:?}");
+    }
+
+    // Practice: a wrong answer gets the engine's hint and the same exercise stays.
+    let exercise = pupil.step().await;
+    assert_eq!(exercise["progress"], "Nivel 2 · Ejercicio 1 de 5");
+    let wrong = pupil.answers(false).await;
+    assert!(said_in(&wrong).contains("Te dejo una pregunta para pensar"), "{wrong}");
+    assert_eq!(pupil.step().await["card"], exercise["card"]);
+
+    // The engine is rebuilt from its stored inputs when the process loses it.
+    let live = pupil.step().await;
+    let inputs = app.count("select count(*) from session_flow_inputs").await;
+    app.state.flows.lock().unwrap().clear();
+    let mut rebuilt = pupil.step().await;
+    rebuilt["elapsed_seconds"] = live["elapsed_seconds"].clone();
+    assert_eq!(rebuilt, live);
+    assert_eq!(app.count("select count(*) from session_flow_inputs").await, inputs, "looking stores nothing");
+
+    // ...and goes on from there: the right answer moves to the next exercise.
+    let right = pupil.answers(true).await;
+    assert!(said_in(&right).contains("Ejercicio 2 de 5"), "{right}");
+    assert_eq!(pupil.progress().await, "Nivel 2 · Ejercicio 2 de 5");
+
+    // An answer typed on the page: the page gets the new step, and the tutor
+    // collects what to say with its next report of turns, once.
+    let (answer, _) = solve(&pupil.step().await["card"], true);
+    let path = format!("/v1/sessions/{session}/answers");
+    let (status, step) = app.admin(Method::POST, &path, Some(json!({ "answer": answer }))).await;
+    assert_eq!(status, StatusCode::OK, "{step}");
+    assert_eq!(step["progress"], "Nivel 2 · Ejercicio 3 de 5");
+    let turns = json!({ "turns": [{ "seq": 0, "role": "child", "content": "ya lo escribí" }] });
+    let (status, report) = app.call(Method::POST, "/v1/agent/session/turns", agent, Some(turns)).await;
+    assert_eq!(status, StatusCode::OK, "{report}");
+    assert_lines(&pupil.contract, &report["script"]["lines"]);
+    assert!(said_in(&report["script"]).contains("Ejercicio 3 de 5"), "{report}");
+    assert_eq!(report["script"]["closed"], false);
+    assert!(report["pause"].is_null() && report["stop"].is_null() && report["guidance"].is_array());
+    let (_, report) =
+        app.call(Method::POST, "/v1/agent/session/turns", agent, Some(json!({ "turns": [] }))).await;
+    assert!(report.get("script").is_none(), "handed over once: {report}");
+    // The supervisor still reads the session, but writes no advice against the engine.
+    eventually("the supervisor read the turn", || async { app.state.watching.lock().unwrap().is_empty() })
+        .await;
+    assert!(app.llm.asked.lock().unwrap().contains(&"guidance".to_string()));
+    assert_eq!(app.count("select count(*) from session_guidance").await, 0);
+
+    // Only the operator and the child's own guardians see the page.
+    let ana = app.sign_in("ana@example.org", "Ana").await;
+    let other = app.sign_in("otro@example.org", "Otro").await;
+    let step = format!("/v1/sessions/{session}/step");
+    assert_eq!(app.call(Method::GET, &step, Some(&ana), None).await.0, StatusCode::OK);
+    assert_eq!(app.call(Method::GET, &step, Some(&other), None).await.0, StatusCode::NOT_FOUND);
+    assert_eq!(app.call(Method::GET, &step, agent, None).await.0, StatusCode::UNAUTHORIZED);
+    assert_eq!(app.call(Method::GET, &step, None, None).await.0, StatusCode::UNAUTHORIZED);
+    let typed = Some(json!({ "answer": "1/2" }));
+    assert_eq!(app.call(Method::POST, &path, Some(&other), typed.clone()).await.0, StatusCode::NOT_FOUND);
+    assert_eq!(app.call(Method::POST, &path, None, typed).await.0, StatusCode::UNAUTHORIZED);
+    let said = Some(json!({ "said": "hola" }));
+    assert_eq!(
+        app.call(Method::POST, "/v1/agent/session/said", Some(ADMIN), said).await.0,
+        StatusCode::UNAUTHORIZED
+    );
+    for bad in [json!({ "said": "  " }), json!({ "said": "x".repeat(501) }), json!({})] {
+        let (status, _) = app.call(Method::POST, "/v1/agent/session/said", agent, Some(bad)).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+
+    // To the end: every level up to the homework's, the homework, and then the student chooses to stop.
+    let mut closing = Value::Null;
+    for _ in 0..400 {
+        closing = pupil.answers(true).await;
+        if closing["closed"] == true {
+            break;
+        }
+    }
+    assert_eq!(closing["closed"], true, "{closing}");
+    assert!(said_in(&closing).contains("¡Gran trabajo hoy, Mateo!"), "{closing}");
+    let step = pupil.step().await;
+    assert_eq!(
+        (step["stage"].as_str(), &step["card"], &step["closed"]),
+        (Some("Sesión terminada"), &Value::Null, &json!(true))
+    );
+
+    // Nothing the student said was logged or left the inputs: they are the only copy.
+    let kinds: Vec<String> =
+        sqlx::query_scalar("select distinct input->>'kind' from session_flow_inputs order by 1")
+            .fetch_all(&app.state.pool)
+            .await
+            .unwrap();
+    assert_eq!(kinds, ["chat", "graded", "start", "text"]);
+
+    // The agent closes the session. The family reads the engine's report, word
+    // for word; the supervisor adds its next step and flags, not its summary.
+    let (status, _) = app.call(Method::POST, "/v1/agent/session/end", agent, Some(json!({}))).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let (status, _) =
+        app.call(Method::POST, "/v1/agent/session/said", agent, Some(json!({ "said": "hola" }))).await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(app.admin(Method::GET, &step_path(&session), None).await.0, StatusCode::CONFLICT);
+    assert!(app.state.flows.lock().unwrap().is_empty(), "the engine is dropped with the session");
+    assert!(jobs::work_once(&app.state).await.unwrap());
+    let (summary, next_step): (String, Option<String>) =
+        sqlx::query_as("select guardian_summary, next_step from session_reviews")
+            .fetch_one(&app.state.pool)
+            .await
+            .unwrap();
+    assert!(summary.starts_with("¡Hola, Ana! Te saluda Aule, tutor de Mateo.\n\n"), "{summary}");
+    assert!(summary.contains("hemos hecho la tarea de Matemáticas sobre el tema de Fracciones"), "{summary}");
+    assert!(!summary.contains("Practicó sumas"), "{summary}");
+    assert_eq!(next_step.as_deref(), Some("Try unlike denominators."));
+    app.deliver_events().await;
+    let (_, notices) = app.call(Method::GET, "/v1/notices", Some(&ana), None).await;
+    assert_eq!(notices["notices"][0]["kind"], "session_summary");
+    assert_eq!(notices["notices"][0]["body"], summary);
+    // No consent to keep transcripts: what the student said went with the turns.
+    assert_eq!(app.count("select count(*) from session_flow_inputs").await, 0);
+    assert_eq!(app.count("select count(*) from session_turns").await, 0);
+}
+
+fn step_path(session: &str) -> String {
+    format!("/v1/sessions/{session}/step")
+}
+
+#[sqlx::test(migrator = "aule_platform::MIGRATOR")]
+async fn what_a_student_said_to_the_engine_is_kept_and_deleted_like_the_transcript(pool: PgPool) {
+    let app = app(pool);
+    let child = app.child().await;
+    for purpose in ["voice", "transcripts"] {
+        app.consent(&child, purpose, true).await;
+    }
+    let inputs = "select count(*) from session_flow_inputs";
+
+    // A short session: the screening, left half way.
+    let short_session = || async {
+        let (session, token) = engine_session(&app, &child, fractions("exam_prep")).await;
+        let pupil = Pupil {
+            app: &app,
+            session: session["session_id"].as_str().unwrap().to_string(),
+            token: token.clone(),
+            contract: visual_contract(),
+        };
+        // A tutor that reports speech before asking for the opening gets the opening first.
+        let first = pupil.says(json!({ "said": "sí" })).await;
+        assert!(said_in(&first).starts_with("¡Hola, Mateo!"), "{first}");
+        pupil.says(json!({ "said": "sí, vamos" })).await;
+        pupil.answers(true).await;
+        pupil.answers(false).await;
+        let left = pupil.says(json!({ "said": "ya no quiero seguir, quiero salir" })).await;
+        assert!(said_in(&left).contains("Dejamos el Tamizaje aquí"), "{left}");
+        app.call(Method::POST, "/v1/agent/session/end", Some(&token), Some(json!({}))).await;
+        session["session_id"].as_str().unwrap().to_string()
+    };
+
+    // With consent to keep transcripts the inputs stay after the review, for as long as a transcript does.
+    let kept = short_session().await;
+    let before = app.count(inputs).await;
+    assert!(before >= 5);
+    // Without a supervisor the engine's report still reaches the family.
+    let mut alone = app.state.clone();
+    alone.llm = None;
+    assert!(jobs::work_once(&alone).await.unwrap());
+    let summary: String = sqlx::query_scalar("select guardian_summary from session_reviews")
+        .fetch_one(&app.state.pool)
+        .await
+        .unwrap();
+    assert!(summary.starts_with("¡Hola, Ana! Te saluda Aule, tutor de Mateo."), "{summary}");
+    assert!(summary.contains("hemos evaluado cómo le va en Matemáticas"), "{summary}");
+    app.deliver_events().await;
+    assert_eq!(app.count("select count(*) from notices where kind = 'session_summary'").await, 1);
+    assert_eq!(app.count(inputs).await, before, "kept, with consent");
+    jobs::housekeeping(&app.state).await.unwrap();
+    assert_eq!(app.count(inputs).await, before, "still inside its time");
+    sqlx::query("update sessions set ended_at = now() - interval '25 hours' where id = $1::uuid")
+        .bind(&kept)
+        .execute(&app.state.pool)
+        .await
+        .unwrap();
+    jobs::housekeeping(&app.state).await.unwrap();
+    assert_eq!(app.count(inputs).await, 0, "past its time");
+
+    // Taking the consent back takes them back, for sessions that are over...
+    short_session().await;
+    assert!(jobs::work_once(&app.state).await.unwrap());
+    assert!(app.count(inputs).await > 0);
+    app.consent(&child, "transcripts", false).await;
+    assert_eq!(app.count(inputs).await, 0);
+    assert_eq!(app.count("select count(*) from session_turns").await, 0);
+
+    // ...and without it they go when the session has been reviewed, or two
+    // hours after it ended when the review keeps failing.
+    short_session().await;
+    assert!(app.count(inputs).await > 0, "needed until the review, for the report");
+    sqlx::query("update sessions set ended_at = now() - interval '3 hours' where reviewed_at is null")
+        .execute(&app.state.pool)
+        .await
+        .unwrap();
+    jobs::housekeeping(&app.state).await.unwrap();
+    assert_eq!(app.count(inputs).await, 0);
+    // The review that finally runs has no inputs left and still completes.
+    assert!(jobs::work_once(&app.state).await.unwrap());
+    assert_eq!(app.count("select count(*) from sessions where reviewed_at is null").await, 0);
+
+    // Erasing the child erases them.
+    let (_, token) = engine_session(&app, &child, fractions("explore")).await;
+    let (_, start) = app.call(Method::GET, "/v1/agent/session", Some(&token), None).await;
+    assert!(said_in(&start["script"]).contains("aprender algo nuevo de Fracciones"), "{start}");
+    assert_eq!(app.count(inputs).await, 1);
+    let (status, _) = app.admin(Method::DELETE, &format!("/v1/children/{child}"), None).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert_eq!(app.count(inputs).await, 0);
 }

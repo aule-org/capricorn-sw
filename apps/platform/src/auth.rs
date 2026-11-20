@@ -130,6 +130,8 @@ pub struct Session {
     pub use_memory: bool,
     pub created_at: DateTime<Utc>,
     pub ended_at: Option<DateTime<Utc>>,
+    /// "engine" when the session engine runs the session; see `flow`.
+    pub flow: Option<String>,
 }
 
 /// How long after it was created a session's token still works.
@@ -144,7 +146,7 @@ impl FromRequestParts<AppState> for Agent {
     async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
         let hash = token_hash(bearer(parts)?);
         let session: Option<Session> = sqlx::query_as(
-            "select id, child_id, audience, room, language, status, keep_transcript, use_memory, created_at, ended_at from sessions
+            "select id, child_id, audience, room, language, status, keep_transcript, use_memory, created_at, ended_at, flow from sessions
              where agent_token_hash = $1 and created_at > now() - make_interval(hours => $2)"
         )
         .bind(hash)

@@ -122,6 +122,17 @@ pub async fn housekeeping(state: &AppState) -> Result<(), sqlx::Error> {
     if transcripts > 0 {
         tracing::info!(turns = transcripts, "transcripts past their time were deleted");
     }
+    // What went into the session engine is what the student said: same rule.
+    sqlx::query(
+        "delete from session_flow_inputs using sessions
+         where session_flow_inputs.session_id = sessions.id and sessions.status = 'ended'
+           and sessions.ended_at < now() - make_interval(hours =>
+               case when sessions.keep_transcript then $1 else $2 end)",
+    )
+    .bind(state.config.transcript_hours as i32)
+    .bind(UNREVIEWED_TRANSCRIPT_HOURS)
+    .execute(pool)
+    .await?;
 
     sqlx::query("delete from session_guidance using sessions
                  where session_guidance.session_id = sessions.id and sessions.reviewed_at < now() - interval '1 day'")

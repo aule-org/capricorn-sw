@@ -14,7 +14,7 @@ use crate::error::{ApiError, ApiResult};
 use crate::families::{self, child_for};
 use crate::learning::{self, NewAttempt, Skill, is_slug};
 use crate::state::AppState;
-use crate::{devices, memory, notices, practice, push, sessions, signin};
+use crate::{devices, flow, memory, notices, practice, push, sessions, signin};
 
 pub fn router(state: AppState) -> Router {
     Router::new()
@@ -36,6 +36,9 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/skills", put(put_skills).get(get_skills))
         .route("/v1/sessions", post(sessions::create_session))
         .route("/v1/sessions/{session_id}/supervisor", get(sessions::supervisor_view))
+        // The page of a session the engine runs
+        .route("/v1/sessions/{session_id}/step", get(flow::step))
+        .route("/v1/sessions/{session_id}/answers", post(flow::typed))
         .route("/v1/metrics/daily", get(crate::metrics::daily))
         // Guardians: sign-in, their account, their notices
         .route("/v1/auth/start", post(signin::start))
@@ -62,6 +65,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/agent/session/end", post(sessions::agent_end))
         .route("/v1/agent/session/exercises", post(practice::pose))
         .route("/v1/agent/session/answers", post(practice::answer))
+        .route("/v1/agent/session/said", post(flow::said))
         .with_state(state)
 }
 

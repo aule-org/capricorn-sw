@@ -22,6 +22,7 @@ aule-platform import-skills curriculum/math-primaria.json
 | `devices` | Registration, claim codes, signed check-in and sessions, firmware |
 | `events`, `notices`, `push` | The outbox and its delivery; what families are told; pushes through Firebase Cloud Messaging |
 | `sessions` | Room tokens, the agent's API for one session, the review job |
+| `flow` | A session run by the session engine (`engine/`): what the student said becomes the engine's inputs, what the engine answers becomes lines for the tutor and steps for the page |
 | `jobs` | The Postgres job queue and the housekeeping |
 | `llm`, `livekit`, `mail`, `auth`, `config`, `error` | Claude with a forced structured answer, room tokens, the two kinds of caller, settings, the error shape |
 
@@ -62,7 +63,9 @@ Devices do not use a bearer token: they sign with the key burned into them.
 | `GET /v1/children/{id}/memories?query=` | What is remembered, closest to the query first |
 | `DELETE /v1/children/{id}/memories/{memory_id}` | Forget one thing |
 | `GET /v1/children/{id}/reviews` | Notes from past sessions |
-| `POST /v1/sessions` | A session and its room token. A guardian can only start a child's session. Optional `objective`: what the family says the session is for, `{kind: homework, exam_prep, exam_review or explore, subject (one of the subjects, or other), topic (up to 200 characters), due (a date)}`; the supervisor plans for it first |
+| `POST /v1/sessions` | A session and its room token. A guardian can only start a child's session. Optional `objective`: what the family says the session is for, `{kind: homework, exam_prep, exam_review or explore, subject (one of the subjects, or other), topic (up to 200 characters), due (a date)}`; the supervisor plans for it first. Optional `flow: "engine"` asks for the [session engine](#sessions-run-by-the-session-engine) to run the session; the response's `flow` is `"engine"` when it does and `null` otherwise |
+| `GET /v1/sessions/{id}/step` | Where a session the engine runs is, for the student's screen. 409 when the engine does not run the session or it has ended |
+| `POST /v1/sessions/{id}/answers` | An answer typed on that screen: `{"answer", "explanation"?}`. Returns the new step; the tutor collects what to say about it with its next report of turns |
 | `GET /v1/skills` | The skill catalog |
 
 ### Devices
@@ -93,10 +96,11 @@ Devices do not use a bearer token: they sign with the key burned into them.
 
 | Route | What it does |
 |---|---|
-| `GET /v1/agent/session` | Marks the session as running; returns the student's profile as `instructions`, with the plan when it is already written, and `tutor` (`name`, `persona`, `note`): how the tutor presents itself to this child. The same three travel in the dispatch metadata as `tutor_name`, `tutor_persona`, `tutor_persona_note` |
-| `POST /v1/agent/session/turns` | Reports turns; returns guidance written since the last call, and `plan` (text for the tutor, or null) when the plan was finished after the tutor started. `stop` is `"warn"` after 2 turns in a row in which the student is plainly not working, `"end"` after 4: the tutor says a fixed line for each, once, and on `"end"` closes the session with `end_reason: "not_working"`. The family gets a notice when the close is asked for. `pause` is `"offer"` when a break is due: `AULE_BREAK_EVERY_MINUTES` of work have passed (default 30) or the supervisor read tiredness, no exercise is open and more than 10 minutes remain; the request's optional `breaks_taken` tells the platform a break happened, and an offer not taken in 2 minutes counts as declined |
+| `GET /v1/agent/session` | Marks the session as running; returns the student's profile as `instructions`, with the plan when it is already written, and `tutor` (`name`, `persona`, `note`): how the tutor presents itself to this child. The same three travel in the dispatch metadata as `tutor_name`, `tutor_persona`, `tutor_persona_note`. In a session the engine runs it also starts the engine and returns `script`: its opening lines |
+| `POST /v1/agent/session/turns` | Reports turns; returns guidance written since the last call, and `plan` (text for the tutor, or null) when the plan was finished after the tutor started. `stop` is `"warn"` after 2 turns in a row in which the student is plainly not working, `"end"` after 4: the tutor says a fixed line for each, once, and on `"end"` closes the session with `end_reason: "not_working"`. The family gets a notice when the close is asked for. `pause` is `"offer"` when a break is due: `AULE_BREAK_EVERY_MINUTES` of work have passed (default 30) or the supervisor read tiredness, no exercise is open and more than 10 minutes remain; the request's optional `breaks_taken` tells the platform a break happened, and an offer not taken in 2 minutes counts as declined. In a session the engine runs, `guidance` stays empty, and `script` is present when an answer was typed on the page since the last report |
+| `POST /v1/agent/session/said` | Only in a session the engine runs: what the student said, and what the tutor does next. See [below](#sessions-run-by-the-session-engine) |
 | `POST /v1/agent/session/flags` | Reports that a safety gate stopped a turn: the gate, what it did, fixed categories |
-| `POST /v1/agent/session/exercises` | The tutor states the exercise it is about to ask, as arithmetic (`expression`: `"3/4 + 1/8"`, optional `skill_id` and `form`: `any`, `simplified` or `mixed`). The platform works out the answer and keeps it; the response says whether this one is to find out what the student can do (`probe`) and what to do (`say`). 400 when it is not arithmetic it can check |
+| `POST /v1/agent/session/exercises` | The tutor states the exercise it is about to ask, as arithmetic (`expression`: `"3/4 + 1/8"`, optional `skill_id` and `form`: `any`, `simplified` or `mixed`). The platform works out the answer and keeps it; the response says whether this one is to find out what the student can do (`probe`) and what to do (`say`). 400 when it is not arithmetic it can check. 409 in a session the engine runs, as is the next route: the engine poses and checks its own exercises |
 | `POST /v1/agent/session/answers` | What the student answered (`said`, their words). Returns `verdict` (`correct`, `wrong_form`, `incorrect`, `dont_know`, `unreadable`), the number that was `read`, a named `misconception` when the mistake is a known one, and what to do next (`stage`, `next`, `say`). `reveal` carries the answer only once the exercise is closed and has to be worked out together |
 | `POST /v1/agent/session/end` | Closes the session and queues its review. `metrics` (optional) is what the agent measured: an object of short names and numbers, such as `first_word_ms`; anything else in it is dropped |
 
@@ -155,3 +159,88 @@ The tutor does not decide whether an answer is right, and while an exercise is o
 Each closed exercise on a skill of the curriculum is recorded for the learner model: full credit when solved at the first try, half when it needed hints, none when it had to be worked out together. The review does not add its own reading for those skills.
 
 What it does not check: anything that is not arithmetic on whole numbers, fractions and decimals (comparisons, word problems that are not reduced to an operation, geometry). The tutor carries on unchecked for those.
+
+## Sessions run by the session engine
+
+The session engine in [`engine/`](../../engine/README.md) decides a whole session without a model: a screening, then for each level a discovery stage and practice, then the homework or a simulated exam, and the report for the family. [`flow`](src/flow/mod.rs) runs it for a session, and the tutor says what it decides.
+
+The engine runs a session only when all of this holds; otherwise the session is created as always and `flow` is `null`:
+
+- the request sent `flow: "engine"`;
+- the session has a child and its language is Spanish (the engine's texts exist in Spanish only);
+- the objective is one the compiled-in bank covers. Today that is fractions in mathematics: `subject` is `matematica` or left out, and `topic` names fractions ("Fracciones", "suma de fracciones").
+
+| The objective's `kind` | The engine's objective (`TipoObjetivo`) |
+|---|---|
+| `homework` | `Tarea`, with `due` as its date. The exercises are the bank's own homework, not the student's |
+| `exam_prep` | `Preparacion`, with `due` as the date of the exam: the engine simulates it |
+| `explore` | none: the engine's `Extracurricular`, with the topic as the family's suggestion |
+| `exam_review` | not run by the engine: its `Correccion` needs the exam the student sat (the questions they missed, what they answered), which the platform does not have |
+
+The child becomes the engine's profile (`Perfil`): the nickname is the student's name, the interests choose the setting of the exercises, and the family's first guardian is who the report greets. The day is the session's own, in the server's timezone setting. The engine's level per topic is not kept between sessions yet: every session starts with the screening.
+
+### What the agent gets
+
+A line is `{"say", "show", "reword", "echoes"}`:
+
+- `say` is the engine's text, word for word.
+- `show` is a visual of [`contracts/visuals`](../../contracts/README.md), or `null`. Each drawing of the engine is translated to the closest kind (bars, circles, counters, a table for the activities of a break, the statement as an `exercise`); one with no faithful kind, such as a number line cut into fractions, is not approximated. A bar or a circle without a label carries a blank one, because a screen would otherwise write the fraction next to it.
+- `reword` is true when the engine would have a model word the line; `say` is then its scripted fallback.
+- `echoes` is true for lines that answer something the student said in their own words (text and conversation, as opposed to a graded answer, a hint or a break). The engine does not repeat those words today, but the agent should not treat such a line as fixed text.
+
+The platform adds lines the engine only puts on a page: the statement of each new exercise (with its drawing), and the statement and steps of a worked example.
+
+`GET /v1/agent/session` returns `"script": {"lines": [...], "closed": false}` with the opening. Asked again before anything was said it returns the same opening; later, a line with what is on the screen.
+
+`POST /v1/agent/session/said` takes `{"said": "...", "explanation": "..."}` (`explanation` only when the caller can tell it apart; both up to 500 characters) and returns:
+
+```json
+{ "lines": [{ "say": "...", "show": null, "reword": false, "echoes": false }], "converse": null, "closed": false }
+```
+
+- `converse` is `null` when the lines are the whole turn. Otherwise it is the engine's rules for this moment, in Spanish, and the tutor's model answers in its own words after saying the lines: what is on the screen, and what it may not do (in the screening: no help, and never whether an answer is right).
+- `closed` is true once the engine has finished the session; the lines are then its goodbye. The agent closes the session as always.
+- 409 when the session has ended or the engine does not run it. Reported before the opening was asked for, it returns the opening and does not read what was said.
+
+`POST /v1/agent/session/turns` keeps working: turns are stored and reviewed, and `stop` and `pause` are decided as before. The supervisor still reads the session for those two, but its advice is not written, since the engine decides what the tutor does next. When an answer was typed on the page, the answer to the next report carries `"script": {"lines": [...], "closed": bool}`, once.
+
+### How what the student says is read
+
+Spoken words arrive as one text, and no model reads them:
+
+1. "Estoy cansado" starts the engine's break, and asking to leave the screening leaves it.
+2. When an answer is awaited and the text holds one, it is graded with the engine's own checker (value and form). The answer is the number said before "porque" or the end of the first sentence, when there is one there; the whole text is the explanation, checked with the engine's key words. Where an explanation is required and missing, the answer is held and the student is asked once how they worked it out.
+3. "No sé" is a wrong answer where there are no hints (the screening, the simulated exam) and a request for a hint elsewhere. "No entiendo" in the screening is a question, not an answer.
+4. In the guided moments (a date, "¿empezamos?", the theory) text that moves the flow goes to the engine as text.
+5. Anything else is conversation: the engine is told its intent, from its own deterministic classifier, and `converse` is returned. Asking for help or for the answer gets the engine's hints, or its fixed line where there are none; asking to hear the exercise again gets its statement.
+
+An answer typed on the page is only ever an answer: rules 1 and 5 do not apply to it.
+
+### The page
+
+`GET /v1/sessions/{id}/step`, for the operator or a guardian of the child:
+
+```json
+{
+  "stage": "Tamizaje",
+  "progress": "Pregunta 1 de 5",
+  "route": [{ "name": "Tamizaje", "detail": "5 preguntas", "state": "current" }],
+  "card": {
+    "mode": "tamizaje", "title": "...", "statement": "...", "visual": null, "options": [],
+    "asks_answer": true, "asks_explanation": true, "is_exercise": true,
+    "note": "...", "hints_allowed": false, "format_help": "..."
+  },
+  "elapsed_seconds": 95,
+  "closed": false
+}
+```
+
+`state` is `done`, `current` or `pending`; `card` is `null` between exercises. The step never carries the expected answer, the key words of an explanation or its criteria: it is built field by field from what the engine shows a student.
+
+### What is stored, and for how long
+
+The engine keeps its state in memory and cannot be serialized, so a session is stored as the inputs that went into it (`session_flow_inputs`), in order, each with the engine's clock when it was applied. Applying them again rebuilds the same engine: after a restart, in the worker, or in another process. The engine's clock is set by the platform from the time since the session's first input; before each input the time that passed is applied, so a hint for an exercise that takes long, the end of a break and the warning before the last exercises happen on time.
+
+The inputs hold what the student said, so they follow the rule of the transcript: deleted after the review unless the guardian agreed to keep transcripts, then when a kept transcript expires, and when that consent is taken back. They are never logged.
+
+When the session is reviewed, the family's summary (`session_reviews.guardian_summary`, and the notice made from it) is the engine's report, word for word. The supervisor's review still records its next step and flags, not its own summary. A session that ended before anything happened has no engine report and is summarized by the supervisor as before.
