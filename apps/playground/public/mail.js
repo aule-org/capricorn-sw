@@ -10,3 +10,21 @@ export function methods(account) {
   const mail = account?.mail === true;
   return { google, mail, any: google || mail };
 }
+
+/** What is sent to sign in with a code. The name goes only when the page asked for it. */
+export function verifyBody(fields, language) {
+  const asked = !fields.nameLine.hidden;
+  const name = fields.name.value.trim();
+  return {
+    email: fields.address.value.trim(),
+    code: fields.digits.value,
+    language,
+    ...(asked && name ? { name } : {}),
+  };
+}
+
+/** Forgets the name and stops asking for it: it belonged to the address that was left. */
+export function clearName(fields) {
+  fields.name.value = "";
+  fields.nameLine.hidden = true;
+}

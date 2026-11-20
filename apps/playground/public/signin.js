@@ -2,7 +2,7 @@
 // what the session is for. The page never holds the session itself: the server
 // keeps it in a cookie it alone reads.
 
-import { methods } from "./mail.js";
+import { clearName, methods, verifyBody } from "./mail.js";
 import { $, SUBJECTS, call, chip, describe, openEditor, say } from "./students.js";
 
 const GOOGLE_SCRIPT = "https://accounts.google.com/gsi/client";
@@ -194,6 +194,14 @@ const MAIL_ERRORS = {
   bad_request: "Revisa tu correo e inténtalo otra vez.",
 };
 
+// The fields of the mailed-code forms, as mail.js reads them.
+const mailFields = {
+  address: $("mail-address"),
+  digits: $("mail-digits"),
+  name: $("mail-name"),
+  nameLine: $("mail-name-line"),
+};
+
 function mailStep(step) {
   $("by-mail").hidden = step !== "none";
   $("mail-email").hidden = step !== "email";
@@ -214,7 +222,7 @@ $("mail-email").addEventListener("submit", async (event) => {
   try {
     await call("api/signin/start", { email: $("mail-address").value.trim(), language: "es" });
     $("mail-digits").value = "";
-    $("mail-name-line").hidden = true;
+    clearName(mailFields);
     mailStep("code");
   } catch (error) {
     say(MAIL_ERRORS[error?.message] ?? "No se pudo enviar el código. Inténtalo otra vez.");
@@ -228,15 +236,9 @@ $("mail-code").addEventListener("submit", async (event) => {
   say("");
   $("mail-enter").disabled = true;
   try {
-    const name = $("mail-name").value.trim();
-    const account = await call("api/signin/verify", {
-      email: $("mail-address").value.trim(),
-      code: $("mail-digits").value,
-      language: "es",
-      ...(name ? { name } : {}),
-    });
+    const account = await call("api/signin/verify", verifyBody(mailFields, "es"));
     $("mail-digits").value = "";
-    $("mail-name").value = "";
+    clearName(mailFields);
     mailStep("none");
     show(account);
     // A family with no student yet starts by adding one.
@@ -262,6 +264,7 @@ $("mail-code").addEventListener("submit", async (event) => {
 $("mail-again").addEventListener("click", () => {
   say("");
   $("mail-digits").value = "";
+  clearName(mailFields);
   mailStep("email");
 });
 
