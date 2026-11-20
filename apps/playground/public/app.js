@@ -12,6 +12,12 @@ const AGENT_STATE = "lk.agent.state";
 // Set by the tutor when a turn lasts while a button is held, like on the
 // device, instead of ending when the person goes quiet.
 const TURNS = "aule.turns";
+// Set by the tutor when it can be shown a piece of work on request. The camera
+// is then for one picture at a time, not for watching.
+const SHOW_WORK = "aule.show_work";
+// The picture is taken from the first frame after the request; the camera
+// stays on a moment longer so the student sees what was shown.
+const SHOWN_MS = 1500;
 // How long the microphone stays open after the button is let go, so the last
 // syllable is not cut.
 const TALK_TAIL_MS = 200;
@@ -66,6 +72,9 @@ let meter = null;
 
 // Push-to-talk, when the tutor works that way.
 let tutorIdentity = null;
+// The tutor takes a picture when asked, so the camera is off between pictures.
+let photos = false;
+let showing = false;
 // True once the tutor is in the session and has said how turns work. Until
 // then the microphone stays closed: nobody is listening yet, and the page does
 // not know whether it should be open at all.
@@ -263,6 +272,7 @@ function watchTutor(participant) {
   tutorIdentity = participant.identity;
   const state = participant.attributes[AGENT_STATE] ?? "initializing";
   setTutorState(state);
+  usePhotos(participant.attributes[SHOW_WORK] === "rpc");
   const manual = participant.attributes[TURNS] === "manual";
   const ready = state !== "initializing";
   if (manual === manualTurns && ready === tutorReady) return;
@@ -341,7 +351,56 @@ function showCamera() {
   if (on) publication.track.attach($("camera"));
   $("camera").hidden = !on;
   $("camera-off").hidden = on;
-  setToggle($("cam"), "Cámara", on);
+  $("camera-off").textContent = photos ? "La cámara se enciende solo cuando muestras tu tarea" : "Cámara apagada";
+  if (photos) {
+    $("cam").setAttribute("aria-pressed", String(showing));
+    $("cam").textContent = showing ? "Mostrando…" : "Mostrar mi tarea";
+    $("cam").disabled = showing;
+  } else {
+    $("cam").disabled = false;
+    setToggle($("cam"), "Cámara", on);
+  }
+}
+
+// With a tutor that takes pictures, nothing is filmed between them.
+function usePhotos(on) {
+  if (on === photos || !room) return;
+  photos = on;
+  if (on && !showing) room.localParticipant.setCameraEnabled(false).then(showCamera, showCamera);
+  else showCamera();
+}
+
+// One picture of the work: the camera goes on, the tutor is told to look, and
+// the camera goes off again.
+async function showWork() {
+  if (showing || !room || !tutorIdentity) return;
+  showing = true;
+  showMessage("");
+  try {
+    await room.localParticipant.setCameraEnabled(true);
+    showCamera();
+    // The default timeout on purpose: the tutor waits up to two seconds for a
+    // frame, and a shorter limit here would cut that wait.
+    const seen = await room.localParticipant.performRpc({
+      destinationIdentity: tutorIdentity,
+      method: "show_work",
+      payload: "",
+    });
+    if (seen !== "ok") throw new Error("no frame");
+    // The tutor hears a fixed line for this; the page writes the same one.
+    const line = item("Mira mi trabajo.");
+    line.dataset.who = "you";
+    line.dataset.name = "Tú";
+    $("transcript").append(line);
+    followTranscript(true);
+    await new Promise((resolve) => setTimeout(resolve, SHOWN_MS));
+  } catch {
+    showMessage("Aule no pudo ver la cámara. Acerca la hoja e inténtalo otra vez.");
+  } finally {
+    showing = false;
+    await room?.localParticipant.setCameraEnabled(false).catch(() => undefined);
+    if (room) showCamera();
+  }
 }
 
 async function join(session) {
@@ -520,6 +579,8 @@ function leave(reason) {
   clearInterval(supervisorTimer);
   $("supervisor").hidden = true;
   tutorIdentity = null;
+  photos = false;
+  showing = false;
   tutorReady = false;
   manualTurns = false;
   talking = false;
@@ -633,6 +694,7 @@ $("device").addEventListener("click", () => {
 });
 
 $("cam").addEventListener("click", async () => {
+  if (photos) return showWork();
   await room.localParticipant.setCameraEnabled(!room.localParticipant.isCameraEnabled);
   showCamera();
 });
