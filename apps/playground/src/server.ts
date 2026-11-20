@@ -72,6 +72,10 @@ const STATIC: Record<string, { file: string | URL; type: string }> = {
 const MAX_BODY_BYTES = 2_000;
 // A Google credential is a signed token of a couple of thousand characters.
 const MAX_SIGN_IN_BYTES = 8_000;
+// What the platform says when it has no mail, and how long the page then stops offering it.
+const NO_MAIL = /needs mail to be configured/;
+const MAIL_OFF_MS = 10 * 60_000;
+
 // What a guardian types to sign in with a mailed code: an address, six digits and a name.
 const EMAIL_MAX_CHARS = 254;
 const NAME_MAX_CHARS = 120;
@@ -134,6 +138,11 @@ export function createPlayground(settings: Settings): Server {
   const headers = securityHeaders(settings);
   const limiter = new GuessLimiter();
   const daily = new DailyLimit(settings.dailySessions);
+  // The platform does not say whether it can send mail, so the page learns it the
+  // one way it can: a code asked for answered "needs mail to be configured". Until
+  // then, and again after a while, mail is offered.
+  let mailOffUntil = 0;
+  const mailOn = () => Date.now() >= mailOffUntil;
 
   const send = (response: ServerResponse, status: number, type: string, body: string | Buffer) => {
     response.writeHead(status, { ...headers, "Content-Type": type });
@@ -154,17 +163,18 @@ export function createPlayground(settings: Settings): Server {
       response.end(JSON.stringify(body));
     };
     if (!settings.platform) return reply({ google_client_id: null, mail: false, signed_in: false });
+    const mail = mailOn();
     const token = entered?.token ?? guardianToken(request);
     const clientId = await googleClient(settings);
-    // The mailed code is offered whenever a platform is behind this page: it does not
-    // say whether it has mail, and a platform without it answers "mail_unavailable".
-    if (!token) return reply({ google_client_id: clientId, mail: true, signed_in: false });
+    // The mailed code is offered while a platform is behind this page and has not said
+    // it cannot send mail.
+    if (!token) return reply({ google_client_id: clientId, mail, signed_in: false });
     try {
       const who = await account(settings, token);
       const students = await readStudents(settings, token, who.students);
       return reply({
         google_client_id: clientId,
-        mail: true,
+        mail,
         signed_in: true,
         name: who.name,
         students,
@@ -174,7 +184,7 @@ export function createPlayground(settings: Settings): Server {
       if (!(error instanceof PlatformError)) throw error;
       // A session the platform no longer knows: the page starts over signed out.
       return reply(
-        { google_client_id: clientId, mail: true, signed_in: false },
+        { google_client_id: clientId, mail, signed_in: false },
         { "Set-Cookie": signedOutCookie(settings.basePath) },
       );
     }
@@ -196,9 +206,17 @@ export function createPlayground(settings: Settings): Server {
       if (path === "/api/signin/start") {
         try {
           await startCode(settings, email, language);
+          mailOffUntil = 0;
         } catch (error) {
           if (error instanceof PlatformError && error.status === 400) return json(response, 400, { error: "bad_request" });
-          if (error instanceof PlatformError && error.status === 503) return json(response, 503, { error: "mail_unavailable" });
+          if (error instanceof PlatformError && error.status === 503) {
+            // Only "no mail configured" means the way is off; a failed send may pass.
+            if (NO_MAIL.test(error.message)) {
+              mailOffUntil = Date.now() + MAIL_OFF_MS;
+              return json(response, 503, { error: "mail_unavailable" });
+            }
+            return json(response, 503, { error: "send_failed" });
+          }
           throw error;
         }
         // The same answer for any address, as the platform's.

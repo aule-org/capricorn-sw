@@ -46,7 +46,7 @@ test("using another address forgets the name that was typed", () => {
   assert.ok(!("name" in verifyBody(form, "es")));
 });
 
-import { createAttempts, enterWithCode } from "../public/mail.js";
+import { createAttempts, enterWithCode, unavailableKey } from "../public/mail.js";
 
 test("an answer belongs to the attempt that asked: changing the address drops the earlier ones", () => {
   const attempts = createAttempts();
@@ -105,4 +105,9 @@ test("a code answered in time is told apart: signed in, name needed, refused or 
   assert.deepEqual(await run(fails("name_needed"), form), { kind: "name_needed" });
   assert.deepEqual(await run(fails("code_refused")), { kind: "refused" });
   assert.deepEqual(await run(fails("boom")), { kind: "failed" });
+});
+
+test("when mail is off the error only recommends ways that are on", () => {
+  assert.equal(unavailableKey({ google: true, mail: false, any: true }), "mail.unavailable");
+  assert.equal(unavailableKey({ google: false, mail: false, any: false }), "mail.unavailableOnly");
 });

@@ -33,6 +33,7 @@ const platform = createServer(async (request, response) => {
   if (path === "/v1/auth/start") {
     if (!String(body.email).includes("@")) return answer(400, { error: { message: "email is not an email address" } });
     if (body.email === "sin-correo@example.org") return answer(503, { error: { message: "sign-in needs mail to be configured" } });
+    if (body.email === "falla@example.org") return answer(503, { error: { message: "the code could not be sent; try again later" } });
     return answer(204, {});
   }
   if (path === "/v1/auth/verify") {
@@ -113,6 +114,25 @@ test("the mailed code is offered whether or not Google is set up", async () => {
   } finally {
     googleOn = true;
   }
+});
+
+test("once the platform says it has no mail, the page stops offering the mailed code", async () => {
+  const account = async (cookie?: string) =>
+    (await fetch(`${base}/api/account`, { headers: cookie ? { Cookie: cookie } : {} })).json();
+  assert.equal((await account()).mail, true);
+
+  // A send that merely failed is not "no mail": it is still offered.
+  assert.equal((await post("signin/start", { email: "falla@example.org" })).status, 503);
+  assert.equal((await account()).mail, true);
+
+  const unmailed = await post("signin/start", { email: "sin-correo@example.org" });
+  assert.deepEqual(await unmailed.json(), { error: "mail_unavailable" });
+  assert.equal((await account()).mail, false);
+  assert.equal((await account(COOKIE)).mail, false, "signed in too");
+
+  // A code that does go out says mail works again.
+  assert.equal((await post("signin/start", { email: "ana@example.org" })).status, 200);
+  assert.equal((await account()).mail, true);
 });
 
 test("a Google credential the platform accepts signs the person in with a cookie only the server reads", async () => {

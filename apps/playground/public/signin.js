@@ -2,7 +2,7 @@
 // what the session is for. The page never holds the session itself: the server
 // keeps it in a cookie it alone reads.
 
-import { clearName, createAttempts, enterWithCode, methods, startBody } from "./mail.js";
+import { clearName, createAttempts, enterWithCode, methods, startBody, unavailableKey } from "./mail.js";
 import { $, SUBJECTS, call, chip, describe, openEditor, say } from "./students.js";
 import { applyTexts, pageLanguage, text } from "./texts.js";
 
@@ -229,13 +229,14 @@ $("mail-email").addEventListener("submit", async (event) => {
     clearName(mailFields);
     mailStep("code");
   } catch (error) {
-    say(
-      error?.message === "mail_unavailable"
-        ? text(language, "mail.unavailable")
-        : error?.message === "bad_request"
-          ? text(language, "mail.bad")
-          : text(language, "mail.failed"),
-    );
+    if (error?.message === "mail_unavailable") {
+      // The server has learned there is no mail: the page stops offering it.
+      const account = await call("api/account").catch(() => ({ signed_in: false, google_client_id: null, mail: false }));
+      show({ ...account, mail: false });
+      say(text(language, unavailableKey(methods({ ...account, mail: false }))));
+    } else {
+      say(error?.message === "bad_request" ? text(language, "mail.bad") : text(language, "mail.failed"));
+    }
   } finally {
     $("mail-send").disabled = false;
   }

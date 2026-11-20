@@ -53,3 +53,10 @@ test("the language chosen goes with the request for the code", () => {
   assert.deepEqual(startBody(address, "en"), { email: "ana@example.org", language: "en" });
   assert.deepEqual(startBody(address, "es"), { email: "ana@example.org", language: "es" });
 });
+
+test("the mail-off error has a version that recommends nothing else", () => {
+  for (const language of ["es", "en"]) {
+    assert.match(text(language, "mail.unavailable"), /Google/, language);
+    assert.doesNotMatch(text(language, "mail.unavailableOnly"), /Google/, language);
+  }
+});

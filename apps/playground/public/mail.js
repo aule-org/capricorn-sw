@@ -62,3 +62,8 @@ export async function enterWithCode({ fields, language, attempts, call }) {
     return { kind: error?.message === "code_refused" ? "refused" : "failed" };
   }
 }
+
+/** The text for "no mail right now": it names Google only when Google is on. */
+export function unavailableKey(ways) {
+  return ways.google ? "mail.unavailable" : "mail.unavailableOnly";
+}
