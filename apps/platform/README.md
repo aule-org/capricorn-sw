@@ -173,6 +173,9 @@ something no migration creates, and prints the statements.
 Read the file before committing it. It only adds tables, columns, unique keys
 and foreign keys; a changed type, a rename, a removal or a check constraint is
 written by hand, and a required column on a table that has rows needs a default.
+When an entity leaves out a unique key the table has, the sync would drop it:
+the command then writes nothing and the test fails, both naming it, and the fix
+is `#[sea_orm(unique)]` on the entity.
 The server only runs the files in `migrations/` (never a schema sync), and a
 file already applied is never edited.
 

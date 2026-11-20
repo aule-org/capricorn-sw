@@ -9,7 +9,9 @@
 //! what the entities have and the migrations do not, and writes those
 //! statements as the next file in `migrations/`. Review it before merging: this
 //! only adds tables, columns, unique keys and foreign keys. A changed type, a
-//! rename, a removal or a check constraint is still written by hand.
+//! rename, a removal or a check constraint is still written by hand. If the
+//! sync would drop something (a unique key the entity does not declare), it
+//! writes nothing and says what the entity is missing.
 
 #[path = "../tests/support/schema_diff.rs"]
 mod schema_diff;
@@ -47,6 +49,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if missing.is_empty() {
         println!("The migrations already create everything the entities have.");
         return Ok(());
+    }
+    // Sync drops a unique constraint the entity does not declare. That means the
+    // entity is missing `unique`, not that the constraint should go.
+    let drops: Vec<&String> = missing
+        .iter()
+        .filter(|line| {
+            line.to_ascii_uppercase().starts_with("DROP ") || line.to_ascii_uppercase().contains(" DROP ")
+        })
+        .collect();
+    if !drops.is_empty() {
+        for line in drops {
+            eprintln!("{line}");
+        }
+        return Err("an entity leaves out something the database has (above); add it to the entity, nothing was written".into());
     }
     let folder = Path::new(env!("CARGO_MANIFEST_DIR")).join("migrations");
     let next = std::fs::read_dir(&folder)?
