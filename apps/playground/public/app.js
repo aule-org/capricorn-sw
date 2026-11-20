@@ -586,7 +586,7 @@ window.addEventListener("blur", () => stopTalking("cancel_turn"));
 $("device").addEventListener("click", () => {
   const on = !$("board").classList.contains("device");
   $("board").classList.toggle("device", on);
-  setToggle($("device"), "Pantalla del dispositivo", on);
+  setToggle($("device"), "Modo tinta", on);
 });
 
 $("cam").addEventListener("click", async () => {
