@@ -26,6 +26,21 @@ export const SUBJECTS = {
   ingles: "Inglés",
 };
 
+// What the guardian is to the student, by the platform's codes.
+const RELATIONSHIPS = {
+  MTH: "Mamá",
+  FTH: "Papá",
+  STPMTH: "Madrastra",
+  STPFTH: "Padrastro",
+  GRMTH: "Abuela",
+  GRFTH: "Abuelo",
+  AUNT: "Tía",
+  UNCLE: "Tío",
+  SIB: "Hermano o hermana",
+  GUARD: "Tutor o tutora legal",
+  FAMMEMB: "Otro familiar",
+};
+
 const TONES = {
   calido: ["Cálido", "cercano y paciente"],
   jugueton: ["Juguetón", "con humor ligero"],
@@ -177,6 +192,12 @@ function fill(student, subjects) {
     ...Object.entries(GRADES).map(([value, text]) => new Option(text, value)),
   );
   $("student-grade").value = student?.grade ?? "";
+  $("relationship-label").textContent = student ? `¿Qué eres de ${student.name}?` : "¿Qué eres del alumno?";
+  $("student-relationship").replaceChildren(
+    new Option("Prefiero no decirlo", ""),
+    ...Object.entries(RELATIONSHIPS).map(([value, text]) => new Option(text, value)),
+  );
+  $("student-relationship").value = student?.relationship ?? "";
   $("subjects-field").hidden = !subjects;
   $("student-subjects").replaceChildren(
     ...(subjects ?? []).map((value) =>
@@ -270,6 +291,7 @@ $("student-editor").addEventListener("submit", async (event) => {
     ...($("subjects-field").hidden ? {} : { subjects: checked("subjects") }),
     remembers: $("student-remembers").checked,
     keeps_transcripts: $("student-transcripts").checked,
+    relationship: $("student-relationship").value || null,
   };
   if (!profile.name) return say("Escribe cómo quieres que llamemos al alumno.");
   $("save-student").disabled = true;
