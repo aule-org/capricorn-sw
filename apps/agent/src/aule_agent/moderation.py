@@ -145,9 +145,10 @@ class Finding:
     categories: tuple[str, ...] = ()
     # Swearing is kept apart: a child who swears is not stopped, the tutor is.
     profanity: bool = False
-    # True when all that was found is a sexual score over our threshold that the
-    # provider itself did not act on. Ordinary teaching sentences land here as
-    # often as bad ones, so a score cannot settle it (see ``opinion``).
+    # True when all that was found are scores over our threshold that the
+    # provider itself did not act on, in categories where ordinary teaching
+    # sentences land as often as bad ones, so a score cannot settle it (see
+    # ``opinion``).
     unsure: bool = False
 
     @property
@@ -174,15 +175,20 @@ def local_category(text: str) -> str | None:
     return None
 
 
+# Where our threshold for children is far below the provider's own and ordinary
+# teaching sentences cross it. A finding made only of these, which the provider
+# itself did not act on, is not a verdict (see ``opinion``). Threats, anything
+# about minors, self-harm and illicit acts are never in doubt.
+SECOND_READING = frozenset({"sexual", "harassment", "hate", "violence"})
+
+
 def provider_is_unsure(response: Any) -> bool:
-    """Whether the only thing found is "sexual", by our threshold and not by the
-    provider's own verdict. Call after ``provider_categories`` accepted the response."""
+    """Whether everything found is over our threshold only, in the categories a
+    second reader may settle, and the provider's own verdict is that nothing is
+    wrong. Call after ``provider_categories`` accepted the response."""
     result = response.results[0]
-    return (
-        provider_categories(response) == ("sexual",)
-        and result.flagged is False
-        and result.categories.sexual is False
-    )
+    found = provider_categories(response)
+    return bool(found) and set(found) <= SECOND_READING and result.flagged is False
 
 
 def provider_categories(response: Any) -> tuple[str, ...]:

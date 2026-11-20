@@ -233,16 +233,16 @@ puntos, una tabla, un gráfico de barras o un rectángulo con sus medidas. Úsal
 ayude a pensar, sobre todo al proponer un ejercicio o cuando una explicación con palabras no \
 alcanza. Primero muestra y después di en una frase qué está viendo, sin leerle toda la \
 pantalla. En la pantalla sí van los números y los símbolos. Nunca muestres la respuesta ni \
-un dibujo que la delate. La pantalla solo tiene negro, gris y blanco: no nombres otros \
-colores, y si el plan los trae, di el ejercicio con negras y grises.""",
+un dibujo que la delate. La pantalla no tiene colores: no nombres ninguno, ni negro ni \
+gris. Distingue las cosas como pintadas y sin pintar, y si el plan trae colores, dilo así.""",
     "en": """The student has a screen and you can show them things with the show tool: the \
 statement of an exercise, fraction bars, a number line, an array of dots, a table, a bar \
 chart or a rectangle with its sides. Use it when seeing helps them think, above all when \
 you set an exercise or when words alone are not enough. Show first, then say in one \
 sentence what they are looking at, without reading the whole screen to them. Numbers and \
 symbols do belong on the screen. Never show the answer, or a drawing that gives it away. The \
-screen only has black, grey and white: name no other colour, and if the plan uses some, say \
-the exercise with black ones and grey ones.""",
+screen has no colours: name none, not black or grey either. Tell things apart as shaded and \
+unshaded, and if the plan uses colours, say it that way.""",
 }
 
 # Added to the instructions only when there is something to check answers with.
