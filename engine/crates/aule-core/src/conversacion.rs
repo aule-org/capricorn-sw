@@ -82,8 +82,8 @@ impl ContextoChat {
         let mut r = vec![
             "Nunca des la respuesta del ejercicio actual, ni los pasos para resolverlo, ni lo resuelvas.".to_string(),
             "Si pregunta qué significa una palabra o concepto (por ejemplo simplificar, numerador, equivalente), recuérdaselo con una explicación corta y un ejemplo con OTROS números distintos a los del ejercicio (y cuyo resultado tampoco sea el del ejercicio), y vuelve al ejercicio con una frase natural. Esto no es una pista y está permitido siempre, también en el Tamizaje.".to_string(),
-            "Si escribe en el chat lo que parece su respuesta al ejercicio, no la juzgues ni digas si está bien: pídele con naturalidad que la escriba en \"Escribir mi respuesta\" o que muestre su cuaderno.".to_string(),
-            "Si dice que está cansado, tómalo con calidez y sugiérele apretar el botón \"Estoy cansado\" para hacer una Pausa activa.".to_string(),
+            "Si dice lo que parece su respuesta al ejercicio, no la juzgues ni digas si está bien: pídele con naturalidad que te la diga de nuevo junto con cómo lo pensó, o que te muestre su cuaderno.".to_string(),
+            "Si dice que está cansado, tómalo con calidez: la pausa la propone el motor, tú no la propongas.".to_string(),
             "Charla, saludos o algo fuera de tema: responde con calidez en una sola línea y vuelve al ejercicio.".to_string(),
             "Si repite la pregunta o dice \"¿qué?\", reformula distinto y más simple; nunca repitas una frase que ya dijiste.".to_string(),
         ];
@@ -352,38 +352,38 @@ pub fn respuesta_guion(
                 format!("{intro} {} {ej}{volver}", t.definicion)
             }
             None => elegir(&[
-                "¿Qué palabra del ejercicio no te queda clara? Escríbemela y te la explico.",
-                "Escríbeme qué palabra te confunde y te la explico con otro ejemplo.",
+                "¿Qué palabra del ejercicio no te queda clara? Dímela y te la explico.",
+                "Dime qué palabra te confunde y te la explico con otro ejemplo.",
                 "Cuéntame cuál es la palabra difícil y la vemos juntos.",
             ]),
         },
         Intencion::RepetirEnunciado => match &ctx.enunciado {
             Some(e) => format!("{} {e}", elegir(&["Claro, te lo leo otra vez:", "Va de nuevo:", "Te lo repito despacito:"])),
-            None => elegir(&["Ahora no hay un ejercicio en pantalla, pero escríbeme qué quieres que repita.", "¿Qué parte quieres que repita?"]),
+            None => elegir(&["Ahora no hay un ejercicio en pantalla, pero dime qué quieres que repita.", "¿Qué parte quieres que repita?"]),
         },
         Intencion::EstoyCansado => elegir(&[
-            "Te entiendo, aprender cansa. Si quieres, aprieta el botón \"Estoy cansado\" y hacemos una Pausa activa.",
-            "Gracias por decírmelo. Cuando quieras, aprieta \"Estoy cansado\" y descansamos un ratito.",
-            "Está bien sentirse así. El botón \"Estoy cansado\" nos da una pausa para movernos un poco.",
+            "Te entiendo, aprender cansa. Si quieres, hacemos una Pausa activa: dime «hagamos la pausa».",
+            "Gracias por decírmelo. Cuando quieras, dime «hagamos la pausa» y descansamos un ratito.",
+            "Está bien sentirse así. Si quieres, hacemos una pausa para movernos un poco.",
         ]),
         Intencion::NoEntiendoNada => {
             if ctx.sin_ayuda {
                 elegir(&[
-                    "No pasa nada, tranquilo. Escríbeme qué palabra no entiendes y te la explico. Si te sientes abrumado, puedes salir del Tamizaje.",
+                    "No pasa nada, tranquilo. Dime qué palabra no entiendes y te la explico. Si te sientes abrumado, podemos dejar estas preguntas.",
                     "Está bien no saber todo. Si alguna palabra del ejercicio te confunde, pregúntame. Haz tu mejor intento, sin presión.",
                 ])
             } else {
                 elegir(&[
-                    "Tranquilo, vamos paso a paso. Si quieres una pista, aprieta \"Necesito ayuda\".",
-                    "Es normal que cueste al principio. Escríbeme qué palabra no entiendes, o pide una pista con \"Necesito ayuda\".",
+                    "Tranquilo, vamos paso a paso. Si quieres una pista, pídemela.",
+                    "Es normal que cueste al principio. Dime qué palabra no entiendes, o pídeme una pista.",
                     "No pasa nada, para eso estoy. ¿Qué parte te confunde?",
                 ])
             }
         }
         Intencion::RespuestaAlEjercicio => elegir(&[
-            "¡Veo que tienes una respuesta! Escríbela en \"Escribir mi respuesta\" o muéstrame tu cuaderno, así la reviso.",
-            "Para revisarla, ponla en el cuadro \"Escribir mi respuesta\" o tómale foto a tu hoja.",
-            "Anótala abajo en \"Escribir mi respuesta\" y la revisamos juntos.",
+            "¡Veo que tienes una respuesta! Dímela otra vez con cómo la pensaste, o muéstrame tu cuaderno, así la reviso.",
+            "Para revisarla, dime tu respuesta y cómo llegaste a ella, o muéstrame tu hoja.",
+            "Cuéntame tu respuesta y cómo la pensaste, y la revisamos juntos.",
         ]),
         Intencion::PedirAyuda | Intencion::PedirRespuesta => {
             if ctx.sin_ayuda {

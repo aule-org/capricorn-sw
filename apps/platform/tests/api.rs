@@ -2502,7 +2502,7 @@ async fn an_engine_session_leaves_the_level_and_its_evidence_and_the_next_one_st
     assert_eq!(second.says(json!({ "said": "" })).await["lines"], json!([]), "still in the break");
     minutes_pass(&app, &id, 2).await;
     let back = second.says(json!({ "said": "" })).await;
-    assert!(said_in(&back).contains("Se terminó la Pausa activa"), "{back}");
+    assert!(said_in(&back).contains("seguimos"), "{back}");
     assert_eq!(back["lines"].as_array().unwrap().last().unwrap()["say"], exercise["statement"]);
 
     // Closing a session where the student is not working is still the platform's.
