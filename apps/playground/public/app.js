@@ -568,6 +568,7 @@ async function join(session) {
   if (session.session_id && session.engine === true) followSteps(session.session_id);
   lobby.hidden = true;
   stage.hidden = false;
+  play(hello);
   // The layout of a session hangs on this class, not on :has(), which older
   // Firefox and Safari do not know.
   document.querySelector("main").classList.toggle("in-session", true);
@@ -669,44 +670,140 @@ function closeLobby() {
   entry.hidden = false;
 }
 
-// The end of a session sounds like Aule nodding off: three soft bell notes
-// going down, the last one sinking a little, like a yawn. Made here with the
-// browser's own audio, so there is no file to fetch. The audio is unlocked
-// when the person joins, since browsers only play after a click.
-let chimes = null;
+// Joining and leaving have their sound, as in a video call: a little tune made
+// here with the browser's own audio, from a few instruments drawn in code, so
+// there is no file to fetch. The audio is unlocked when the person joins,
+// since browsers only play after a click.
+let sounds = null;
+let mix = null;
 
-function readyChime() {
+function readySounds() {
   try {
-    chimes ??= new AudioContext();
-    chimes.resume();
+    if (!sounds) {
+      sounds = new AudioContext();
+      // Everything goes through a gentle limiter, so the tunes stay soft.
+      mix = sounds.createDynamicsCompressor();
+      const level = sounds.createGain();
+      level.gain.value = 0.6;
+      mix.connect(level).connect(sounds.destination);
+    }
+    sounds.resume();
   } catch {
-    // Without audio the session still ends; it just ends quietly.
+    // Without audio the session still starts and ends; just quietly.
   }
 }
 
-function chime() {
-  if (!chimes) return;
-  const start = chimes.currentTime + 0.05;
-  // G5, E5, C5, with a faint octave over the last one, like the ring of a bell.
-  const notes = [
-    { hz: 783.99, at: 0, length: 0.5, loud: 0.14 },
-    { hz: 659.25, at: 0.17, length: 0.5, loud: 0.13 },
-    { hz: 523.25, at: 0.34, length: 1.3, loud: 0.15, sinks: true },
-    { hz: 1046.5, at: 0.34, length: 0.9, loud: 0.03 },
-  ];
-  for (const note of notes) {
-    const tone = chimes.createOscillator();
-    const level = chimes.createGain();
-    const when = start + note.at;
-    tone.type = note.loud > 0.05 ? "triangle" : "sine";
-    tone.frequency.setValueAtTime(note.hz, when);
-    if (note.sinks) tone.frequency.exponentialRampToValueAtTime(note.hz * 0.94, when + note.length);
-    level.gain.setValueAtTime(0.0001, when);
-    level.gain.exponentialRampToValueAtTime(note.loud, when + 0.015);
-    level.gain.exponentialRampToValueAtTime(0.0001, when + note.length);
-    tone.connect(level).connect(chimes.destination);
+function voice(pan) {
+  const panner = sounds.createStereoPanner();
+  panner.pan.value = pan;
+  panner.connect(mix);
+  return panner;
+}
+
+// A wooden bar: the note, its ringing overtones dying fast, and the knock.
+function marimba(when, hz, loud, pan = 0) {
+  const out = voice(pan);
+  for (const [ratio, share, decay] of [
+    [1, 1, 0.5],
+    [3.93, 0.3, 0.1],
+    [9.2, 0.1, 0.03],
+  ]) {
+    const tone = sounds.createOscillator();
+    const gain = sounds.createGain();
+    tone.frequency.value = hz * ratio;
+    gain.gain.setValueAtTime(loud * share, when);
+    gain.gain.exponentialRampToValueAtTime(0.0001, when + decay);
+    tone.connect(gain).connect(out);
     tone.start(when);
-    tone.stop(when + note.length + 0.05);
+    tone.stop(when + decay + 0.05);
+  }
+}
+
+// A bell, by frequency modulation: the ring fades with the sound.
+function bell(when, hz, loud, length, pan = 0) {
+  const carrier = sounds.createOscillator();
+  const modulator = sounds.createOscillator();
+  const depth = sounds.createGain();
+  const level = sounds.createGain();
+  carrier.frequency.value = hz;
+  modulator.frequency.value = hz * 3.5;
+  depth.gain.setValueAtTime(hz * 1.5, when);
+  depth.gain.exponentialRampToValueAtTime(1, when + length);
+  modulator.connect(depth).connect(carrier.frequency);
+  level.gain.setValueAtTime(0.0001, when);
+  level.gain.exponentialRampToValueAtTime(loud, when + 0.01);
+  level.gain.exponentialRampToValueAtTime(0.0001, when + length);
+  carrier.connect(level).connect(voice(pan));
+  for (const node of [carrier, modulator]) {
+    node.start(when);
+    node.stop(when + length + 0.05);
+  }
+}
+
+// A shaker: a breath of noise with only its top left.
+function shaker(when, loud) {
+  const buffer = sounds.createBuffer(1, Math.round(sounds.sampleRate * 0.06), sounds.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+  const noise = sounds.createBufferSource();
+  const filter = sounds.createBiquadFilter();
+  const level = sounds.createGain();
+  noise.buffer = buffer;
+  filter.type = "highpass";
+  filter.frequency.value = 6000;
+  level.gain.value = loud;
+  noise.connect(filter).connect(level).connect(mix);
+  noise.start(when);
+}
+
+// A bubble going down: a pure tone that slides.
+function bloop(when, from, to, loud, length) {
+  const tone = sounds.createOscillator();
+  const level = sounds.createGain();
+  tone.frequency.setValueAtTime(from, when);
+  tone.frequency.exponentialRampToValueAtTime(to, when + length);
+  level.gain.setValueAtTime(0.0001, when);
+  level.gain.exponentialRampToValueAtTime(loud, when + 0.02);
+  level.gain.exponentialRampToValueAtTime(0.0001, when + length);
+  tone.connect(level).connect(mix);
+  tone.start(when);
+  tone.stop(when + length + 0.05);
+}
+
+// Joining: do, mi, sol on the marimba over a low do and a shaker, a little
+// skip, and a landing on a bell with the whole chord and three sparkles: ta-da.
+function hello(t) {
+  marimba(t, 130.81, 0.35);
+  marimba(t, 523.25, 0.45, -0.3);
+  shaker(t, 0.08);
+  marimba(t + 0.11, 659.25, 0.45);
+  marimba(t + 0.22, 783.99, 0.45, 0.3);
+  shaker(t + 0.22, 0.06);
+  marimba(t + 0.33, 880, 0.25, 0.2);
+  marimba(t + 0.4, 783.99, 0.3, 0.1);
+  for (const hz of [130.81, 523.25, 659.25, 783.99]) marimba(t + 0.55, hz, 0.22);
+  bell(t + 0.55, 1046.5, 0.16, 1.1);
+  shaker(t + 0.55, 0.1);
+  [2093, 2637.02, 3135.96].forEach((hz, i) => bell(t + 0.6 + i * 0.06, hz, 0.035, 0.3, i % 2 ? -0.5 : 0.5));
+}
+
+// Leaving: sol, mi, do going down, then a bubble that lets go, over a soft
+// low bell: Aule waving and slipping away.
+function goodbye(t) {
+  marimba(t, 783.99, 0.4, 0.3);
+  marimba(t + 0.12, 659.25, 0.4);
+  marimba(t + 0.24, 523.25, 0.4, -0.3);
+  marimba(t + 0.24, 130.81, 0.25);
+  bloop(t + 0.42, 700, 260, 0.12, 0.35);
+  bell(t + 0.42, 392, 0.05, 0.9);
+}
+
+function play(tune) {
+  if (!sounds) return;
+  try {
+    tune(sounds.currentTime + 0.05);
+  } catch {
+    // A tune that cannot play is skipped; nothing depends on it.
   }
 }
 
@@ -714,7 +811,7 @@ function leave(reason) {
   if (!room) return;
   const leaving = room;
   room = null;
-  chime();
+  play(goodbye);
   clearInterval(clock);
   clearTimeout(tutorTimer);
   stopSteps();
@@ -757,7 +854,7 @@ $("lobby-cam").addEventListener("click", () => {
 $("back").addEventListener("click", closeLobby);
 
 $("join").addEventListener("click", async () => {
-  readyChime();
+  readySounds();
   $("join").disabled = true;
   $("transcript").replaceChildren();
   following = true;
