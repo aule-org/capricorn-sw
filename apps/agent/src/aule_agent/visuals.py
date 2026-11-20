@@ -28,7 +28,10 @@ DESCRIPTION = (
     "from, to and step (marks and jumps are optional); dot_array needs rows and columns; "
     "counters needs groups (each a count and a fill, solid or open, for a bag of things); "
     "table needs headers and cells; bar_chart needs bars; rectangle needs width and height; "
-    "triangle needs sides (base, left, right; labels can replace a length with ? or a name). "
+    "polygon draws any straight-sided shape and needs exactly one of: regular (how many "
+    "equal sides: 6 is a hexagon; side is their length), sides (a triangle from three "
+    "lengths: base, left, right) or points (the corners in order, for a trapezoid or any "
+    "other shape); labels can replace a length with ? or a name. "
     "title is optional for every kind."
 )
 
@@ -63,11 +66,27 @@ def problems(visual: object) -> list[str]:
     if not found and isinstance(visual, dict) and visual.get("kind") == "number_line":
         if not visual["to"] > visual["from"]:
             found.append("to must be greater than from")
-    if not found and isinstance(visual, dict) and visual.get("kind") == "triangle":
+    if not found and isinstance(visual, dict) and visual.get("kind") == "polygon":
+        found += _polygon_problems(visual)
+    return found
+
+
+def _polygon_problems(visual: dict[str, Any]) -> list[str]:
+    """What the schema cannot say about a polygon: its lengths or corners must close a shape."""
+    if "sides" in visual:
         longest = max(visual["sides"])
         if longest >= sum(visual["sides"]) - longest:
-            found.append("those sides do not make a triangle: the longest is too long")
-    return found
+            return ["those sides do not make a triangle: the longest is too long"]
+    if "points" in visual:
+        points = visual["points"]
+        # Twice the area, by the shoelace rule: zero when the corners are in a line.
+        doubled = sum(
+            x1 * y2 - x2 * y1
+            for (x1, y1), (x2, y2) in zip(points, points[1:] + points[:1], strict=True)
+        )
+        if abs(doubled) < 1e-9:
+            return ["those points do not make a shape: they are in a line"]
+    return []
 
 
 def text_of(visual: dict[str, Any]) -> str:

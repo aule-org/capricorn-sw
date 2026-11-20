@@ -20,7 +20,7 @@
         "table",
         "bar_chart",
         "rectangle",
-        "triangle"
+        "polygon"
       ]
     },
     "title": {
@@ -227,7 +227,7 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 8,
-      "description": "rectangle and triangle: the unit of the sides, such as cm."
+      "description": "rectangle and polygon: the unit of the sides, such as cm."
     },
     "sides": {
       "type": "array",
@@ -237,18 +237,42 @@
         "type": "number",
         "exclusiveMinimum": 0
       },
-      "description": "triangle: the lengths of its three sides, in this order: the base, the left side, the right side. It is drawn to scale, so the longest must be shorter than the other two together. A right angle is marked when the lengths make one (3, 4, 5)."
+      "description": "polygon: a triangle from the lengths of its three sides, in this order: the base, the left side, the right side. Drawn to scale, so the longest must be shorter than the other two together."
     },
     "labels": {
       "type": "array",
-      "minItems": 3,
-      "maxItems": 3,
+      "minItems": 1,
+      "maxItems": 12,
       "items": {
         "type": "string",
-        "minLength": 1,
         "maxLength": 12
       },
-      "description": "triangle: what to write next to each side instead of its length, in the same order as sides. Use it to hide the side you are asking for (\"?\") or to name sides (\"a\")."
+      "description": "polygon: what to write next to each side, in order, instead of its length: \"?\" for the side you are asking for, a name such as \"a\", or \"\" for nothing. With sides the order is base, left, right; with regular it starts at the bottom side and goes round; with points, side 1 joins the first two corners."
+    },
+    "regular": {
+      "type": "integer",
+      "minimum": 3,
+      "maximum": 12,
+      "description": "polygon: draw a regular one with this many equal sides (3 a triangle, 5 a pentagon, 6 a hexagon, 8 an octagon)."
+    },
+    "side": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "polygon, with regular: the length of each side, written next to the bottom one."
+    },
+    "points": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 12,
+      "items": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 2,
+        "items": {
+          "type": "number"
+        }
+      },
+      "description": "polygon: any other shape (a trapezoid, a parallelogram, an L), as its corners in order around it, each [x, y] in the shape's own units with y upwards. Drawn to scale."
     }
   },
   "allOf": [
@@ -414,7 +438,7 @@
       "if": {
         "properties": {
           "kind": {
-            "const": "triangle"
+            "const": "polygon"
           }
         },
         "required": [
@@ -422,8 +446,22 @@
         ]
       },
       "then": {
-        "required": [
-          "sides"
+        "oneOf": [
+          {
+            "required": [
+              "regular"
+            ]
+          },
+          {
+            "required": [
+              "sides"
+            ]
+          },
+          {
+            "required": [
+              "points"
+            ]
+          }
         ]
       }
     }
