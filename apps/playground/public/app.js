@@ -451,17 +451,24 @@ function syncMicrophone() {
   return room?.localParticipant.setMicrophoneEnabled(wanted.mic && tutorReady && !manualTurns);
 }
 
+// A phone has no space bar to mention.
+const touchOnly = matchMedia("(pointer: coarse)").matches && !matchMedia("(pointer: fine)").matches;
+
 // The switch is the device's mute: while it is off nothing is heard, held
 // button or not.
 function showTalk() {
   $("talk").hidden = !manualTurns;
+  // On a phone the button then stays at the bottom of the screen (style.css).
+  document.querySelector("main").classList.toggle("push-to-talk", manualTurns);
   $("talk").disabled = !wanted.mic;
   $("talk").setAttribute("aria-pressed", String(talking));
   $("talk").textContent = !wanted.mic
     ? "El micrófono está apagado"
     : talking
       ? "Te escucho… suelta para enviar"
-      : "Mantén apretado para hablar (o la barra espaciadora)";
+      : touchOnly
+        ? "Mantén apretado para hablar"
+        : "Mantén apretado para hablar (o la barra espaciadora)";
 }
 
 function turn(method) {
