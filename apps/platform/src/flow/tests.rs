@@ -591,6 +591,12 @@ fn a_typed_answer_is_an_answer_and_nothing_else() {
     assert_eq!(said_by_tutor(&turn), ASK_HOW);
     let turn = student.flow.said(2000, "3/8", Some("el 8 es el total y el 3 las pintadas"), true);
     assert_eq!(student.at(), "tamizaje:2", "{turn:?}");
+
+    // An explanation that was written is not asked for again, even a thin one.
+    let mut student = in_screening();
+    let turn = student.flow.said(1000, "3/8", Some("lo vi en el dibujo"), true);
+    assert_ne!(said_by_tutor(&turn), ASK_HOW);
+    assert_eq!(student.at(), "tamizaje:2", "{turn:?}");
 }
 
 #[test]

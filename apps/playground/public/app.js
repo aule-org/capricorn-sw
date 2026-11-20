@@ -247,8 +247,10 @@ async function showStep(id, given) {
   $("card-help").hidden = !card.format_help;
   $("answer-text").value = "";
   $("explanation-text").value = "";
-  // Until the tutor draws it, the card's own drawing is on the board.
-  if (card.visual && $("board").hidden) {
+  // A new exercise brings its own drawing, or an empty board: the drawing of
+  // the one before does not stay next to it.
+  $("board").hidden = true;
+  if (card.visual && card.visual.kind !== "exercise") {
     try {
       $("board").innerHTML = renderVisual(card.visual);
       $("board").hidden = false;
@@ -373,7 +375,11 @@ function awaitReport(id) {
 // The tutor describes what to show; the page draws it.
 async function onVisual(reader) {
   try {
-    $("board").innerHTML = renderVisual(JSON.parse(await reader.readAll()));
+    const visual = JSON.parse(await reader.readAll());
+    // With the exercise card on the screen its statement is already there:
+    // the board is for drawings, not for the same words again.
+    if (visual.kind === "exercise" && !$("card").hidden) return;
+    $("board").innerHTML = renderVisual(visual);
     $("board").hidden = false;
     // The panel flashes when it redraws.
     $("board").classList.remove("redraw");
