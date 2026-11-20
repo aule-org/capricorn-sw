@@ -393,6 +393,13 @@ function watchTutor(participant) {
   const manual = participant.attributes[TURNS] === "manual";
   const ready = state !== "initializing";
   if (manual === manualTurns && ready === tutorReady) return;
+  // With the talk button nothing is heard unless it is held, so it is the one
+  // microphone button: the switch goes away, and the hold button works even if
+  // the microphone was switched off in the lobby.
+  if (manual && !manualTurns) {
+    wanted.mic = true;
+    setToggle($("mic"), "Micrófono", true);
+  }
   manualTurns = manual;
   tutorReady = ready;
   talking = false;
@@ -420,10 +427,11 @@ function syncMicrophone() {
 // A phone has no space bar to mention.
 const touchOnly = matchMedia("(pointer: coarse)").matches && !matchMedia("(pointer: fine)").matches;
 
-// The switch is the device's mute: while it is off nothing is heard, held
-// button or not.
+// Without the talk button the switch is the microphone's mute; with it, the
+// talk button is the only microphone button.
 function showTalk() {
   $("talk").hidden = !manualTurns;
+  $("mic").hidden = manualTurns;
   // On a phone the button then stays at the bottom of the screen (style.css).
   document.querySelector("main").classList.toggle("push-to-talk", manualTurns);
   $("talk").disabled = !wanted.mic;
