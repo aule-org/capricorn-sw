@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from livekit import rtc
-from livekit.agents import Agent, ModelSettings, StopResponse, function_tool, llm
+from livekit.agents import Agent, ModelSettings, StopResponse, function_tool, llm, stt
 
 from . import visuals
 from .greetings import greeting as written_greeting
@@ -453,6 +453,7 @@ class Tutor(Agent):
         session_number: int | None = None,
         flow: Flow | None = None,
         breaks: bool = False,
+        heard: Callable[[float], None] | None = None,
     ) -> None:
         # `context` is what the platform knows about this student and the
         # supervisor's plan for the session; empty when there is no platform.
@@ -525,6 +526,8 @@ class Tutor(Agent):
         # The frame taken when the student pressed the button, until it is used.
         self._shown: rtc.VideoFrame | None = None
         self._hazards_in_a_row = 0
+        # Told how sure the speech recognition was of each final transcript.
+        self._heard = heard
         self._flow = flow
         # Which answer of the engine is being said. Lines of an older one stop
         # as soon as a newer answer arrives.
@@ -759,6 +762,15 @@ class Tutor(Agent):
             # After the full reply, alternate the two shorter reminders.
             self._hazards_in_a_row = hazards + 1 if hazards + 1 < len(ADULT_HELP_SEQUENCE) else 1
         return False
+
+    async def stt_node(
+        self, audio: AsyncIterable[rtc.AudioFrame], model_settings: ModelSettings
+    ) -> AsyncIterable[stt.SpeechEvent]:
+        async for event in Agent.default.stt_node(self, audio, model_settings):
+            final = event.type == stt.SpeechEventType.FINAL_TRANSCRIPT
+            if final and event.alternatives and self._heard is not None:
+                self._heard(event.alternatives[0].confidence)
+            yield event
 
     async def llm_node(
         self, chat_ctx: llm.ChatContext, tools: list[llm.Tool], model_settings: ModelSettings
