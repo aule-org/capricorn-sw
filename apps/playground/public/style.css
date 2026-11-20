@@ -1282,3 +1282,12 @@ button[aria-pressed="true"]:not(.talk) {
   padding: 4px 10px;
   font-size: 0.8125rem;
 }
+
+/* The ink screen before Aule has drawn anything. */
+.board .ink-waiting {
+  margin: 0;
+  padding: 24px;
+  color: #555;
+  text-align: center;
+  font-family: var(--serif);
+}
