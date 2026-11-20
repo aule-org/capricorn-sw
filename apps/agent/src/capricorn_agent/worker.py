@@ -96,6 +96,9 @@ async def enable_push_to_talk(ctx: JobContext, session: AgentSession) -> None:
 
 def prewarm(proc: JobProcess) -> None:
     proc.userdata["vad"] = silero.VAD.load()
+    # The model's client takes seconds to import. Done here it is paid while
+    # the process waits for a session, not while a student waits for hello.
+    from livekit.plugins import anthropic  # noqa: F401
 
 
 # A session takes a warm process and a new one takes seconds to start, so the
@@ -186,7 +189,7 @@ async def entrypoint(ctx: JobContext) -> None:
             if getattr(event.item, "type", None) == "message":
                 platform.heard(event.item.role, event.item.text_content)
 
-        tasks.append(asyncio.create_task(platform.run(tutor.advise)))
+        tasks.append(asyncio.create_task(platform.run(tutor.advise, tutor.plan)))
 
     async def cleanup() -> None:
         for task in tasks:

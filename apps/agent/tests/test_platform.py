@@ -371,3 +371,28 @@ async def test_flags_in_flight_are_bounded_and_the_end_does_not_wait_for_them(mo
 
     assert calls[-1] == "/v1/agent/session/end"
     assert all(task.cancelled() for task in platform._flags)
+
+
+async def test_a_plan_that_arrives_late_reaches_the_tutor_once_and_before_guidance():
+    send = Recorder(
+        {"plan": "Plan: fractions.", "guidance": [{"id": 1, "instructions": "Slow down."}]},
+        {"plan": "Plan: fractions.", "guidance": []},
+    )
+    platform = Platform(SESSION, send)
+    told: list[tuple[str, str]] = []
+
+    async def advise(text):
+        told.append(("guidance", text))
+
+    async def plan(text):
+        told.append(("plan", text))
+
+    worker = asyncio.create_task(platform.run(advise, plan))
+    platform.heard("user", "hola")
+    await asyncio.sleep(0.01)
+    platform.heard("user", "otra vez")
+    await asyncio.sleep(0.01)
+    worker.cancel()
+    await asyncio.gather(worker, return_exceptions=True)
+
+    assert told == [("plan", "Plan: fractions."), ("guidance", "Slow down.")]

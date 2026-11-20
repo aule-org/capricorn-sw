@@ -388,7 +388,11 @@ class Tutor(Agent):
             tools += [pose_exercise, check_answer]
         # The persona's tone lines go last, after the teaching, the safety rules
         # and the supervisor's context, so they can never sit above a safety rule.
-        self._base = with_notes(with_notes(instructions, context), persona_notes(language, persona))
+        self._rules = instructions
+        self._context = context
+        self._tone = persona_notes(language, persona)
+        self._guidance = ""
+        self._base = with_notes(with_notes(instructions, context), self._tone)
         super().__init__(instructions=self._base, tools=tools)
         self._language = language
         self._gates = gates
@@ -406,7 +410,19 @@ class Tutor(Agent):
 
         It replaces the previous guidance instead of piling up.
         """
+        self._guidance = guidance
         await self.update_instructions(with_notes(self._base, guidance))
+
+    async def plan(self, plan: str) -> None:
+        """Takes the supervisor's plan when it arrives after the session began.
+
+        The greeting does not wait for it. It joins what is known about the
+        student, before the tone lines, exactly where it would have been had
+        it come with the first call.
+        """
+        self._context = with_notes(self._context, plan)
+        self._base = with_notes(with_notes(self._rules, self._context), self._tone)
+        await self.update_instructions(with_notes(self._base, self._guidance))
 
     async def on_enter(self) -> None:
         self.session.generate_reply(instructions=self._greeting)
