@@ -675,3 +675,27 @@ fn simulacion_sesiones_completas() {
         }
     }
 }
+
+/// [PROPUESTA] Por voz no hay un botón para volver de la pausa.
+#[test]
+fn pausa_se_vuelve_diciendolo_y_una_pregunta_no_la_termina() {
+    let mut p = Prueba::new(None, vec![obj(1, TipoObjetivo::Tarea, 5, None)]);
+    p.iniciar();
+    p.e(Entrada::Cansado);
+    assert_eq!(p.act(), "pausa");
+    // Sin nombrar una actividad, se le propone una.
+    let r = p.e(Entrada::Texto("no sé, la que sea".into()));
+    assert!(texto(&r).contains("Saltos de estrella"), "{}", texto(&r));
+    p.reloj.avanzar_s(60);
+    let r = p.e(Entrada::Texto("¿cuánto falta?".into()));
+    assert_eq!(
+        p.act(),
+        "pausa",
+        "una pregunta no termina la pausa: {}",
+        texto(&r)
+    );
+    p.reloj.avanzar_s(60);
+    let r = p.e(Entrada::Texto("ya volví".into()));
+    assert_ne!(p.act(), "pausa", "{}", texto(&r));
+    assert!(texto(&r).contains("seguimos"), "{}", texto(&r));
+}

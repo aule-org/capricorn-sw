@@ -6,8 +6,10 @@ with no input or output of its own and no language model. A model only words
 what the engine decided, judges an answer when asked and reads a photo of a
 notebook. **The model never decides the flow.**
 
-It was written for Aule's first web demo and is brought here as it was, so that
-the tutor, the platform and the playground follow the same rules.
+It was written for Aule's first web demo and brought here so that the tutor,
+the platform and the playground follow the same rules. Its lines are said out
+loud by the tutor, so none asks the student to type or press a button. Changes
+to the rules of the demo are marked `[PROPUESTA]` in the code.
 
 | Path | What |
 |---|---|
@@ -34,6 +36,23 @@ Nivel objetivo, Pistas...) and is used as written.
 ```bash
 cd engine
 cargo test --locked
+```
+
+## Measuring whole sessions
+
+`crates/contenido/examples/medir.rs` runs whole sessions with scripted
+students (one who gets everything right, one who fails half or all, one who
+does not explain, one who gets tired, one who asks questions, one who asks for
+help), an hour long as on the platform, and prints per student: whether the
+session ended, turns and minutes, words the tutor says per turn of the
+student, and lines that do not fit a spoken session (typing, buttons,
+WhatsApp, a date nobody gave), or that repeat.
+
+```bash
+cd engine
+cargo run --release -p contenido --example medir             # the table
+cargo run --release -p contenido --example medir -- --lineas # and the lines it flags
+VER="falla todo" cargo run --release -p contenido --example medir  # one student's session
 ```
 
 The names in the bank and the tests are made up.

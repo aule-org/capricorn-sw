@@ -377,6 +377,9 @@ const EXITO: [&str; 6] = [
 
 // ───────────────────────────── Motor ─────────────────────────────
 
+/// Vueltas a la Etapa 1 de un mismo nivel en una sesión.
+const MAX_VUELTAS_E1: u32 = 2;
+
 pub struct Motor {
     pub cfg: Config,
     banco: Arc<Banco>,
@@ -610,10 +613,7 @@ impl Motor {
         let saludo = format!(
             "¡Hola, {nombre}! Soy Aule. Qué gusto verte hoy.{}",
             interes
-                .map(|i| format!(
-                    " Ya sé que te gusta {}, así que lo vamos a usar en los ejercicios.",
-                    i.to_lowercase()
-                ))
+                .map(|i| format!(" Hoy los ejercicios van de {}.", i.to_lowercase()))
                 .unwrap_or_default()
         );
         out.push(msg(saludo).ia(
@@ -753,7 +753,7 @@ impl Motor {
                 FechaDicha::NoSe => {
                     self.aplicar("OBJ-10", "No se entendió la fecha: se vuelve a preguntar");
                     out.push(msg(
-                        "No te preocupes. ¿Puedes revisar tu agenda? Escríbeme el día, por ejemplo \"el jueves\" o \"20 de noviembre\". Si no hay fecha, escribe \"no hay\".",
+                        "No te preocupes. Dime el día, por ejemplo «el jueves» o «el 20 de noviembre». Si no hay fecha, dime «no hay».",
                     ));
                 }
             },
@@ -772,10 +772,20 @@ impl Motor {
             Actividad::Pausa(p) => {
                 if let Some(k) = self.leer_actividad(&t) {
                     self.elegir_actividad(k, out);
+                } else if p.eleccion.is_some() && dice_que_volvio(&t) {
+                    // [PROPUESTA] Por voz no hay un botón para volver: si dice
+                    // que ya volvió después de la actividad, se sigue.
+                    self.aplicar("PAU-06", "El Alumno dijo que ya volvió");
+                    self.terminar_pausa(out);
+                } else if p.eleccion.is_none() {
+                    // [PROPUESTA] Sin elegir una, se le propone la siguiente de la lista.
+                    let k = (self.pausas_tomadas as usize).saturating_sub(1)
+                        % self.cfg.actividades_pausa.len().max(1);
+                    self.elegir_actividad(k, out);
                 } else {
                     let r = self.pausa_restante_s(&p);
                     out.push(msg(format!(
-                        "Estamos en la Pausa activa. Nos quedan {} para volver. Si quieres, elige una actividad.",
+                        "Estamos en la Pausa activa. Nos quedan {} para volver.",
                         minutos_y_segundos(r)
                     )));
                 }
@@ -1111,7 +1121,7 @@ impl Motor {
         );
         out.push(
             msg(format!(
-                "¡Felicitaciones, {}! Ya dominas {} hasta el nivel más alto. Estás muy bien informado.",
+                "¡Felicitaciones, {}! Ya dominas {} hasta el nivel más alto.",
                 self.nombre(),
                 tema.to_lowercase()
             ))
@@ -1348,11 +1358,11 @@ impl Motor {
             None => {
                 self.aplicar("TAM-01", "Nivel desconocido: Tamizaje (1 vez por tema)");
                 out.push(msg(format!(
-                    "Primero quiero conocer cómo te va con {}. Es el Tamizaje: son 5 preguntas, de la más fácil a la más difícil. En cada una dame tu respuesta y cuéntame cómo lo pensaste.",
+                    "Primero veamos cómo te va con {}: son 5 preguntas, de la más fácil a la más difícil. En cada una dime tu respuesta y cómo lo pensaste.",
                     tema.to_lowercase()
                 )));
                 out.push(
-                    msg("Aquí no hay pistas, porque quiero ver cómo piensas tú. No pasa nada si fallamos, estamos para aprender. Si en algún momento te sientes abrumado, puedes salir del Tamizaje.")
+                    msg("Aquí no hay pistas y equivocarse está bien: quiero ver cómo piensas tú.")
                         .clase(Clase::Calma),
                 );
                 (vec![], 1, BTreeSet::new())
@@ -1389,7 +1399,7 @@ impl Motor {
     fn calificar_tamizaje(&mut self, mut tam: Box<Tam>, c: Calificacion, out: &mut Vec<Mensaje>) {
         if c.ilegible {
             out.push(msg(
-                "No logré leer tu respuesta. ¿Me la escribes otra vez? Usa la barra / entre el número de arriba y el de abajo.",
+                "No te entendí la respuesta. ¿Me la repites? Por ejemplo: «tres cuartos».",
             ));
             self.act = Actividad::Tamizaje(tam);
             return;
@@ -1581,6 +1591,23 @@ impl Motor {
             *v += 1;
             *v
         };
+        if vuelta > MAX_VUELTAS_E1 {
+            // [PROPUESTA] E2-04 devuelve a la Etapa 1 sin límite; una tercera
+            // vuelta el mismo día repite lo que ya no funcionó dos veces.
+            self.aplicar(
+                "E2-04",
+                &format!(
+                    "Tercera vuelta a la Etapa 1 del nivel {nivel}: se deja para la próxima sesión"
+                ),
+            );
+            out.push(msg(format!(
+                "Hoy trabajaste mucho {}, {}. Lo dejamos aquí y lo seguimos la próxima vez, con calma y de otra manera.",
+                n.titulo.to_lowercase(),
+                self.nombre()
+            )).clase(Clase::Calma));
+            self.cerrar(out);
+            return;
+        }
         if vuelta == 1 {
             out.push(msg(format!(
                 "Etapa 1: Descubrimiento. Vamos a aprender algo nuevo: {}.",
@@ -1709,7 +1736,7 @@ impl Motor {
                 let ejemplo = &cont.etapa1.asistidos[ej];
                 let p = &ejemplo.pasos[paso];
                 if !ayuda && c.ilegible {
-                    out.push(msg("No logré leer tu respuesta. ¿Me la escribes otra vez?"));
+                    out.push(msg("No te entendí la respuesta. ¿Me la repites?"));
                     self.act = Actividad::Etapa1(e1);
                     return;
                 }
@@ -1734,11 +1761,8 @@ impl Motor {
                     self.act = Actividad::Etapa1(e1);
                 } else {
                     out.push(
-                        msg(format!(
-                            "Te muestro cómo se hace este paso, porque es un ejemplo: {}",
-                            p.solucion
-                        ))
-                        .clase(Clase::Pista),
+                        msg(format!("Mira cómo se hace este paso: {}", p.solucion))
+                            .clase(Clase::Pista),
                     );
                     self.siguiente_paso_asistido(e1, ej, paso, out);
                 }
@@ -1930,7 +1954,7 @@ impl Motor {
             &format!("Etapa 2: Refuerzo del nivel {nivel}: 5 ejercicios autónomos"),
         );
         out.push(msg(format!(
-            "Etapa 2: Refuerzo. Ahora te toca a ti: son {} ejercicios. Escribe cada respuesta en el recuadro. Si te trabas, aprieta \"Necesito ayuda\".",
+            "Etapa 2: Refuerzo. Ahora te toca a ti: son {} ejercicios. Si te trabas, pídeme una pista.",
             lista.len()
         )));
         let actual = Ex::new(lista[0].clone(), self.ahora());
@@ -1947,7 +1971,7 @@ impl Motor {
     fn calificar_e2(&mut self, mut e2: Box<E2>, c: Calificacion, out: &mut Vec<Mensaje>) {
         if c.ilegible {
             out.push(msg(
-                "No logré leer tu respuesta. ¿Me la escribes otra vez? Usa la barra / entre el número de arriba y el de abajo.",
+                "No te entendí la respuesta. ¿Me la repites? Por ejemplo: «tres cuartos».",
             ));
             self.act = Actividad::Etapa2(e2);
             return;
@@ -2228,7 +2252,7 @@ impl Motor {
     fn calificar_practica(&mut self, mut p: Box<Prac>, c: Calificacion, out: &mut Vec<Mensaje>) {
         if c.ilegible {
             out.push(msg(
-                "No logré leer tu respuesta. ¿Me la escribes otra vez? Usa la barra / entre el número de arriba y el de abajo.",
+                "No te entendí la respuesta. ¿Me la repites? Por ejemplo: «tres cuartos».",
             ));
             self.act = Actividad::Practica(p);
             return;
@@ -2565,9 +2589,15 @@ impl Motor {
         } else {
             match &c.comentario {
                 Some(com) if !com.trim().is_empty() => com.clone(),
-                _ => {
-                    "Todavía no. Equivocarse es parte de aprender, vamos a pensarlo juntos.".into()
-                }
+                // Variadas, como los elogios: oír la misma frase en cada error cansa.
+                _ => self
+                    .rota(&[
+                        "Todavía no. Equivocarse es parte de aprender, vamos a pensarlo juntos.",
+                        "Esa no es. Tranquilo, lo vemos juntos.",
+                        "Casi. Vamos a revisarlo con calma.",
+                        "Todavía no sale, y está bien. Lo pensamos de nuevo.",
+                    ])
+                    .to_string(),
             }
         };
         out.push(msg(t).clase(Clase::Calma));
@@ -2675,7 +2705,7 @@ impl Motor {
             return;
         };
         self.pausa_total_ms += self.ahora().saturating_sub(p.inicio_ms);
-        out.push(msg("¡Se terminó la Pausa activa! ¿Listo? Seguimos."));
+        out.push(msg("¡Listo, seguimos!"));
         match *p.previa {
             Actividad::Siguiente => self.avanzar(out),
             otra => {
@@ -3031,7 +3061,7 @@ impl Motor {
         // SES-07
         out.push(
             msg(format!(
-                "{}, por cierto, {cuantos}. Si te gustaría una sesión adicional escríbeme cuándo te gustaría y se lo comento a tus padres.",
+                "{}, por cierto, {cuantos}. Si quieres otra sesión, dime cuándo y se lo cuento a tu familia.",
                 self.nombre()
             ))
             .clase(Clase::Aviso),
@@ -3110,17 +3140,14 @@ impl Motor {
         self.aplicar("SES-04", "Cierre con despedida (nunca abrupto)");
         out.push(
             msg(format!(
-                "¡Gran trabajo hoy, {}! Me encantó trabajar contigo. Nos vemos el {}.",
+                "¡Gran trabajo hoy, {}! Me encantó trabajar contigo. ¡Nos vemos pronto!",
                 self.nombre(),
-                fecha_larga(self.perfil.proxima_sesion)
             ))
             .ia(format!(
-                "Despedida de la sesión, cálida y breve (2 o 3 frases): reconoce el esfuerzo del Alumno y lo que logró hoy ({}), y dile que se ven el {}.",
+                "Despedida de la sesión, cálida y breve (2 o 3 frases): reconoce el esfuerzo del Alumno y lo que logró hoy ({}). No digas una fecha.",
                 if self.subtemas_hoy().is_empty() { "trabajó con constancia".to_string() } else { lista(&self.subtemas_hoy()) },
-                fecha_larga(self.perfil.proxima_sesion)
             )),
         );
-        out.push(msg("Esta es la vista previa del Informe que le llegaría a tu Padre de familia por WhatsApp a las 8pm."));
     }
 
     pub fn informe(&self) -> Vec<String> {
@@ -3872,6 +3899,23 @@ fn minutos_y_segundos(s: u64) -> String {
     } else {
         format!("{m} min {s} s")
     }
+}
+
+/// "Ya volví", "listo", "sigamos": dicho en la pausa, que quiere seguir.
+fn dice_que_volvio(t: &str) -> bool {
+    let n = normalizar(t);
+    [
+        "volvi",
+        "ya estoy",
+        "termine",
+        "listo",
+        "lista",
+        "sigamos",
+        "seguimos",
+        "continuemos",
+    ]
+    .iter()
+    .any(|p| n.contains(p))
 }
 
 #[derive(Clone, Copy, PartialEq)]
