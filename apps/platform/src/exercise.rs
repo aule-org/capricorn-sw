@@ -419,6 +419,23 @@ pub fn read_answer(text: &str) -> Option<Written> {
     first(after_marker).or_else(|| first(0))
 }
 
+/// Every number written or said in a text, in order.
+pub fn numbers(text: &str) -> Vec<Rational> {
+    let tokens = tokens(text);
+    let mut found = Vec::new();
+    let mut at = 0;
+    while at < tokens.len() {
+        match number(&tokens[at..]) {
+            Some((written, used)) => {
+                found.extend(written.value());
+                at += used.max(1);
+            }
+            None => at += 1,
+        }
+    }
+    found
+}
+
 // Exercises -------------------------------------------------------------------
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -493,6 +510,13 @@ impl Parser<'_> {
 }
 
 impl Exercise {
+    /// Whether a text of the tutor's says this exercise's answer. A number that
+    /// is already in the exercise as asked ("5 x 1") does not count: saying
+    /// the exercise is not giving it away.
+    pub fn is_given_away_by(&self, expression: &str, said: &str) -> bool {
+        !numbers(expression).contains(&self.answer) && numbers(said).contains(&self.answer)
+    }
+
     /// Reads an expression such as "3/4 + 1/8", "2 1/2 x 4", "3/4 de 20" or
     /// "(1/2 + 1/3) : 2". None when it is not arithmetic this can work out.
     pub fn parse(expression: &str) -> Option<Self> {
@@ -708,6 +732,19 @@ mod tests {
         ] {
             assert_eq!(answer(expression), expected, "{expression}");
         }
+    }
+
+    #[test]
+    fn a_tutor_who_says_the_answer_is_noticed_and_one_who_states_the_exercise_is_not() {
+        let expression = "3/4 + 1/8";
+        let exercise = Exercise::parse(expression).unwrap();
+        assert!(exercise.is_given_away_by(expression, "Muy cerca: es siete octavos, ¿ves por qué?"));
+        assert!(exercise.is_given_away_by(expression, "La respuesta es 7/8."));
+        assert!(!exercise.is_given_away_by(expression, "¿Cuánto es tres cuartos más un octavo?"));
+        assert!(!exercise.is_given_away_by(expression, "Piensa en cuántos octavos hay en 3/4."));
+        // The answer is one of the numbers asked: stating the exercise is not a leak.
+        let same = Exercise::parse("5 x 1").unwrap();
+        assert!(!same.is_given_away_by("5 x 1", "¿Cuánto es 5 por 1?"));
     }
 
     #[test]

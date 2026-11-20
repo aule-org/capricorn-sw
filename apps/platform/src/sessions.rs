@@ -322,6 +322,7 @@ pub async fn agent_turns(
         return Err(ApiError::bad_request("too many turns in one request"));
     }
     let mut child_spoke = false;
+    let mut tutor_said = Vec::new();
     for turn in &body.turns {
         if !["child", "tutor"].contains(&turn.role.as_str()) || turn.seq < 0 {
             return Err(ApiError::bad_request("a turn needs seq >= 0 and role child or tutor"));
@@ -338,13 +339,17 @@ pub async fn agent_turns(
         .bind(session.id)
         .bind(turn.seq)
         .bind(&turn.role)
-        .bind(content)
+        .bind(&content)
         .execute(&state.pool)
         .await?
         .rows_affected()
             > 0;
         child_spoke |= stored && turn.role == "child";
+        if stored && turn.role == "tutor" {
+            tutor_said.push(content);
+        }
     }
+    crate::practice::note_answer_said(&state.pool, session.id, &tutor_said).await?;
 
     if child_spoke && state.llm.is_some() && state.watching.lock().expect("lock").insert(session.id) {
         let (state, session) = (state.clone(), session.clone());

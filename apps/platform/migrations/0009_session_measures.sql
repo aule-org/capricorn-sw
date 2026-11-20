@@ -9,3 +9,7 @@ alter table sessions
     add column tutor_chars integer,
     add column unchecked_exercises integer not null default 0,
     add column agent_metrics jsonb;
+
+-- The tutor said the answer of this exercise while it was still open. Only
+-- the fact is kept.
+alter table session_exercises add column answer_said boolean not null default false;

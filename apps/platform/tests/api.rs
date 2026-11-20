@@ -634,6 +634,9 @@ async fn a_day_of_sessions_is_read_as_numbers_and_nothing_else(pool: PgPool) {
     };
     assert_eq!(pose("el perímetro del hexágono").await.0, StatusCode::BAD_REQUEST);
     assert_eq!(pose("3 cm + 4 cm = ?").await.0, StatusCode::CREATED);
+    // The tutor gives the answer away before the student has it.
+    let slip = json!({ "turns": [{ "seq": 2, "role": "tutor", "content": "Mira, la respuesta es 7 cm." }] });
+    app.call(Method::POST, "/v1/agent/session/turns", agent, Some(slip)).await;
     let (status, _) =
         app.call(Method::POST, "/v1/agent/session/answers", agent, Some(json!({ "said": "siete" }))).await;
     assert_eq!(status, StatusCode::OK);
@@ -652,11 +655,12 @@ async fn a_day_of_sessions_is_read_as_numbers_and_nothing_else(pool: PgPool) {
     let day = days.iter().find(|day| day["sessions"]["started"] == 1).expect("the session's day");
     assert_eq!(day["sessions"]["students"], 1);
     assert_eq!(day["talk"]["child_turns"], 1);
-    assert_eq!(day["talk"]["tutor_turns"], 1);
+    assert_eq!(day["talk"]["tutor_turns"], 2);
     assert!(day["talk"]["tutor_share_of_words"].as_f64().unwrap() > 0.5);
     assert_eq!(day["exercises"]["posed"], 1);
     assert_eq!(day["exercises"]["not_checkable"], 1);
     assert_eq!(day["exercises"]["correct"], 1);
+    assert_eq!(day["exercises"]["answer_given_away"], 1);
     assert_eq!(day["agent"], json!({ "first_word_ms": 2600.0 }));
     let text = metrics.to_string();
     assert!(!text.contains("Mateo") && !text.contains("Siete") && !text.contains("what the student said"));

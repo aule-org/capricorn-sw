@@ -97,6 +97,7 @@ pub async fn daily(
                                 from e where e.day = b.day and not probe and status in ('correct', 'failed')),
              'hints_per_exercise', (select round(avg(hints)::numeric, 2)
                                     from e where e.day = b.day and not probe and status in ('correct', 'failed')),
+             'answer_given_away', (select count(*) from e where e.day = b.day and answer_said),
              'sessions_with_one', (select count(distinct session_id) from e where e.day = b.day)
            ),
            'safety', jsonb_build_object(
