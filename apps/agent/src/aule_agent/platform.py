@@ -21,6 +21,7 @@ from typing import Any
 import aiohttp
 
 from .safety import FLAG_ACTIONS, FLAG_CATEGORIES, FLAG_GATES
+from .script import Line, Reply, lines_from, reply_from
 from .tutor import Persona, persona_from
 
 logger = logging.getLogger("aule.agent.platform")
@@ -93,6 +94,9 @@ class Platform:
         # sessions this is. Never logged, never stored by the agent.
         self.student_name: str | None = None
         self.session_number: int | None = None
+        # Filled by ``start`` when the session engine runs this session: what
+        # it wrote for the tutor to open with.
+        self._opening: tuple[Line, ...] = ()
         self._clock = clock
         self._flagged_at: dict[tuple[str, str, str], float] = {}
         self._flags: set[asyncio.Task[None]] = set()
@@ -161,8 +165,28 @@ class Platform:
         number = answer.get("session_number")
         if type(number) is int and number >= 0:
             self.session_number = number
+        script = answer.get("script")
+        if isinstance(script, dict):
+            self._opening = lines_from(script.get("lines"))
         instructions = answer.get("instructions")
         return instructions if isinstance(instructions, str) else ""
+
+    @property
+    def scripted(self) -> bool:
+        """Whether the session engine runs this session."""
+        return bool(self._opening)
+
+    def opening(self) -> tuple[Line, ...]:
+        return self._opening
+
+    async def said(self, text: str) -> Reply | None:
+        """Hands what the student said to the engine and returns what it wrote
+        back. None when it has nothing to say or could not be reached: the
+        model answers then, as in a session without an engine."""
+        answer = await self._call(
+            "POST", "/v1/agent/session/said", {"said": text}, CHECK_TIMEOUT_SECONDS
+        )
+        return reply_from(answer)
 
     async def pose(self, expression: str, skill_id: str | None, form: str | None) -> str | None:
         """Tells the platform which exercise is being asked. Returns what the
