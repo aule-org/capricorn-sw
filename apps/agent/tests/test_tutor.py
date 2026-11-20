@@ -275,6 +275,20 @@ async def type_to(tutor, session, text):
         await tutor.typed(text)
 
 
+async def test_a_goodbye_closes_the_session_instead_of_reaching_the_model():
+    gates, session = ScriptedGates(ALLOW, ALLOW, ALLOW), Session()
+    tutor = Tutor(language="es", gates=gates)
+    closed = []
+    tutor.on_goodbye = lambda: closed.append("closed")
+
+    assert not await hear(tutor, session, "bueno, chau Aule")
+    await type_to(tutor, session, "ya me voy")
+    assert await hear(tutor, session, "me voy a equivocar")
+
+    assert closed == ["closed", "closed"]
+    assert not hasattr(session, "replies_to")
+
+
 async def test_a_typed_message_is_judged_like_a_spoken_one_before_the_model_sees_it():
     gates, session = ScriptedGates(ALLOW), Session()
 

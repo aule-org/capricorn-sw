@@ -13,7 +13,7 @@ import numpy as np
 from livekit import rtc
 from livekit.agents import Agent, ModelSettings, StopResponse, function_tool, llm, stt
 
-from . import drill, visuals
+from . import drill, farewell, visuals
 from .greetings import greeting as written_greeting
 from .replies import ADULT_HELP_SEQUENCE, ANSWERABLE, MEANWHILE, reply
 from .safety import Gates
@@ -586,6 +586,16 @@ class Tutor(Agent):
         self._tutor_name = persona.name
         self._student_name = student_name
         self._session_number = session_number
+        # What closes the session when the student says goodbye; set by the
+        # worker, which owns the session's pace.
+        self.on_goodbye: Callable[[], None] | None = None
+
+    def _goodbye(self, text: str) -> bool:
+        """Whether this turn was the student's goodbye, and the session now closes."""
+        if self.on_goodbye is None or not farewell.said_goodbye(text):
+            return False
+        self.on_goodbye()
+        return True
 
     async def advise(self, guidance: str) -> None:
         """Applies the supervisor's latest guidance to the turns that follow.
@@ -713,6 +723,8 @@ class Tutor(Agent):
         if not await self._may_answer(turn_ctx, new_message):
             # The stopped turn never reaches the model: StopResponse discards it.
             raise StopResponse()
+        if self._goodbye(new_message.text_content or ""):
+            raise StopResponse()
         if await self._scripted(new_message.text_content or ""):
             # The engine answered. The student's words stay in the conversation;
             # the model is not asked.
@@ -756,6 +768,8 @@ class Tutor(Agent):
         await self.session.interrupt()
         message = llm.ChatMessage(role="user", content=[text])
         if not await self._may_answer(self.chat_ctx.copy(), message):
+            return
+        if self._goodbye(text):
             return
         if await self._scripted(text):
             context = self.chat_ctx.copy()

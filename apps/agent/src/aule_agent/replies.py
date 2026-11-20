@@ -82,6 +82,11 @@ REPLIES: dict[str, dict[str, str]] = {
         "es": "Nos quedan dos minutos. Terminemos esto con calma.",
         "en": "We have two minutes left. Let's finish this without rushing.",
     },
+    # The student said goodbye first.
+    "farewell": {
+        "es": "¡Chau! Gracias por la sesión de hoy. Nos vemos pronto.",
+        "en": "Bye! Thanks for today's session. See you soon.",
+    },
     "goodbye": {
         "es": "Se nos acabó el tiempo por hoy. ¡Buen trabajo! Hasta la próxima.",
         "en": "That is all our time for today. Good work! See you next time.",
