@@ -132,9 +132,12 @@ async function onTranscription(reader, participant) {
   let text = "";
   for await (const chunk of reader) {
     text += chunk;
-    // The page stays where the person left it: following every word pulled
-    // the view away from the microphone and camera buttons.
+    // The page stays where the person left it; only the conversation's own
+    // column follows, and only while it is already at its end.
+    const list = $("transcript");
+    const atEnd = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
     line.textContent = text;
+    if (atEnd) list.scrollTop = list.scrollHeight;
   }
 }
 
@@ -601,6 +604,7 @@ $("type").addEventListener("submit", async (event) => {
     line.dataset.who = "you";
     line.dataset.name = "You (typed)";
     $("transcript").append(line);
+    $("transcript").scrollTop = $("transcript").scrollHeight;
   } catch {
     showMessage("The message could not be sent.");
   }

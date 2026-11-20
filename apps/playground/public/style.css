@@ -651,3 +651,95 @@ h1,
 h2 {
   font-weight: 560;
 }
+
+/* A session: the work on the left, the conversation on the right. */
+main:has(#stage:not([hidden])) {
+  max-width: 1280px;
+}
+
+#stage {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(320px, 2fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.work,
+.talking {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.work .board,
+.work .controls,
+.talking #transcript {
+  margin-top: 0;
+}
+
+/* The conversation keeps to its column and scrolls inside it, so the page and
+   its buttons stay where they are. */
+.talking {
+  position: sticky;
+  top: 16px;
+  max-height: calc(100vh - 150px);
+  display: flex;
+  flex-direction: column;
+}
+
+.talking > * {
+  flex: none;
+}
+
+.talking #transcript {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  align-content: start;
+  padding-right: 4px;
+}
+
+.talking .type {
+  margin-top: 0;
+}
+
+.talking .tutor {
+  min-height: 0;
+  aspect-ratio: auto;
+  padding: 18px;
+}
+
+@media (max-width: 900px) {
+  #stage {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .talking {
+    position: static;
+    max-height: none;
+  }
+
+  .talking #transcript {
+    max-height: 50vh;
+  }
+}
+
+/* In a session the page gives its room to the work: a short header, and a
+   camera that leaves the board in view. */
+main:has(#stage:not([hidden])) {
+  padding-top: 16px;
+}
+
+main:has(#stage:not([hidden])) header p {
+  display: none;
+}
+
+.work .tile {
+  aspect-ratio: 16 / 9;
+  max-height: 40vh;
+  width: 100%;
+}
+
+.type {
+  box-shadow: none;
+}
