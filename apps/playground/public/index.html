@@ -255,6 +255,8 @@
         <!-- Right: the session. The tutor and the conversation with it. -->
         <div class="talking">
           <div class="tile tutor" id="tutor" data-state="waiting">
+            <!-- Aule's face, drawn in this browser. The dot stays where it cannot be drawn. -->
+            <wobnimo-mascot id="mascot" class="mascot" character="mochi" state="sleeping" aria-hidden="true"></wobnimo-mascot>
             <div class="orb" aria-hidden="true"></div>
             <span class="tile-label">Aule</span>
             <p id="tutor-state" class="tile-state" role="status">Esperando a Aule…</p>
@@ -299,6 +301,7 @@
       <div id="audio"></div>
     </main>
     <script src="livekit-client.js"></script>
+    <script type="module" src="wobnimo.js"></script>
     <script type="module" src="app.js"></script>
   </body>
 </html>

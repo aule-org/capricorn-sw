@@ -186,6 +186,9 @@ importers:
       livekit-server-sdk:
         specifier: 2.20.0
         version: 2.20.0
+      wobnimo:
+        specifier: 0.2.0
+        version: 0.2.0
     devDependencies:
       '@types/node':
         specifier: ^24.19.2
@@ -307,6 +310,16 @@ packages:
     resolution: {integrity: sha512-CHbl2ZQbxx164IgWRgzJno4hWtM4tFbRam1QfI3Yxhs3w/DvqluVxVWeXs3oL5/fbGkSNLKo0Ty5MgUWceNhog==}
     engines: {node: '>=6.0.0', npm: '>=3.10.0'}
 
+  wobnimo@0.2.0:
+    resolution: {integrity: sha512-M/uItYnk6mXM7CH7LnApRiPCEqLAkcTZ2qGjOzkNGkQqNgt5pYCJn1jXTx/xFkLo6EPlvwLfsUgeKbtQbif66w==}
+    engines: {node: '>=20'}
+    hasBin: true
+    peerDependencies:
+      react: '>=18'
+    peerDependenciesMeta:
+      react:
+        optional: true
+
 snapshots:
 
   '@bufbuild/protobuf@1.10.1': {}
@@ -399,3 +412,5 @@ snapshots:
   webrtc-adapter@9.0.6:
     dependencies:
       sdp: 3.2.3
+
+  wobnimo@0.2.0: {}

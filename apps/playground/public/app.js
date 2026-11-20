@@ -112,9 +112,26 @@ function showPassingMessage(text) {
   }, PASSING_MS);
 }
 
+// What Aule's face does in each state of the session.
+const MASCOT_STATE = {
+  waiting: "sleeping",
+  initializing: "thinking",
+  listening: "listening",
+  thinking: "thinking",
+  speaking: "speaking",
+  missing: "sad",
+  left: "sleeping",
+  reconnecting: "surprised",
+};
+
+// The face takes the dot's place once its script has loaded; in a browser
+// that cannot run it, the dot stays.
+customElements.whenDefined("wobnimo-mascot").then(() => $("tutor").classList.add("has-mascot"));
+
 function setTutorState(state) {
   $("tutor").dataset.state = state;
   $("tutor-state").textContent = STATE_TEXT[state] ?? state;
+  $("mascot").setAttribute("state", MASCOT_STATE[state] ?? "idle");
 }
 
 function setToggle(button, label, on) {
