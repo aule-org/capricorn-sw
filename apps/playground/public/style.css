@@ -1236,3 +1236,27 @@ button[aria-pressed="true"]:not(.talk) {
   order: 3;
   max-height: 22vh;
 }
+
+/* On a phone the talk button stays at the bottom of the screen, under the
+   thumb, however far the board and the conversation push the page down. */
+@media (max-width: 900px) {
+  main.push-to-talk {
+    padding-bottom: 128px;
+  }
+
+  main.push-to-talk .talk {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    z-index: 10;
+    width: auto;
+    margin: 0;
+    background: var(--surface);
+    box-shadow: 0 6px 18px rgb(0 0 0 / 0.18);
+  }
+
+  main.push-to-talk .talk[aria-pressed="true"] {
+    background: var(--copper);
+  }
+}
