@@ -586,7 +586,7 @@ pub async fn agent_turns(
     let mut answer = json!({ "guidance": guidance, "plan": plan, "stop": stop, "pause": pause });
     // What the engine answered to something typed on the page, for the tutor to say.
     if flow::runs(&session)
-        && let Some(script) = flow::queued(&state.pool, session.id).await?
+        && let Some(script) = flow::queued(&state.db, session.id).await?
     {
         answer["script"] = script;
     }
@@ -999,7 +999,7 @@ pub async fn review_session(state: &AppState, session_id: Uuid) -> ApiResult<()>
             [session.id.into()],
         ))
         .await?;
-    flow::delete_inputs_after_review(&state.pool, session.id).await?;
+    flow::delete_inputs_after_review(&state.db, session.id).await?;
     session_row::Entity::update_many()
         .col_expr(session_row::Column::ReviewedAt, Expr::current_timestamp())
         .filter(session_row::Column::Id.eq(session.id))
