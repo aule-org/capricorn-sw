@@ -27,7 +27,9 @@ async fn load_curriculum(pool: &sqlx::PgPool) {
     let mut paths: Vec<_> = entries
         .filter_map(Result::ok)
         .map(|entry| entry.path())
+        // The folder's package.json is the test runner's, not a catalog.
         .filter(|path| path.extension().is_some_and(|ext| ext == "json"))
+        .filter(|path| path.file_name().is_some_and(|name| name != "package.json"))
         .collect();
     paths.sort();
     for path in paths {
