@@ -238,6 +238,9 @@ pub struct Signals {
     /// The student is finding this too easy.
     #[serde(default)]
     pub ready_for_more: bool,
+    /// The student is plainly fooling around instead of working, in this turn.
+    #[serde(default)]
+    pub not_trying: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -274,12 +277,13 @@ fn guidance_schema() -> Value {
             "signals": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["frustrated", "off_task", "answer_given", "ready_for_more"],
+                "required": ["frustrated", "off_task", "answer_given", "ready_for_more", "not_trying"],
                 "properties": {
                     "frustrated": { "type": "boolean" },
                     "off_task": { "type": "boolean" },
                     "answer_given": { "type": "boolean" },
-                    "ready_for_more": { "type": "boolean" }
+                    "ready_for_more": { "type": "boolean" },
+                    "not_trying": { "type": "boolean", "description": "The student's latest turn is deliberate fooling around instead of working: silly or random talk, provoking the tutor, refusing to do anything. False for confusion, frustration, shyness, a short or wrong answer, a question about something else for school, and words that look garbled, which are usually a mistake of the speech recognition." }
                 }
             }
         }

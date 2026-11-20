@@ -1,0 +1,14 @@
+{
+  "specversion": "1.0",
+  "id": "3f6b1c2d-8e4a-4d7b-9a10-2b3c4d5e6f70",
+  "source": "aule/platform",
+  "type": "session.stopped.v1",
+  "time": "2026-11-19T22:14:05Z",
+  "datacontenttype": "application/json",
+  "subject": "5d2a7c34-91be-4f6a-b0c3-7e1f2a9d4c55",
+  "data": {
+    "session_id": "5d2a7c34-91be-4f6a-b0c3-7e1f2a9d4c55",
+    "child_id": "c0ffee00-1234-4abc-9def-001122334455",
+    "reason": "not_working"
+  }
+}

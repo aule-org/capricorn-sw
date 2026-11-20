@@ -38,6 +38,8 @@ MAX_TURNS_PER_REPORT = 20
 # Turns kept while the platform is unreachable; older ones are dropped.
 MAX_PENDING_TURNS = 50
 ROLES = {"user": "child", "assistant": "tutor"}
+# What the platform may ask when a student is not working.
+STOPS = ("warn", "end")
 # One flag per gate, action and gravest category in this time, so a topic a
 # child keeps returning to does not flood the reports.
 FLAG_COOLDOWN_SECONDS = 300.0
@@ -97,6 +99,12 @@ class Platform:
         # whether the tutor already has it.
         self._late_plan: str | None = None
         self._plan_given = False
+        # What the platform asks about a student who is not working: nothing,
+        # a warning, or the end. The end stands once asked for.
+        self._stop: str | None = None
+        self._stops_done: set[str] = set()
+        # Why the session ended, when it was not the clock or the person leaving.
+        self.end_reason: str | None = None
 
     async def _http(
         self, method: str, path: str, body: dict[str, Any] | None, timeout: float
@@ -237,6 +245,9 @@ class Platform:
             # cancelled during the request. New arrivals have larger seq values.
             if batch:
                 self._pending = [turn for turn in self._pending if turn["seq"] > batch[-1]["seq"]]
+            stop = answer.get("stop")
+            if stop in STOPS and self._stop != "end":
+                self._stop = stop
             plan = answer.get("plan")
             if isinstance(plan, str) and plan.strip() and self._late_plan is None:
                 self._late_plan = plan
@@ -250,9 +261,11 @@ class Platform:
         self,
         advise: Callable[[str], Awaitable[None]],
         plan: Callable[[str], Awaitable[None]] | None = None,
+        stop: Callable[[str], Awaitable[None]] | None = None,
     ) -> None:
         """Reports turns as they come and hands the plan, once, and guidance to
-        the tutor. Runs until cancelled."""
+        the tutor; and a warning or the end, once each, when the platform asks
+        for it. Runs until cancelled."""
         while True:
             await self._wake.wait()
             self._wake.clear()
@@ -263,6 +276,9 @@ class Platform:
                 await plan(self._late_plan)
             if guidance:
                 await advise(guidance)
+            if stop and self._stop and self._stop not in self._stops_done:
+                self._stops_done.add(self._stop)
+                await stop(self._stop)
             if self._pending:
                 await asyncio.sleep(REPORT_RETRY_SECONDS)
                 self._wake.set()
@@ -285,6 +301,8 @@ class Platform:
                 "session ended with unreported turns", extra={"turns": len(self._pending)}
             )
         body = {"end_reason": "error"} if self._pending else {}
+        if self.end_reason and not self._pending:
+            body = {"end_reason": self.end_reason}
         await self._call("POST", "/v1/agent/session/end", body, REPORT_TIMEOUT_SECONDS)
         if self._http_session is not None:
             await self._http_session.close()
