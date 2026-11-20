@@ -231,13 +231,13 @@
               <p class="note">También puedes decirlo en voz alta, o resolverlo en tu cuaderno y mostrárselo a Aule.</p>
             </form>
           </section>
-          <figure id="board" class="board" hidden aria-live="polite"></figure>
+          <figure id="board" class="board device" hidden aria-live="polite"></figure>
             <!-- Until something is drawn, the board is a quiet empty sheet. -->
             <p class="board-empty">Aquí verás lo que Aule te muestre.</p>
           <div class="controls">
             <button type="button" id="mic" data-icon="mic" aria-pressed="true">Micrófono</button>
             <button type="button" id="cam" data-icon="camera" aria-pressed="true">Cámara</button>
-            <button type="button" id="device" data-icon="device" aria-pressed="false">Modo tinta apagado</button>
+            <button type="button" id="device" data-icon="device" aria-pressed="true">Modo tinta</button>
             <span id="clock" class="clock" aria-label="Tiempo que queda"></span>
             <button type="button" id="end" data-icon="end" class="danger">Terminar</button>
           </div>
