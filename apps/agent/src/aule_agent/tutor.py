@@ -15,7 +15,7 @@ from . import visuals
 from .greetings import greeting as written_greeting
 from .replies import ADULT_HELP_SEQUENCE, ANSWERABLE, reply
 from .safety import Gates
-from .script import Flow, Line
+from .script import Flow, Line, Reply
 
 logger = logging.getLogger("aule.agent.tutor")
 
@@ -523,6 +523,7 @@ class Tutor(Agent):
         read by people before a student hears them. They join the conversation
         so that what the student says next has something to refer to.
         """
+        lines = await self._judged(lines)
         for line in lines:
             if line.show is not None and self._show is not None:
                 await self._show(line.show)
@@ -530,6 +531,29 @@ class Tutor(Agent):
             await self.session.say(line.say, add_to_chat_ctx=True, allow_interruptions=True)
         # Counts only: what is said is never logged.
         logger.info("said from the script", extra={"lines": len(lines)})
+
+    async def _judged(self, lines: tuple[Line, ...]) -> tuple[Line, ...]:
+        """The lines that may be said. Those that may repeat the student's
+        words are judged together, once, before any of them is spoken; if they
+        do not pass, the fixed redirect takes their place and the engine's own
+        lines are still said."""
+        echoing = [line.say for line in lines if line.echoes]
+        if not echoing or not self._gates.checks_spoken:
+            return lines
+        if (await self._gates.spoken(" ".join(echoing))).allowed:
+            return lines
+        own = tuple(line for line in lines if not line.echoes)
+        return (Line(say=reply("redirect", self._language), echoes=False), *own)
+
+    async def scripted_lines(self, said: Reply) -> None:
+        """Lines the engine wrote for something that did not come through the
+        tutor: an answer typed on the page. Whatever was being said stops, as
+        when the student types to the tutor itself."""
+        await self.session.interrupt()
+        if said.lines:
+            await self._say(said.lines)
+        if said.closed:
+            self.session.shutdown()
 
     async def _scripted(self, text: str) -> bool:
         """Lets the engine answer what the student said. True when the turn is
@@ -547,6 +571,11 @@ class Tutor(Agent):
             return False
         if reply.lines:
             await self._say(reply.lines)
+        if reply.closed:
+            # The engine's last lines were its goodbye; the session closes
+            # once they have been heard.
+            self.session.shutdown()
+            return True
         return reply.converse is None
 
     def _instructions_now(self) -> str:

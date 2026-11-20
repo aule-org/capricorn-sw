@@ -574,3 +574,39 @@ async def test_the_end_carries_the_numbers_of_the_session():
             },
         )
     ]
+
+
+async def test_what_the_engine_wrote_for_a_typed_answer_is_handed_over_once_and_in_order():
+    send = Recorder(
+        {"script": {"lines": [{"say": "¡Correcto!", "echoes": False}], "closed": False}},
+        {"script": None},
+        {"script": {"lines": [], "closed": True}},
+    )
+    platform = Platform(SESSION, send)
+    handed = []
+
+    async def written(lines):
+        handed.append(lines)
+
+    async def nothing(_):
+        return None
+
+    running = asyncio.create_task(platform.run(nothing, written=written))
+    for _ in range(3):
+        # The page says an answer went in: the report is made with no turn to send.
+        platform.wake()
+        for _ in range(10):
+            await asyncio.sleep(0)
+    running.cancel()
+    await asyncio.gather(running, return_exceptions=True)
+
+    assert [body["turns"] for _, _, body in send.calls] == [[], [], []]
+    assert [(len(reply.lines), reply.closed) for reply in handed] == [(1, False), (0, True)]
+
+
+async def test_an_engine_session_with_nothing_to_open_with_is_still_the_engines():
+    platform = Platform(SESSION, Recorder({"instructions": "", "script": {"lines": []}}))
+
+    await platform.start()
+
+    assert platform.scripted and platform.opening() == ()
