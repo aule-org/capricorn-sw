@@ -26,9 +26,15 @@ export class PlatformError extends Error {
 }
 
 // `token` is a signed-in guardian's; without one the call is the team's own.
-async function platform(settings: Settings, path: string, body?: unknown, token?: string): Promise<unknown> {
+async function platform(
+  settings: Settings,
+  path: string,
+  body?: unknown,
+  token?: string,
+  method?: "DELETE",
+): Promise<unknown> {
   const response = await fetch(`${settings.platform!.url}${path}`, {
-    method: body === undefined ? "GET" : "POST",
+    method: method ?? (body === undefined ? "GET" : "POST"),
     headers: {
       Authorization: `Bearer ${token ?? settings.platform!.adminToken}`,
       ...(body === undefined ? {} : { "Content-Type": "application/json" }),
@@ -64,6 +70,20 @@ export async function signIn(settings: Settings, credential: string): Promise<Si
   };
   if (typeof answer.token !== "string") throw new PlatformError("the platform sent no session");
   return { token: answer.token, days: typeof answer.expires_in_days === "number" ? answer.expires_in_days : 1 };
+}
+
+/** Removes one student of the signed-in guardian's family, and everything kept about them. */
+export function removeStudent(settings: Settings, token: string, studentId: string): Promise<unknown> {
+  return platform(settings, `/v1/children/${encodeURIComponent(studentId)}`, undefined, token, "DELETE");
+}
+
+/**
+ * Erases the signed-in guardian's family: the account, its students and what
+ * was kept about them. The platform only does it when the address typed is the
+ * one the guardian signed in with.
+ */
+export function eraseAccount(settings: Settings, token: string, email: string): Promise<unknown> {
+  return platform(settings, "/v1/me", { confirm_email: email }, token, "DELETE");
 }
 
 export function signOut(settings: Settings, token: string): Promise<unknown> {

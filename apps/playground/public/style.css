@@ -743,3 +743,59 @@ main:has(#stage:not([hidden])) header p {
 .type {
   box-shadow: none;
 }
+
+/* The account: what is kept, and removing it. */
+#account {
+  margin-top: 1.25rem;
+}
+
+#account summary {
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+#account form {
+  box-shadow: none;
+  border: 1.5px solid var(--line);
+}
+
+.kept {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0.5rem 0;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+/* Choosing who studies: each student is a row to press, not a small circle. */
+#student-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+label.choice {
+  padding: 12px 14px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+label.choice:has(input:checked) {
+  border-color: var(--ink);
+  background: var(--bg);
+}
+
+/* Erasing is the one thing that cannot be undone, and looks like it. */
+button[type="submit"].danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--surface);
+}
+
+button[type="submit"].danger:hover:not(:disabled) {
+  background: #6f150e;
+}

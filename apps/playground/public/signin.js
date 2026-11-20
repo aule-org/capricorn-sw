@@ -50,16 +50,19 @@ function show(account) {
   const signedIn = account.signed_in === true;
   $("signed-out").hidden = signedIn || !account.google_client_id;
   $("who").hidden = !signedIn;
+  $("account").hidden = !signedIn;
   // Without Google the access code is the only way in, so it is shown open.
   $("team").open = !account.google_client_id;
   if (!signedIn) return;
   students = account.students ?? [];
-  $("hello").textContent = account.name ? `Hola, ${account.name}.` : "Hola.";
+  // A name that already ends in a full stop ("Gonzalo G.") keeps just the one.
+  const name = (account.name ?? "").trim().replace(/\.+$/, "");
+  $("hello").textContent = name ? `Hola, ${name}.` : "Hola.";
   const list = $("student-list");
   list.replaceChildren();
   for (const [index, student] of [...students, { id: "new", name: "Otro alumno" }].entries()) {
     const label = document.createElement("label");
-    label.className = "check";
+    label.className = "check choice";
     const input = document.createElement("input");
     input.type = "radio";
     input.name = "student";
@@ -71,6 +74,36 @@ function show(account) {
   }
   $("students").hidden = students.length === 0;
   showNewStudent();
+  showKept();
+}
+
+// The students kept in the account, each with a way to remove it.
+function showKept() {
+  const kept = $("kept-students");
+  kept.replaceChildren();
+  for (const student of students) {
+    const row = document.createElement("p");
+    row.className = "kept";
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "quiet";
+    remove.textContent = "Quitar";
+    remove.addEventListener("click", async () => {
+      const sure = window.confirm(
+        `¿Quitar a ${student.name}? Se borra lo que Aule recuerda de este alumno. No se puede deshacer.`,
+      );
+      if (!sure) return;
+      try {
+        await call("api/student/remove", { student_id: student.id });
+        if (studentId === student.id) studentId = null;
+        show(await call("api/account"));
+      } catch {
+        say("No se pudo quitar al alumno. Inténtalo otra vez.");
+      }
+    });
+    row.append(`${student.name} `, remove);
+    kept.append(row);
+  }
 }
 
 function loadGoogle(clientId) {
@@ -138,6 +171,28 @@ $("sign-out").addEventListener("click", async () => {
   studentId = null;
   await call("api/signout", {}).catch(() => undefined);
   show(await call("api/account").catch(() => ({ signed_in: false })));
+});
+
+$("erase").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  say("");
+  const sure = window.confirm(
+    "¿Borrar tu cuenta, tus alumnos y todo lo guardado? No se puede deshacer.",
+  );
+  if (!sure) return;
+  try {
+    await call("api/account/erase", { email: $("erase-email").value });
+    studentId = null;
+    $("erase-email").value = "";
+    show(await call("api/account").catch(() => ({ signed_in: false })));
+    say("Tu cuenta y tus datos se borraron.");
+  } catch (error) {
+    say(
+      error?.message === "wrong_email"
+        ? "Ese no es el correo con el que entraste."
+        : "No se pudo borrar la cuenta. Inténtalo otra vez.",
+    );
+  }
 });
 
 // The team's form goes its own way: no student, the access code instead.

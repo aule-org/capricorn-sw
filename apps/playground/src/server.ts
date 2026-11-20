@@ -15,7 +15,9 @@ import {
   createSession,
   createStudent,
   createStudentSession,
+  eraseAccount,
   googleClient,
+  removeStudent,
   signIn,
   signOut,
   supervisorView,
@@ -186,6 +188,33 @@ export function createPlayground(settings: Settings): Server {
       const who = await account(settings, token);
       return json(response, 201, await createStudent(settings, token, who.familyId, name, language));
     }
+    if (path === "/api/account/erase") {
+      // The address is typed again on the page; the platform checks it is theirs.
+      if (typeof body.email !== "string" || !body.email.trim() || body.email.length > 320) {
+        return json(response, 400, { error: "bad_request" });
+      }
+      try {
+        await eraseAccount(settings, token, body.email.trim());
+      } catch (error) {
+        if (error instanceof PlatformError && error.status === 400) {
+          return json(response, 400, { error: "wrong_email" });
+        }
+        throw error;
+      }
+      response.writeHead(200, {
+        ...headers,
+        "Set-Cookie": signedOutCookie(settings.basePath),
+        "Content-Type": "application/json; charset=utf-8",
+      });
+      return response.end(JSON.stringify({ signed_in: false, erased: true }));
+    }
+    if (typeof body.student_id !== "string" || !/^[0-9a-f-]{36}$/i.test(body.student_id)) {
+      return json(response, 400, { error: "bad_request" });
+    }
+    if (path === "/api/student/remove") {
+      await removeStudent(settings, token, body.student_id);
+      return json(response, 200, { removed: body.student_id });
+    }
     // "/api/session" for a signed-in guardian.
     if (typeof body.student_id !== "string" || !/^[0-9a-f-]{36}$/i.test(body.student_id)) {
       return json(response, 400, { error: "bad_request" });
@@ -233,7 +262,13 @@ export function createPlayground(settings: Settings): Server {
     const handle = async () => {
       if (path === "/healthz" && request.method === "GET") return json(response, 200, { ok: true });
       if (path === "/api/account" && request.method === "GET") return whoIsHere(request, response);
-      if (path === "/api/signin" || path === "/api/signout" || path === "/api/student") {
+      if (
+        path === "/api/signin" ||
+        path === "/api/signout" ||
+        path === "/api/student" ||
+        path === "/api/student/remove" ||
+        path === "/api/account/erase"
+      ) {
         if (request.method !== "POST") return json(response, 405, { error: "method_not_allowed" });
         return signedIn(path, request, response);
       }

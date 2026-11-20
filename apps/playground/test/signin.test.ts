@@ -31,7 +31,7 @@ const platform = createServer(async (request, response) => {
     return answer(200, { token: TOKEN, expires_in_days: 30, new_account: true });
   }
   if (request.headers.authorization !== `Bearer ${TOKEN}`) return answer(401, { error: { message: "who?" } });
-  if (path === "/v1/me") {
+  if (path === "/v1/me" && request.method === "GET") {
     return answer(200, { guardian: { name: "Ana" }, family_id: "fam-1", children: students });
   }
   if (path === "/v1/families/fam-1/children") {
@@ -41,6 +41,14 @@ const platform = createServer(async (request, response) => {
   if (path === `/v1/children/${STUDENT}/consents`) return answer(201, {});
   if (path === "/v1/sessions") return answer(201, { session_id: "s-1", serverUrl: "wss://x", token: "jwt", room: "r" });
   if (path === "/v1/auth/signout") return answer(204, {});
+  if (path === `/v1/children/${STUDENT}` && request.method === "DELETE") {
+    students.length = 0;
+    return answer(204, {});
+  }
+  if (path === "/v1/me" && request.method === "DELETE") {
+    if (body.confirm_email !== "ana@example.org") return answer(400, { error: { message: "not yours" } });
+    return answer(204, {});
+  }
   answer(404, { error: { message: "no such path" } });
 });
 
@@ -163,4 +171,36 @@ test("the daily limit counts per sign-in and starts over the next day", () => {
   assert.equal(limit.take("b"), true);
   now = 86_400_000;
   assert.equal(limit.take("a"), true);
+});
+
+test("a student is removed only signed in, as the guardian", async () => {
+  assert.equal((await post("student/remove", { student_id: STUDENT })).status, 401);
+  assert.equal((await post("student/remove", { student_id: "nope" }, COOKIE)).status, 400);
+  seen.length = 0;
+
+  const response = await post("student/remove", { student_id: STUDENT }, COOKIE);
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(seen.at(-1), {
+    method: "DELETE",
+    path: `/v1/children/${STUDENT}`,
+    auth: `Bearer ${TOKEN}`,
+    body: null,
+  });
+});
+
+test("the account is erased only with the address typed again, and the cookie goes with it", async () => {
+  assert.equal((await post("account/erase", { email: "ana@example.org" })).status, 401);
+  assert.equal((await post("account/erase", {}, COOKIE)).status, 400);
+  const wrong = await post("account/erase", { email: "otra@example.org" }, COOKIE);
+  assert.equal(wrong.status, 400);
+  assert.deepEqual(await wrong.json(), { error: "wrong_email" });
+  assert.equal(wrong.headers.get("set-cookie"), null);
+
+  const response = await post("account/erase", { email: " ana@example.org " }, COOKIE);
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { signed_in: false, erased: true });
+  assert.match(response.headers.get("set-cookie") ?? "", /^aule_guardian=; Max-Age=0;/);
+  assert.deepEqual(seen.at(-1)?.body, { confirm_email: "ana@example.org" });
 });

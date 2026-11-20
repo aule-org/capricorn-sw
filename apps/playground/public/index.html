@@ -59,6 +59,24 @@
           <button type="button" id="sign-out" class="quiet">Salir de la cuenta</button>
         </form>
 
+        <!-- The account: what is kept, and how to remove it. -->
+        <details id="account" hidden>
+          <summary>Mi cuenta y mis datos</summary>
+          <p class="note">
+            Guardamos tu nombre y tu correo, el nombre de cada alumno y lo que va aprendiendo. No
+            guardamos audio ni video.
+          </p>
+          <div id="kept-students"></div>
+          <form id="erase" autocomplete="off">
+            <label>
+              Para borrar tu cuenta y todo lo guardado, escribe tu correo
+              <input id="erase-email" type="email" required autocomplete="off" />
+            </label>
+            <button type="submit" class="danger">Borrar mi cuenta</button>
+            <p class="note">No se puede deshacer.</p>
+          </form>
+        </details>
+
         <details id="team">
           <summary>Acceso del equipo</summary>
           <form id="entry" autocomplete="off">
