@@ -105,53 +105,52 @@
       </section>
 
       <section id="stage" hidden>
-        <div class="tiles">
+        <!-- Left: what the student works on. The camera on their notebook and the board. -->
+        <div class="work">
           <div class="tile">
             <video id="camera" autoplay muted playsinline></video>
             <span class="tile-label">You</span>
             <p id="camera-off" class="tile-empty" hidden>Camera off</p>
           </div>
+          <figure id="board" class="board" hidden aria-live="polite"></figure>
+          <div class="controls">
+            <button type="button" id="mic" aria-pressed="true">Microphone on</button>
+            <button type="button" id="cam" aria-pressed="true">Camera on</button>
+            <button type="button" id="device" aria-pressed="false">Device screen off</button>
+            <span id="clock" class="clock" aria-label="Time left"></span>
+            <button type="button" id="end" class="danger">End session</button>
+          </div>
+          <aside id="supervisor" class="supervisor" hidden>
+            <h2>Supervisor</h2>
+            <p id="plan" class="plan"></p>
+            <ul id="plan-skills"></ul>
+            <ol id="notes" aria-label="Guidance to the tutor" aria-live="polite"></ol>
+            <h2 id="checked-title" hidden>Exercises checked</h2>
+            <ul id="checked" aria-label="Exercises with their answers" aria-live="polite"></ul>
+          </aside>
+        </div>
+
+        <!-- Right: the session. The tutor and the conversation with it. -->
+        <div class="talking">
           <div class="tile tutor" id="tutor" data-state="waiting">
             <div class="orb" aria-hidden="true"></div>
             <span class="tile-label">Aule</span>
             <p id="tutor-state" class="tile-state" role="status">Waiting for the tutor…</p>
           </div>
+          <!-- The device does not listen all the time: a turn lasts while its button is held. -->
+          <button type="button" id="talk" class="talk" hidden aria-pressed="false">Hold to talk</button>
+          <ol id="transcript" aria-label="Conversation" aria-live="polite"></ol>
+          <form id="type" class="type" autocomplete="off">
+            <input
+              id="typed"
+              type="text"
+              maxlength="500"
+              aria-label="Message for the tutor"
+              placeholder="Or type to the tutor…"
+            />
+            <button type="submit">Send</button>
+          </form>
         </div>
-
-        <figure id="board" class="board" hidden aria-live="polite"></figure>
-
-        <!-- The device does not listen all the time: a turn lasts while its button is held. -->
-        <button type="button" id="talk" class="talk" hidden aria-pressed="false">Hold to talk</button>
-
-        <div class="controls">
-          <button type="button" id="mic" aria-pressed="true">Microphone on</button>
-          <button type="button" id="cam" aria-pressed="true">Camera on</button>
-          <button type="button" id="device" aria-pressed="false">Device screen off</button>
-          <span id="clock" class="clock" aria-label="Time left"></span>
-          <button type="button" id="end" class="danger">End session</button>
-        </div>
-
-        <aside id="supervisor" class="supervisor" hidden>
-          <h2>Supervisor</h2>
-          <p id="plan" class="plan"></p>
-          <ul id="plan-skills"></ul>
-          <ol id="notes" aria-label="Guidance to the tutor" aria-live="polite"></ol>
-          <h2 id="checked-title" hidden>Exercises checked</h2>
-          <ul id="checked" aria-label="Exercises with their answers" aria-live="polite"></ul>
-        </aside>
-
-        <ol id="transcript" aria-label="Conversation" aria-live="polite"></ol>
-
-        <form id="type" class="type" autocomplete="off">
-          <input
-            id="typed"
-            type="text"
-            maxlength="500"
-            aria-label="Message for the tutor"
-            placeholder="Or type to the tutor…"
-          />
-          <button type="submit">Send</button>
-        </form>
       </section>
 
       <!-- After a session: what the family is told. For the team only. -->
