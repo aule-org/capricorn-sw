@@ -650,6 +650,50 @@ async fn a_tired_student_is_offered_a_break_once_no_exercise_is_open(pool: PgPoo
 }
 
 #[sqlx::test(migrator = "aule_platform::MIGRATOR")]
+async fn a_family_says_what_to_reinforce_and_what_a_session_is_for(pool: PgPool) {
+    let app = app(pool);
+    let child = app.child().await;
+    app.consent(&child, "voice", true).await;
+    let path = format!("/v1/children/{child}");
+
+    // Subjects come from a fixed list and survive an update that does not name them.
+    let (status, _) =
+        app.admin(Method::PUT, &path, Some(json!({ "nickname": "Mateo", "subjects": ["astrologia"] }))).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let chosen = json!({ "nickname": "Mateo", "subjects": ["matematica", "ciencia", "matematica"] });
+    let (status, updated) = app.admin(Method::PUT, &path, Some(chosen)).await;
+    assert_eq!(status, StatusCode::OK, "{updated}");
+    assert_eq!(updated["subjects"], json!(["ciencia", "matematica"]));
+    app.admin(Method::PUT, &path, Some(json!({ "nickname": "Mateo" }))).await;
+    let (_, read) = app.admin(Method::GET, &path, None).await;
+    assert_eq!(read["child"]["subjects"], json!(["ciencia", "matematica"]));
+
+    // The objective of a session is checked and kept.
+    let start = |objective: Value| {
+        let body = json!({ "child_id": child, "audience": "operator", "objective": objective });
+        app.admin(Method::POST, "/v1/sessions", Some(body))
+    };
+    assert_eq!(start(json!({ "kind": "party" })).await.0, StatusCode::BAD_REQUEST);
+    assert_eq!(start(json!({ "kind": "homework", "subject": "alquimia" })).await.0, StatusCode::BAD_REQUEST);
+    let long = "x".repeat(201);
+    assert_eq!(start(json!({ "kind": "homework", "topic": long })).await.0, StatusCode::BAD_REQUEST);
+    let objective = json!({ "kind": "exam_prep", "subject": "matematica", "topic": "fracciones equivalentes", "due": "2026-11-27" });
+    let (status, session) = start(objective.clone()).await;
+    assert_eq!(status, StatusCode::CREATED, "{session}");
+    let stored: Value = sqlx::query_scalar("select objective from sessions where objective is not null")
+        .fetch_one(&app.state.pool)
+        .await
+        .unwrap();
+    assert_eq!(stored, objective);
+    assert_eq!(start(json!({ "kind": "explore", "subject": "other" })).await.0, StatusCode::CREATED);
+
+    // The tutor is told what the family wants reinforced.
+    let (_, token) = app.session(&child).await;
+    let (_, begun) = app.call(Method::GET, "/v1/agent/session", Some(&token), None).await;
+    assert!(begun["instructions"].as_str().unwrap().contains("reinforce: ciencia, matematica"), "{begun}");
+}
+
+#[sqlx::test(migrator = "aule_platform::MIGRATOR")]
 async fn a_day_of_sessions_is_read_as_numbers_and_nothing_else(pool: PgPool) {
     let app = app(pool);
     let child = app.child().await;
@@ -965,6 +1009,7 @@ async fn a_guardian_signs_in_with_a_code_and_reaches_only_their_family(pool: PgP
     let (_, me) = app.call(Method::GET, "/v1/me", Some(&again), None).await;
     assert_eq!(me["family_id"], account["family_id"]);
     assert_eq!(me["guardian"]["name"], "Ana");
+    assert_eq!(me["subjects"][0], "matematica", "the page offers the subjects the platform keeps");
 
     // Ana adds a child and answers consent herself.
     let family = account["family_id"].as_str().unwrap();

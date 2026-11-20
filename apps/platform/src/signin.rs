@@ -293,6 +293,8 @@ pub async fn me(guardian: Guardian, State(state): State<AppState>) -> ApiResult<
         "family_id": guardian.family_id,
         "children": children.into_iter().map(|(id, nickname)| json!({ "id": id, "nickname": nickname })).collect::<Vec<_>>(),
         "unread_notices": unread,
+        // What a family can ask to reinforce: the page offers exactly these.
+        "subjects": crate::families::SUBJECTS,
     })))
 }
 

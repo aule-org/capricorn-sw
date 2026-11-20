@@ -40,6 +40,46 @@ pub struct NewSession {
     audience: String,
     #[serde(default)]
     language: Option<String>,
+    /// What the family says this session is for.
+    #[serde(default)]
+    objective: Option<ObjectiveInput>,
+}
+
+pub const OBJECTIVE_KINDS: [&str; 4] = ["homework", "exam_prep", "exam_review", "explore"];
+
+#[derive(Deserialize)]
+pub struct ObjectiveInput {
+    kind: String,
+    #[serde(default)]
+    subject: Option<String>,
+    #[serde(default)]
+    topic: Option<String>,
+    #[serde(default)]
+    due: Option<chrono::NaiveDate>,
+}
+
+impl ObjectiveInput {
+    /// The objective as it is stored and handed to the planner.
+    fn checked(self) -> ApiResult<Value> {
+        if !OBJECTIVE_KINDS.contains(&self.kind.as_str()) {
+            return Err(ApiError::bad_request(format!(
+                "objective.kind must be one of: {}",
+                OBJECTIVE_KINDS.join(", ")
+            )));
+        }
+        let subject = self.subject.filter(|subject| !subject.trim().is_empty());
+        if subject
+            .as_deref()
+            .is_some_and(|subject| subject != "other" && !crate::families::SUBJECTS.contains(&subject))
+        {
+            return Err(ApiError::bad_request("objective.subject must be a known subject or \"other\""));
+        }
+        let topic = self.topic.map(|topic| topic.trim().to_string()).filter(|topic| !topic.is_empty());
+        if topic.as_deref().is_some_and(|topic| topic.chars().count() > 200) {
+            return Err(ApiError::bad_request("objective.topic must have at most 200 characters"));
+        }
+        Ok(json!({ "kind": self.kind, "subject": subject, "topic": topic, "due": self.due }))
+    }
 }
 
 pub async fn create_session(
@@ -64,7 +104,8 @@ pub async fn create_session(
         }
         None => None,
     };
-    let session = open_session(&state, child, &body.audience, body.language, None).await?;
+    let objective = body.objective.map(ObjectiveInput::checked).transpose()?;
+    let session = open_session(&state, child, &body.audience, body.language, None, objective).await?;
     Ok((StatusCode::CREATED, Json(session)))
 }
 
@@ -76,6 +117,7 @@ pub async fn open_session(
     audience: &str,
     language: Option<String>,
     device_id: Option<Uuid>,
+    objective: Option<Value>,
 ) -> ApiResult<Value> {
     let livekit = state.config.livekit.as_ref().ok_or(ApiError::Unavailable("LiveKit is not configured"))?;
 
@@ -107,8 +149,9 @@ pub async fn open_session(
     let room = format!("session-{}", session_id.simple());
     sqlx::query(
         "insert into sessions
-           (id, child_id, audience, room, language, agent_token_hash, keep_transcript, use_memory, device_id)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+           (id, child_id, audience, room, language, agent_token_hash, keep_transcript, use_memory, device_id,
+            objective)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
     )
     .bind(session_id)
     .bind(child.as_ref().map(|child| child.id))
@@ -119,6 +162,7 @@ pub async fn open_session(
     .bind(keep_transcript)
     .bind(use_memory)
     .bind(device_id)
+    .bind(&objective)
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -180,6 +224,11 @@ async fn prepare_brief(state: &AppState, session_id: Uuid, child: &Child, use_me
     .await?
     .flatten();
 
+    let objective: Option<Value> = sqlx::query_scalar("select objective from sessions where id = $1")
+        .bind(session_id)
+        .fetch_optional(&state.pool)
+        .await?
+        .flatten();
     let brief = match &state.llm {
         Some(llm) => {
             let inputs = PlanInputs {
@@ -187,6 +236,7 @@ async fn prepare_brief(state: &AppState, session_id: Uuid, child: &Child, use_me
                 candidates: &candidates,
                 memories: &memories,
                 last_next_step: last_next_step.as_deref(),
+                objective: objective.as_ref(),
                 minutes: state.config.session_minutes,
             };
             supervisor::plan(llm.as_ref(), &inputs).await.unwrap_or_else(|error| {
@@ -246,6 +296,9 @@ fn student_line(child: &Child) -> String {
     }
     if !child.interests.is_empty() {
         line.push_str(&format!(" They like: {}.", child.interests.join(", ")));
+    }
+    if !child.subjects.is_empty() {
+        line.push_str(&format!(" Their family wants to reinforce: {}.", child.subjects.join(", ")));
     }
     line
 }

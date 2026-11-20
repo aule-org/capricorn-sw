@@ -537,7 +537,7 @@ pub async fn start_session(
         return Err(ApiError::Conflict("the device is not linked to a child yet"));
     };
     let child = find_child(&state.pool, child_id).await?;
-    let session = sessions::open_session(&state, Some(child), "child", None, Some(device_id)).await?;
+    let session = sessions::open_session(&state, Some(child), "child", None, Some(device_id), None).await?;
     Ok((StatusCode::CREATED, Json(session)))
 }
 
