@@ -25,6 +25,7 @@ from .providers import build_llm, build_stt, build_tts
 from .replies import reply
 from .safety import audience_of, build_gates
 from .script import Reply
+from .timing import Timing
 from .tutor import Persona, Tutor, persona_from
 from .usage import Usage
 
@@ -160,6 +161,8 @@ async def entrypoint(ctx: JobContext) -> None:
     if persona.note and not (gates.checks_spoken and (await gates.spoken(persona.note)).allowed):
         persona = replace(persona, note=None)
 
+    # How long the tutor takes to answer, and how sure the hearing is.
+    timing = Timing()
     tutor = Tutor(
         language=language,
         gates=gates,
@@ -176,6 +179,7 @@ async def entrypoint(ctx: JobContext) -> None:
         # The platform offers the breaks of a session, unless the engine runs
         # it and has breaks of its own.
         breaks=bool(platform and not platform.scripted),
+        heard=timing.heard,
     )
     usage = Usage()
     model = build_llm(settings)
@@ -193,6 +197,10 @@ async def entrypoint(ctx: JobContext) -> None:
         # below), so the VAD must not end a turn on its own.
         **({"turn_detection": "manual"} if settings.push_to_talk else {}),
     )
+    session.on(
+        "user_state_changed", lambda event: timing.user_state(event.old_state, event.new_state)
+    )
+    session.on("agent_state_changed", lambda event: timing.agent_state(event.new_state))
 
     def break_taken(count: int) -> None:
         if platform:
@@ -272,6 +280,7 @@ async def entrypoint(ctx: JobContext) -> None:
         await asyncio.gather(*tasks, *asides, return_exceptions=True)
         camera.stop()
         logger.info("session usage", extra=usage.summary())
+        logger.info("session timing", extra=timing.summary())
         await gates.close()
         if platform:
             measures = {
@@ -279,7 +288,7 @@ async def entrypoint(ctx: JobContext) -> None:
                 "breaks_taken": pace.breaks_taken,
                 "closed_for_inactivity": int(pace.closed_for_inactivity),
             }
-            await platform.end({**usage.summary(), **measures})
+            await platform.end({**usage.summary(), **timing.summary(), **measures})
 
     ctx.add_shutdown_callback(cleanup)
 
