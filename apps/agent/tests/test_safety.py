@@ -456,6 +456,10 @@ class Opinion:
         self.read.append(text)
         return self.answer
 
+    async def only_schoolwork(self, tutor, child):
+        self.read.append((tutor, child))
+        return self.answer
+
     async def close(self):
         self.closed = True
 
@@ -502,7 +506,7 @@ async def test_what_the_provider_is_sure_about_never_gets_a_second_reading():
     assert opinion.read == []
 
 
-async def test_what_a_person_says_never_gets_a_second_reading():
+async def test_what_a_person_says_gets_no_second_reading_for_what_a_reply_would():
     opinion = Opinion(True)
     built, _ = unsure_gates(opinion)
 
@@ -517,3 +521,90 @@ async def test_the_second_reader_is_closed_with_the_gates():
     await built.close()
 
     assert opinion.closed
+
+
+FAINT = Finding(categories=("self-harm", "self-harm/intent"), faint_self_harm=True)
+
+
+def faint_gates(opinion, verdict=Verdict.ALLOW, finding=FAINT):
+    flags = []
+    built = Gates(
+        moderation=Moderation(finding),
+        physical_safety=Physical(verdict),
+        report=lambda gate, action, categories: flags.append((gate, action, categories)),
+        second_opinion=opinion,
+    )
+    return built, flags
+
+
+def after(tutor_line):
+    context = llm.ChatContext.empty()
+    context.add_message(role="assistant", content="¡Hola!")
+    context.add_message(role="user", content="hola")
+    context.add_message(role="assistant", content=tutor_line)
+    return context
+
+
+async def test_a_tired_student_is_answered_when_the_second_reader_says_it_is_about_the_work():
+    reader = Opinion(True)
+    built, flags = faint_gates(reader)
+
+    decision = await built.heard(after("¿Hacemos otro ejercicio?"), said("ya no quiero seguir"))
+
+    assert decision.allowed and flags == []
+    # The reader gets the sentence with the tutor's line right before it, and nothing else.
+    assert reader.read == [("¿Hacemos otro ejercicio?", "ya no quiero seguir")]
+
+
+async def test_a_faint_score_the_reader_does_not_clear_keeps_the_line_for_distress():
+    built, flags = faint_gates(Opinion(False))
+
+    decision = await built.heard(after("¿Seguimos?"), said("no quiero despertar mañana"))
+
+    assert (decision.action, decision.reply) == (Action.SUPPORT, "self_harm_support")
+    assert [flag[:2] for flag in flags] == [("moderation_input", "support")]
+
+
+async def test_a_faint_score_the_other_gate_also_stops_keeps_the_line_for_distress():
+    # "I don't want to wake up tomorrow" scores faintly and worries the
+    # physical-safety gate too: it is not read again, and the family is told
+    # of self-harm, not of a hazard.
+    reader = Opinion(True)
+    built, flags = faint_gates(reader, Verdict.ADULT_HELP)
+
+    decision = await built.heard(after("¿Seguimos?"), said("no quiero despertar mañana"))
+
+    assert (decision.action, decision.reply) == (Action.SUPPORT, "self_harm_support")
+    assert reader.read == []
+    assert flags == [("moderation_input", "support", ["self_harm", "physical_hazard"])]
+
+
+@pytest.mark.parametrize("verdict", [Verdict.UNCERTAIN, Verdict.UNAVAILABLE, Verdict.CONTEXT_LIMIT])
+async def test_without_a_clear_verdict_on_the_hazard_nothing_is_read_again(verdict):
+    reader = Opinion(True)
+    built, _ = faint_gates(reader, verdict)
+
+    decision = await built.heard(after("¿Seguimos?"), said("ya no quiero seguir"))
+
+    assert decision.reply == "self_harm_support" and reader.read == []
+
+
+async def test_self_harm_that_is_not_faint_is_never_read_again():
+    reader = Opinion(True)
+    for finding in (
+        Finding(categories=("self-harm",)),
+        Finding(categories=("self-harm/intent", "violence")),
+    ):
+        for verdict in (Verdict.ALLOW, Verdict.ADULT_HELP):
+            built, _ = faint_gates(reader, verdict, finding)
+            decision = await built.heard(after("¿Seguimos?"), said("x"))
+            assert decision.reply == "self_harm_support"
+    assert reader.read == []
+
+
+async def test_without_a_second_reader_a_faint_score_keeps_the_line_for_distress():
+    built, _ = faint_gates(None)
+
+    decision = await built.heard(after("¿Hacemos otro?"), said("ya no quiero seguir"))
+
+    assert decision.reply == "self_harm_support"
