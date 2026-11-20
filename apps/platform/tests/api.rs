@@ -2195,7 +2195,7 @@ async fn the_session_engine_runs_a_session_from_the_greeting_to_the_family_repor
         app.call(Method::POST, "/v1/agent/session/said", Some(ADMIN), said).await.0,
         StatusCode::UNAUTHORIZED
     );
-    for bad in [json!({ "said": "  " }), json!({ "said": "x".repeat(501) }), json!({})] {
+    for bad in [json!({ "said": "x".repeat(501) }), json!({})] {
         let (status, _) = app.call(Method::POST, "/v1/agent/session/said", agent, Some(bad)).await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
     }
@@ -2267,6 +2267,11 @@ async fn what_a_student_said_to_the_engine_is_kept_and_deleted_like_the_transcri
 
     // A short session: the screening, left half way.
     let short_session = || async {
+        // Each of these sessions is a child's first: what an earlier one left is put aside.
+        sqlx::query("update children set engine_profile = null, engine_profile_at = null")
+            .execute(&app.state.pool)
+            .await
+            .unwrap();
         let (session, token) = engine_session(&app, &child, fractions("exam_prep")).await;
         let pupil = Pupil {
             app: &app,
@@ -2343,4 +2348,193 @@ async fn what_a_student_said_to_the_engine_is_kept_and_deleted_like_the_transcri
     let (status, _) = app.admin(Method::DELETE, &format!("/v1/children/{child}"), None).await;
     assert_eq!(status, StatusCode::NO_CONTENT);
     assert_eq!(app.count(inputs).await, 0);
+}
+
+/// Moves a session's engine back in time: its clock counts from its first input.
+async fn minutes_pass(app: &App, session: &str, minutes: i32) {
+    sqlx::query(
+        "update session_flow_inputs set at = at - make_interval(mins => $2) where session_id = $1::uuid",
+    )
+    .bind(session)
+    .bind(minutes)
+    .execute(&app.state.pool)
+    .await
+    .unwrap();
+    // The live engine keeps its own start; a rebuilt one reads it again.
+    app.state.flows.lock().unwrap().clear();
+}
+
+#[sqlx::test(migrator = "aule_platform::MIGRATOR")]
+async fn an_engine_session_leaves_the_level_and_its_evidence_and_the_next_one_starts_there(pool: PgPool) {
+    let app = app(pool);
+    let child = app.child().await;
+    app.consent(&child, "voice", true).await;
+    let catalog =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../curriculum/math-primaria.json");
+    let catalog: Value = serde_json::from_str(&std::fs::read_to_string(catalog).unwrap()).unwrap();
+    let (status, stored) = app.admin(Method::PUT, "/v1/skills", Some(catalog)).await;
+    assert_eq!(status, StatusCode::OK, "{stored}");
+
+    // The first session: the whole screening (right, right, then wrong), the
+    // discovery of level 3, and two exercises of practice.
+    let (session, token) = engine_session(&app, &child, fractions("homework")).await;
+    let first = Pupil {
+        app: &app,
+        session: session["session_id"].as_str().unwrap().to_string(),
+        token: token.clone(),
+        contract: visual_contract(),
+    };
+    app.call(Method::GET, "/v1/agent/session", Some(&token), None).await;
+    first.says(json!({ "said": "sí" })).await;
+    for right in [true, true, false, false, false] {
+        first.answers(right).await;
+    }
+    for _ in 0..60 {
+        if first.step().await["stage"] == "Etapa 2: Refuerzo" {
+            break;
+        }
+        first.answers(true).await;
+    }
+    assert_eq!(first.progress().await, "Nivel 3 · Ejercicio 1 de 5");
+    first.answers(false).await;
+    first.answers(true).await;
+    first.answers(true).await;
+    app.call(Method::POST, "/v1/agent/session/end", Some(&token), Some(json!({}))).await;
+    assert_eq!(app.count("select count(*) from children where engine_profile is not null").await, 0);
+    assert!(jobs::work_once(&app.state).await.unwrap());
+
+    // What is kept on the child: levels and ids, not names and not words.
+    let kept: Value =
+        sqlx::query_scalar("select engine_profile from children").fetch_one(&app.state.pool).await.unwrap();
+    assert_eq!(kept["levels"], json!({ "Fracciones": 2 }), "{kept}");
+    assert_eq!(kept["sessions"], 1);
+    assert!(!kept.to_string().contains("Mateo") && !kept.to_string().contains("Ana"), "{kept}");
+    let (_, profile) = app.admin(Method::GET, &format!("/v1/children/{child}"), None).await;
+    assert!(profile.get("engine_profile").is_none(), "not part of the child's profile: {profile}");
+
+    // Each exercise the engine graded is an attempt of the learner model.
+    type Attempt = (String, String, bool, f64, bool);
+    let attempts: Vec<Attempt> = sqlx::query_as(
+        "select skill_id, question_id, correct, credit, choice from attempts where source = 'engine' order by at",
+    )
+    .fetch_all(&app.state.pool)
+    .await
+    .unwrap();
+    let credits: Vec<(&str, f64)> = attempts.iter().map(|a| (a.1.as_str(), a.3)).collect();
+    assert_eq!(
+        credits[..5],
+        [("n1-t1", 1.0), ("n2-t1", 1.0), ("n3-t1", 0.0), ("n4-t1", 0.0), ("n5-t1", 0.0)]
+    );
+    assert_eq!(credits[5..].iter().map(|c| c.1).collect::<Vec<_>>(), [0.5, 1.0], "{credits:?}");
+    assert_eq!(attempts[0].0, "fracciones.concepto-numerador-y-denominador");
+    assert_eq!(attempts[2].0, "fracciones.sumar-igual-denominador");
+    assert!(attempts.iter().all(|a| a.0.starts_with("fracciones.") && a.2 == (a.3 > 0.0)), "{attempts:?}");
+    assert_eq!(app.count("select count(*) from attempts where session_id is null").await, 0);
+    let (_, skills) = app.admin(Method::GET, &format!("/v1/children/{child}/skills"), None).await;
+    let traced: Vec<&str> =
+        skills["skills"].as_array().unwrap().iter().map(|s| s["skill_id"].as_str().unwrap()).collect();
+    assert!(traced.contains(&"fracciones.sumar-igual-denominador"), "{traced:?}");
+    // The second session does not screen again: it starts at the next level.
+    let (session, token) = engine_session(&app, &child, fractions("homework")).await;
+    let id = session["session_id"].as_str().unwrap().to_string();
+    let agent = Some(token.as_str());
+    let second = Pupil { app: &app, session: id.clone(), token: token.clone(), contract: visual_contract() };
+    app.call(Method::GET, "/v1/agent/session", agent, None).await;
+    let started = second.says(json!({ "said": "sí" })).await;
+    let said = said_in(&started);
+    assert!(!said.contains("Pregunta 1 de 5") && !said.contains("Tamizaje"), "{said}");
+    let step = second.step().await;
+    assert_eq!(
+        (step["stage"].as_str(), step["progress"].as_str()),
+        (Some("Etapa 1: Descubrimiento"), Some("Nivel 3"))
+    );
+    assert!(step["route"].as_array().unwrap().iter().all(|part| part["name"] != "Tamizaje"), "{step}");
+
+    // It started from the profile as it was: a later change does not reach a session under way.
+    sqlx::query("update children set engine_profile = null, engine_profile_at = null")
+        .execute(&app.state.pool)
+        .await
+        .unwrap();
+    app.state.flows.lock().unwrap().clear();
+    assert_eq!(second.step().await["progress"], "Nivel 3");
+
+    // Silence: nothing said, nothing stored, nothing to say.
+    for _ in 0..60 {
+        if second.step().await["stage"] == "Etapa 2: Refuerzo" {
+            break;
+        }
+        second.answers(true).await;
+    }
+    let exercise = second.step().await["card"].clone();
+    let inputs = app.count("select count(*) from session_flow_inputs").await;
+    let quiet = second.says(json!({ "said": "" })).await;
+    assert_eq!(quiet, json!({ "lines": [], "converse": null, "closed": false }));
+    assert_eq!(app.count("select count(*) from session_flow_inputs").await, inputs);
+
+    // Ten silent minutes on one exercise: the engine's hint arrives on its own, once.
+    minutes_pass(&app, &id, 10).await;
+    let late = second.says(json!({ "said": "" })).await;
+    assert!(said_in(&late).contains("te está tomando un ratito"), "{late}");
+    assert_eq!(late["converse"], Value::Null);
+    assert_eq!(second.says(json!({ "said": " " })).await["lines"], json!([]));
+    assert_eq!(second.step().await["card"], exercise, "time is not an answer");
+    assert_eq!(app.count("select count(*) from session_flow_inputs where input->>'kind' = 'tick'").await, 1);
+
+    // A break is the engine's, and ends on its own; the platform offers none
+    // of its own, though the supervisor still read that the student is tired.
+    let tired = second.says(json!({ "said": "estoy cansado" })).await;
+    assert!(said_in(&tired).contains("¡Pausa activa!"), "{tired}");
+    let mut seq = 0;
+    let mut report = async |content: &str| {
+        let turns = json!({ "turns": [{ "seq": seq, "role": "child", "content": content }] });
+        seq += 1;
+        app.call(Method::POST, "/v1/agent/session/turns", agent, Some(turns)).await;
+        eventually("guidance settled", || async { app.state.watching.lock().unwrap().is_empty() }).await;
+        app.call(Method::POST, "/v1/agent/session/turns", agent, Some(json!({ "turns": [] }))).await.1
+    };
+    let answer = report("estoy cansado").await;
+    assert_eq!(app.count("select count(*) from sessions where tired_at is not null").await, 1);
+    assert_eq!(answer["pause"], Value::Null, "{answer}");
+    assert_eq!(answer["guidance"], json!([]));
+    minutes_pass(&app, &id, 4).await;
+    assert_eq!(second.says(json!({ "said": "" })).await["lines"], json!([]), "still in the break");
+    minutes_pass(&app, &id, 2).await;
+    let back = second.says(json!({ "said": "" })).await;
+    assert!(said_in(&back).contains("Se terminó la Pausa activa"), "{back}");
+    assert_eq!(back["lines"].as_array().unwrap().last().unwrap()["say"], exercise["statement"]);
+
+    // Closing a session where the student is not working is still the platform's.
+    assert_eq!(report("jajaja pedo").await["stop"], Value::Null);
+    let answer = report("jajaja caca").await;
+    assert_eq!((&answer["stop"], &answer["pause"]), (&json!("warn"), &Value::Null), "{answer}");
+
+    // In a session the engine does not run, the same tired student is offered the platform's break.
+    let (_, free) = app.session(&child).await;
+    app.call(Method::GET, "/v1/agent/session", Some(&free), None).await;
+    let turns = json!({ "turns": [{ "seq": 0, "role": "child", "content": "estoy cansado" }] });
+    app.call(Method::POST, "/v1/agent/session/turns", Some(&free), Some(turns)).await;
+    eventually("guidance settled", || async { app.state.watching.lock().unwrap().is_empty() }).await;
+    let (_, answer) =
+        app.call(Method::POST, "/v1/agent/session/turns", Some(&free), Some(json!({ "turns": [] }))).await;
+    assert_eq!(answer["pause"], "offer", "{answer}");
+
+    // The session length the engine was given is the platform's, inside the
+    // engine's own limits (20 minutes here, so the engine's shortest: 30).
+    let start: Value = sqlx::query_scalar("select flow_start from sessions where id = $1::uuid")
+        .bind(&id)
+        .fetch_one(&app.state.pool)
+        .await
+        .unwrap();
+    assert_eq!(start["minutes"], 20);
+    assert_eq!(start["kept"]["levels"], json!({ "Fracciones": 2 }));
+    assert_eq!(
+        app.count("select count(*) from sessions where flow is null and flow_start is not null").await,
+        0
+    );
+
+    // Erasing the child erases what the engine kept, with everything else.
+    let (status, _) = app.admin(Method::DELETE, &format!("/v1/children/{child}"), None).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert_eq!(app.count("select count(*) from attempts").await, 0);
+    assert_eq!(app.count("select count(*) from session_flow_inputs").await, 0);
 }

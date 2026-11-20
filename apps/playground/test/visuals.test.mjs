@@ -36,6 +36,25 @@ test("a fraction bar has one part per denominator and shades the numerator", () 
   assert.match(svg, />3\/8</);
 });
 
+test("a shape whose fraction is the question has nothing written next to it", () => {
+  for (const kind of ["fraction_bars", "fraction_circle"]) {
+    const asked = renderVisual({ kind, fractions: [{ numerator: 3, denominator: 8, labelled: false }] });
+    assert.doesNotMatch(asked, /<text /, kind);
+    assert.doesNotMatch(asked, /3\/8/, kind);
+    // A label that came with it is not written either; the next shape keeps its own.
+    const mixed = renderVisual({
+      kind,
+      fractions: [
+        { numerator: 3, denominator: 8, label: "tres octavos", labelled: false },
+        { numerator: 1, denominator: 2 },
+      ],
+    });
+    assert.doesNotMatch(mixed, /tres octavos|3\/8/, kind);
+    assert.match(mixed, />1\/2</, kind);
+    assert.match(renderVisual({ kind, fractions: [{ numerator: 3, denominator: 8, labelled: true }] }), />3\/8</);
+  }
+});
+
 test("a fraction circle cuts the denominator into slices and shades the numerator", () => {
   const svg = renderVisual({ kind: "fraction_circle", fractions: [{ numerator: 3, denominator: 4 }] });
 

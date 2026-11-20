@@ -19,15 +19,17 @@
 
 mod visuals;
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
-use aule_core::banco::Banco;
+use aule_core::banco::{Banco, Ejercicio};
 use aule_core::conversacion::{self, Intencion};
 use aule_core::correccion::{self, Clave, Veredicto};
-use aule_core::modelo::{EstadoObjetivo, Objetivo, Perfil, TipoObjetivo};
-use aule_core::motor::{Adjunto, Calificacion, Entrada, Esperando, Mensaje, Modo, Motor, Redaccion, Tarjeta};
+use aule_core::modelo::{EstadoObjetivo, Objetivo, Perfil, TamizajeParcial, TipoObjetivo};
+use aule_core::motor::{
+    Adjunto, Calificacion, Clase, Entrada, Esperando, Mensaje, Modo, Motor, Redaccion, Tarjeta,
+};
 use aule_core::reloj::Reloj;
 use aule_core::texto;
 use axum::Json;
@@ -136,8 +138,8 @@ pub fn goal(objective: Option<&Value>, language: &str) -> Option<(Goal, Option<N
 ///
 /// The child becomes the engine's `Perfil`: the nickname is the student's
 /// name, the interests (joined) choose the setting of the exercises, the
-/// family's first guardian is who the report greets. The engine's level per
-/// topic is not kept between sessions yet, so every session starts unknown.
+/// family's first guardian is who the report greets. Those are read fresh
+/// every time; what the engine learned in earlier sessions comes in `start`.
 #[derive(Clone, Debug)]
 pub struct Setup {
     pub student: String,
@@ -147,11 +149,61 @@ pub struct Setup {
     pub today: NaiveDate,
     pub goal: Goal,
     pub due: Option<NaiveDate>,
+    pub start: Start,
+}
+
+/// What the engine keeps about a child from one session to the next: the
+/// level reached per topic, a screening left half way, how long each level
+/// took and which exercises were used. Levels and ids, nothing the student
+/// said. With a level known the engine does not screen that topic again; a
+/// screening left half way is taken up where it stopped (TAM-01, TAM-06).
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct Kept {
+    #[serde(default)]
+    pub levels: BTreeMap<String, u8>,
+    #[serde(default)]
+    pub unfinished_screenings: BTreeMap<String, TamizajeParcial>,
+    #[serde(default)]
+    pub minutes_per_level: Vec<(String, u8, f64)>,
+    #[serde(default)]
+    pub used_exercises: BTreeSet<String>,
+    #[serde(default)]
+    pub sessions: u32,
+}
+
+/// What a session started from, fixed when it was created: a session rebuilt
+/// later must not see a profile or a setting that changed since.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct Start {
+    /// The platform's session length, in minutes.
+    pub minutes: u32,
+    #[serde(default)]
+    pub kept: Kept,
+}
+
+/// The engine's shortest and longest session (SES-01: 30 minutes to an hour
+/// and a half). The platform's length is brought inside them.
+const ENGINE_MINUTES: std::ops::RangeInclusive<u32> = 30..=90;
+
+/// The engine's settings with its session as long as the platform's. The
+/// engine closes at its longest session and gives a break at 30 and 60
+/// minutes only when the session is longer than that, so both follow.
+fn settings(minutes: u32) -> aule_core::config::Config {
+    let mut settings = aule_core::config::Config::default();
+    settings.sesion_maxima_min = minutes.clamp(*ENGINE_MINUTES.start(), *ENGINE_MINUTES.end());
+    settings.sesion_recomendada_min = settings.sesion_recomendada_min.min(settings.sesion_maxima_min);
+    settings
 }
 
 fn engine(setup: &Setup, bank: Arc<Banco>, clock: Clock) -> Motor {
     let mut profile =
         Perfil::nuevo(&setup.student, &setup.interests.join(", "), &setup.guardian, setup.today);
+    let kept = setup.start.kept.clone();
+    profile.niveles = kept.levels;
+    profile.tamizaje_parcial = kept.unfinished_screenings;
+    profile.time_to_master = kept.minutes_per_level;
+    profile.ejercicios_usados = kept.used_exercises;
+    profile.numero_sesion = kept.sessions + 1;
     let objective = |kind: TipoObjetivo| Objetivo {
         id: 1,
         tipo: kind,
@@ -174,7 +226,7 @@ fn engine(setup: &Setup, bank: Arc<Banco>, clock: Clock) -> Motor {
             Vec::new()
         }
     };
-    Motor::new(aule_core::config::Config::default(), bank, Arc::new(clock), profile, objectives)
+    Motor::new(settings(setup.start.minutes), bank, Arc::new(clock), profile, objectives)
 }
 
 /// The platform's own copy of what can go into the engine, so what is stored
@@ -251,6 +303,81 @@ struct Held {
     said: String,
 }
 
+/// An exercise the engine closed, for the learner model.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Outcome {
+    /// The exercise's id in the bank.
+    pub exercise: String,
+    pub skill: Option<&'static str>,
+    /// One of a few options, which can be right by chance.
+    pub choice: bool,
+    /// 1 solved at the first try without help, 0.5 solved after a wrong
+    /// answer or a hint, 0 not solved.
+    pub credit: f64,
+    pub at_ms: u64,
+}
+
+/// The exercise being worked on, and what it has cost so far.
+struct Working {
+    exercise: String,
+    wrong: u32,
+    helped: bool,
+}
+
+/// What an exercise of the bank practises, as a skill of the curriculum
+/// (`curriculum/math-primaria.json`). The engine has five levels of
+/// fractions, and a level mixes more than one skill, so the exercise's own
+/// arithmetic (the bank's checking expression) chooses within the level.
+const SKILLS: [(u8, Work, &str); 10] = [
+    (1, Work::Any, "fracciones.concepto-numerador-y-denominador"),
+    (2, Work::Compare, "fracciones.comparar-distinto-denominador"),
+    (2, Work::Any, "fracciones.equivalentes-y-simplificar"),
+    (3, Work::Add, "fracciones.sumar-igual-denominador"),
+    (3, Work::Subtract, "fracciones.restar-igual-denominador"),
+    (3, Work::Any, "fracciones.numeros-mixtos-e-impropias"),
+    (4, Work::Add, "fracciones.sumar-distinto-denominador"),
+    (4, Work::Subtract, "fracciones.restar-distinto-denominador"),
+    (5, Work::Of, "fracciones.fraccion-de-una-cantidad"),
+    (5, Work::Any, "fracciones.problemas-con-fracciones"),
+];
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Work {
+    /// Two fractions added: "2/7 + 3/7". Not "3 + 2/5", which is a mixed number.
+    Add,
+    Subtract,
+    /// Which of two fractions is greater: "2/3 > 3/5".
+    Compare,
+    /// A fraction of an amount, and nothing else: "(2/3) * 18".
+    Of,
+    Any,
+}
+
+fn work_of(check: &str) -> Work {
+    let first = check.find(['+', '-']);
+    match first {
+        Some(at) if check[..at].contains('/') => {
+            if check[at..].starts_with('+') {
+                Work::Add
+            } else {
+                Work::Subtract
+            }
+        }
+        Some(_) => Work::Any,
+        None if check.contains(['<', '>', '=']) => Work::Compare,
+        None if check.contains('*') => Work::Of,
+        None => Work::Any,
+    }
+}
+
+fn skill_of(exercise: &Ejercicio) -> Option<&'static str> {
+    let work = work_of(&exercise.verificar);
+    SKILLS
+        .iter()
+        .find(|(level, kind, _)| *level == exercise.nivel && (*kind == work || *kind == Work::Any))
+        .map(|(_, _, skill)| *skill)
+}
+
 /// Whether the lines the engine answered with are the whole turn.
 #[derive(PartialEq)]
 enum Reply {
@@ -270,6 +397,8 @@ pub struct Flow {
     stored: usize,
     last_ms: u64,
     held: Option<Held>,
+    working: Option<Working>,
+    outcomes: Vec<Outcome>,
 }
 
 fn has_long_number(text: &str) -> bool {
@@ -358,6 +487,8 @@ impl Flow {
             stored: 0,
             last_ms: 0,
             held: None,
+            working: None,
+            outcomes: Vec::new(),
         }
     }
 
@@ -407,6 +538,64 @@ impl Flow {
     /// everything an input changes must happen in this function.
     fn feed(&mut self, at_ms: u64, input: &Input) -> Vec<Mensaje> {
         self.at(at_ms);
+        let (exercise, stage) = (self.motor.ejercicio_actual(), self.motor.actividad());
+        let messages = self.hand(input);
+        if let Some(exercise) = exercise {
+            self.note(input, &exercise, &stage, &messages);
+        }
+        messages
+    }
+
+    /// Keeps what the engine's grading says about the exercise on the screen.
+    /// The screening and the simulated exam take one answer per question;
+    /// elsewhere an exercise stays until it is solved or the engine leaves it.
+    fn note(&mut self, input: &Input, exercise: &Ejercicio, stage: &str, messages: &[Mensaje]) {
+        let one_answer = stage.starts_with("tamizaje") || stage.starts_with("simulacion");
+        if self.working.as_ref().is_none_or(|working| working.exercise != exercise.id) {
+            self.working = Some(Working { exercise: exercise.id.clone(), wrong: 0, helped: false });
+        }
+        let Some(working) = self.working.as_mut() else { return };
+        let credit = match input {
+            Input::Graded { unreadable: true, .. } => None,
+            Input::Graded { correct, explained, .. } => {
+                // The screening needs the explanation too (TAM-04); elsewhere a missing one is not asked for.
+                let solved = *correct && explained.unwrap_or(!stage.starts_with("tamizaje"));
+                let left = self.motor.ejercicio_actual().is_none_or(|now| now.id != exercise.id);
+                match (solved, one_answer) {
+                    (true, true) => Some(1.0),
+                    (true, false) => Some(if working.wrong == 0 && !working.helped { 1.0 } else { 0.5 }),
+                    (false, true) => Some(0.0),
+                    (false, false) => {
+                        working.wrong += 1;
+                        // The engine gave up on it: back to the theory, or marked for the teacher.
+                        left.then_some(0.0)
+                    }
+                }
+            }
+            Input::Help if !one_answer => {
+                working.helped = true;
+                None
+            }
+            // A hint the engine gave because the exercise was taking long.
+            Input::Tick if messages.iter().any(|message| message.clase == Clase::Pista) => {
+                working.helped = true;
+                None
+            }
+            _ => None,
+        };
+        if let Some(credit) = credit {
+            self.outcomes.push(Outcome {
+                exercise: exercise.id.clone(),
+                skill: skill_of(exercise),
+                choice: !exercise.opciones.is_empty(),
+                credit,
+                at_ms: self.last_ms,
+            });
+            self.working = None;
+        }
+    }
+
+    fn hand(&mut self, input: &Input) -> Vec<Mensaje> {
         let entry = match input.clone() {
             Input::Start => Entrada::Comenzar,
             Input::Text { text } => Entrada::Texto(text),
@@ -455,9 +644,8 @@ impl Flow {
     /// taking long, the end of a break, the warning before the last
     /// exercises. Kept as an input only when it did something.
     fn tick(&mut self, at_ms: u64, out: &mut Vec<Line>) {
-        self.at(at_ms);
         let before = self.motor.actividad();
-        let messages = self.motor.entrada(Entrada::Tick);
+        let messages = self.feed(at_ms, &Input::Tick);
         if !messages.is_empty() || self.motor.actividad() != before {
             self.unsaved.push(Record { at_ms: self.last_ms, input: Input::Tick });
         }
@@ -517,6 +705,19 @@ impl Flow {
             return Flow::new(self.setup.clone(), self.bank.clone()).open(0);
         }
         let lines = self.card().iter().map(card_line).collect();
+        self.turn(lines, Reply::Scripted)
+    }
+
+    /// Time passing with nobody speaking: a break that is over, a hint for an
+    /// exercise that is taking long, the warning before the last exercises.
+    /// It is never an answer, and it does not start a session.
+    pub fn pass(&mut self, at_ms: u64) -> Turn {
+        let mut lines = Vec::new();
+        if self.started() {
+            let before = self.card().as_ref().map(card_key);
+            self.tick(at_ms, &mut lines);
+            self.present(before, &mut lines);
+        }
         self.turn(lines, Reply::Scripted)
     }
 
@@ -814,6 +1015,26 @@ impl Flow {
         let messages = self.motor.informe();
         (messages.len() > 1).then(|| messages.join("\n\n"))
     }
+
+    /// What the next session of this child starts from, as the engine itself
+    /// hands it over (`para_siguiente_sesion`). The names, the interests and
+    /// the topics the student asked for stay out: the first two are read
+    /// fresh, the last are the student's words.
+    pub fn kept(&self) -> Kept {
+        let (profile, _) = self.motor.para_siguiente_sesion();
+        Kept {
+            levels: profile.niveles,
+            unfinished_screenings: profile.tamizaje_parcial,
+            minutes_per_level: profile.time_to_master,
+            used_exercises: profile.ejercicios_usados,
+            sessions: self.setup.start.kept.sessions + 1,
+        }
+    }
+
+    /// Every exercise the engine closed so far, in order.
+    pub fn outcomes(&self) -> &[Outcome] {
+        &self.outcomes
+    }
 }
 
 /// Whether the student is asking for something instead of answering. The
@@ -892,6 +1113,15 @@ async fn setup(state: &AppState, session: &Session) -> ApiResult<Setup> {
     // The session's own day, so an engine rebuilt after midnight is the same one.
     let today = (session.created_at + Duration::minutes(i64::from(state.config.timezone_offset_minutes)))
         .date_naive();
+    let start: Option<sqlx::types::Json<Start>> =
+        sqlx::query_scalar("select flow_start from sessions where id = $1")
+            .bind(session.id)
+            .fetch_optional(&state.pool)
+            .await?
+            .flatten();
+    // A session from before this was stored started from nothing, at the engine's own length.
+    let start =
+        start.map_or(Start { minutes: *ENGINE_MINUTES.end(), kept: Kept::default() }, |start| start.0);
     Ok(Setup {
         student: child.nickname,
         interests: child.interests,
@@ -899,6 +1129,7 @@ async fn setup(state: &AppState, session: &Session) -> ApiResult<Setup> {
         today,
         goal,
         due,
+        start,
     })
 }
 
@@ -1041,19 +1272,76 @@ pub async fn queued(pool: &PgPool, session_id: Uuid) -> Result<Option<Value>, sq
     Ok(Some(json!({ "lines": lines, "closed": closed })))
 }
 
-/// The family's report in the engine's words, when the engine ran the
-/// session and something happened in it. Built from the stored inputs, so it
-/// works in the worker, which never had the live engine.
-pub async fn report(state: &AppState, session: &Session) -> ApiResult<Option<String>> {
-    if !runs(session) {
+/// What a child's next engine session starts from, as it is now, for a
+/// session being created. Read inside the transaction that creates it.
+pub async fn start_for(
+    tx: &mut sqlx::PgConnection,
+    child_id: Uuid,
+    minutes: u32,
+) -> Result<sqlx::types::Json<Start>, sqlx::Error> {
+    let kept: Option<sqlx::types::Json<Kept>> =
+        sqlx::query_scalar("select engine_profile from children where id = $1")
+            .bind(child_id)
+            .fetch_optional(tx)
+            .await?
+            .flatten();
+    Ok(sqlx::types::Json(Start { minutes, kept: kept.map(|kept| kept.0).unwrap_or_default() }))
+}
+
+/// What is done with a session the engine ran once it is over, from its
+/// stored inputs (so it works in the worker, which never had the live
+/// engine): the child's profile for the next session, each graded exercise
+/// as evidence for the learner model, and the family's report in the
+/// engine's words, which is returned. Safe to run again.
+pub async fn conclude(state: &AppState, session: &Session) -> ApiResult<Option<String>> {
+    let (true, Some(child_id)) = (runs(session), session.child_id) else { return Ok(None) };
+    let live = match load(state, session).await {
+        Ok(live) => live,
+        // The child is gone, or the engine cannot be rebuilt: nothing to conclude, not a failed review.
+        Err(ApiError::NotFound(_) | ApiError::Conflict(_) | ApiError::Unavailable(_)) => return Ok(None),
+        Err(error) => return Err(error),
+    };
+    // Never started, or its inputs are already gone: what is stored stands.
+    if !live.flow.started() {
         return Ok(None);
     }
-    match load(state, session).await {
-        Ok(live) => Ok(live.flow.report()),
-        // The child is gone, or the engine cannot be rebuilt: there is no report, not a failed review.
-        Err(ApiError::NotFound(_) | ApiError::Conflict(_) | ApiError::Unavailable(_)) => Ok(None),
-        Err(error) => Err(error),
-    }
+    // A session reviewed late does not undo what a later one learned.
+    sqlx::query(
+        "update children set engine_profile = $2, engine_profile_at = $3
+         where id = $1 and (engine_profile_at is null or engine_profile_at < $3)",
+    )
+    .bind(child_id)
+    .bind(sqlx::types::Json(live.flow.kept()))
+    .bind(session.created_at)
+    .execute(&state.pool)
+    .await?;
+
+    // Only skills of the catalog count, as for the tutor's own exercises.
+    let catalog: Vec<String> =
+        crate::learning::catalog(&state.pool).await?.into_iter().map(|skill| skill.id).collect();
+    let attempts: Vec<crate::learning::NewAttempt> = live
+        .flow
+        .outcomes()
+        .iter()
+        .filter_map(|outcome| {
+            let skill = outcome.skill.filter(|skill| catalog.iter().any(|known| known == skill))?;
+            Some(crate::learning::NewAttempt {
+                skill_id: skill.to_string(),
+                question_id: Some(outcome.exercise.clone()),
+                correct: outcome.credit > 0.0,
+                credit: Some(outcome.credit),
+                choice: outcome.choice,
+                at: Some(live.anchor + Duration::milliseconds(outcome.at_ms as i64)),
+            })
+        })
+        .collect();
+    // A second run replaces what the first one wrote.
+    sqlx::query("delete from attempts where session_id = $1 and source = 'engine'")
+        .bind(session.id)
+        .execute(&state.pool)
+        .await?;
+    crate::learning::record(&state.pool, child_id, Some(session.id), "engine", &attempts, Utc::now()).await?;
+    Ok(live.flow.report())
 }
 
 /// The same delete as for a session's turns, for its inputs.
@@ -1096,11 +1384,18 @@ pub async fn said(
         return Err(ApiError::Conflict("the session has ended"));
     }
     by_engine(&session)?;
-    checked(&body.said, "said")?;
+    // Nothing said: only time has passed. The agent may call this on a timer.
+    let silence = body.said.trim().is_empty();
+    if !silence {
+        checked(&body.said, "said")?;
+    }
     if let Some(explanation) = body.explanation.as_deref().filter(|text| !text.trim().is_empty()) {
         checked(explanation, "explanation")?;
     }
     let turn = with_engine(&state, &session, |flow, at_ms| {
+        if silence {
+            return Ok((flow.pass(at_ms), None));
+        }
         // A tutor that reports speech before asking for the opening gets the
         // opening: what was said came before the engine had asked anything.
         if !flow.started() {
