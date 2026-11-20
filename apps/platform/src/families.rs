@@ -472,6 +472,14 @@ pub async fn record_consent(
                 .bind(child_id)
                 .execute(&mut *tx)
                 .await?;
+                // What the student said to the session engine goes with the turns.
+                sqlx::query(
+                    "delete from session_flow_inputs using sessions
+                     where session_flow_inputs.session_id = sessions.id and sessions.child_id = $1 and sessions.status = 'ended'",
+                )
+                .bind(child_id)
+                .execute(&mut *tx)
+                .await?;
             }
             _ => {}
         }

@@ -8,6 +8,7 @@ pub mod error;
 pub mod events;
 pub mod exercise;
 pub mod families;
+pub mod flow;
 pub mod google;
 pub mod http;
 pub mod jobs;

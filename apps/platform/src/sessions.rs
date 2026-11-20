@@ -20,7 +20,7 @@ use crate::families::{Child, child_for, current_consent, find_child};
 use crate::livekit::{RoomToken, room_token};
 use crate::state::AppState;
 use crate::supervisor::{self, Brief, PlanInputs, Turn};
-use crate::{events, jobs, learning, memory};
+use crate::{events, flow, jobs, learning, memory};
 
 pub const AUDIENCES: [&str; 2] = ["child", "operator"];
 /// How long the agent waits for the supervisor's plan before starting with
@@ -43,6 +43,10 @@ pub struct NewSession {
     /// What the family says this session is for.
     #[serde(default)]
     objective: Option<ObjectiveInput>,
+    /// "engine" asks for the session engine to run the session. It does when
+    /// it can; see `flow::goal`.
+    #[serde(default)]
+    flow: Option<String>,
 }
 
 pub const OBJECTIVE_KINDS: [&str; 4] = ["homework", "exam_prep", "exam_review", "explore"];
@@ -104,8 +108,13 @@ pub async fn create_session(
         }
         None => None,
     };
+    let engine = match body.flow.as_deref() {
+        None => false,
+        Some(flow::ENGINE) => true,
+        Some(_) => return Err(ApiError::bad_request("flow must be \"engine\" when it is sent")),
+    };
     let objective = body.objective.map(ObjectiveInput::checked).transpose()?;
-    let session = open_session(&state, child, &body.audience, body.language, None, objective).await?;
+    let session = open_session(&state, child, &body.audience, body.language, None, objective, engine).await?;
     Ok((StatusCode::CREATED, Json(session)))
 }
 
@@ -118,6 +127,9 @@ pub async fn open_session(
     language: Option<String>,
     device_id: Option<Uuid>,
     objective: Option<Value>,
+    // Whether the session engine was asked for. It runs the session only for
+    // a child and an objective its bank covers; otherwise nothing changes.
+    engine: bool,
 ) -> ApiResult<Value> {
     let livekit = state.config.livekit.as_ref().ok_or(ApiError::Unavailable("LiveKit is not configured"))?;
 
@@ -141,6 +153,8 @@ pub async fn open_session(
     };
     let language =
         language.or(child.as_ref().map(|child| child.language.clone())).unwrap_or_else(|| "es".to_string());
+    let flow = (engine && child.is_some() && flow::goal(objective.as_ref(), &language).is_some())
+        .then_some(flow::ENGINE);
 
     let session_id = Uuid::now_v7();
     let mut secret = [0u8; 32];
@@ -150,8 +164,8 @@ pub async fn open_session(
     sqlx::query(
         "insert into sessions
            (id, child_id, audience, room, language, agent_token_hash, keep_transcript, use_memory, device_id,
-            objective)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+            objective, flow)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
     )
     .bind(session_id)
     .bind(child.as_ref().map(|child| child.id))
@@ -163,6 +177,7 @@ pub async fn open_session(
     .bind(use_memory)
     .bind(device_id)
     .bind(&objective)
+    .bind(flow)
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -207,6 +222,7 @@ pub async fn open_session(
         "room": room,
         "agentName": state.config.agent_name,
         "expiresInSeconds": ttl_seconds,
+        "flow": flow,
     }))
 }
 
@@ -337,12 +353,17 @@ pub async fn agent_start(Agent(session): Agent, State(state): State<AppState>) -
         Some(brief) => format!("{}\n\n{}", student_line(&child), brief.as_instructions()),
         None => student_line(&child),
     };
-    Ok(Json(json!({
+    let mut start = json!({
         "session_id": session.id,
         "instructions": instructions,
         "brief": brief,
         "tutor": crate::families::tutor(Some(&child)),
-    })))
+    });
+    // The engine opens its sessions itself: these are the tutor's first lines.
+    if flow::runs(&session) {
+        start["script"] = flow::open(&state, &session).await?;
+    }
+    Ok(Json(start))
 }
 
 #[derive(Deserialize)]
@@ -499,7 +520,14 @@ pub async fn agent_turns(
         .await?;
     // "offer" while a break is due; the agent says it once and reports it taken.
     let pause = pause(&state, &session, body.breaks_taken).await?;
-    Ok(Json(json!({ "guidance": guidance, "plan": plan, "stop": stop, "pause": pause })))
+    let mut answer = json!({ "guidance": guidance, "plan": plan, "stop": stop, "pause": pause });
+    // What the engine answered to something typed on the page, for the tutor to say.
+    if flow::runs(&session)
+        && let Some(script) = flow::queued(&state.pool, session.id).await?
+    {
+        answer["script"] = script;
+    }
+    Ok(Json(answer))
 }
 
 pub async fn load_turns(pool: &PgPool, session_id: Uuid) -> Result<Vec<Turn>, sqlx::Error> {
@@ -535,7 +563,9 @@ async fn watch(state: &AppState, session: &Session) -> ApiResult<()> {
             .execute(&state.pool)
             .await?;
     }
-    if !guidance.is_empty() {
+    // The engine decides what the tutor does next; advice would pull against
+    // it. What the supervisor read (not working, tired) still counts above.
+    if !guidance.is_empty() && !flow::runs(session) {
         sqlx::query(
             "insert into session_guidance (session_id, after_seq, guidance, signals) values ($1, $2, $3, $4)",
         )
@@ -629,6 +659,7 @@ pub async fn agent_end(
             .await?;
     }
     end_session(&state.pool, session.id, speaking_seconds, reason).await?;
+    flow::forget(&state, session.id);
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -751,13 +782,30 @@ pub async fn agent_flag(
 /// to keep it for a while. Safe to run again after a failure.
 pub async fn review_session(state: &AppState, session_id: Uuid) -> ApiResult<()> {
     let session: Option<Session> = sqlx::query_as(
-        "select id, child_id, audience, room, language, status, keep_transcript, use_memory, created_at, ended_at
+        "select id, child_id, audience, room, language, status, keep_transcript, use_memory, created_at, ended_at, flow
          from sessions where id = $1 and reviewed_at is null"
     )
     .bind(session_id)
     .fetch_optional(&state.pool)
     .await?;
     let Some(session) = session else { return Ok(()) };
+
+    // A session the engine ran is told to the family in the engine's words.
+    // Stored first: it needs the session's inputs, which do not outlive a
+    // review that keeps failing.
+    let engine_report = flow::report(state, &session).await?;
+    if let (Some(report), Some(child_id)) = (&engine_report, session.child_id) {
+        sqlx::query(
+            "insert into session_reviews (session_id, child_id, guardian_summary) values ($1, $2, $3)
+             on conflict (session_id) do update set guardian_summary = excluded.guardian_summary",
+        )
+        .bind(session.id)
+        .bind(child_id)
+        .bind(report)
+        .execute(&state.pool)
+        .await?;
+    }
+    let mut family_told = false;
 
     let turns = load_turns(&state.pool, session.id).await?;
     let child_spoke = turns.iter().any(|turn| turn.role == "child");
@@ -828,7 +876,9 @@ pub async fn review_session(state: &AppState, session_id: Uuid) -> ApiResult<()>
         sqlx::query(
             "insert into session_reviews (session_id, child_id, guardian_summary, next_step, flags)
              values ($1, $2, $3, $4, $5)
-             on conflict (session_id) do update set guardian_summary = excluded.guardian_summary,
+             on conflict (session_id) do update set
+               guardian_summary = case when $6 then session_reviews.guardian_summary
+                                       else excluded.guardian_summary end,
                next_step = excluded.next_step, flags = excluded.flags",
         )
         .bind(session.id)
@@ -836,9 +886,18 @@ pub async fn review_session(state: &AppState, session_id: Uuid) -> ApiResult<()>
         .bind(&review.guardian_summary)
         .bind(&review.next_step)
         .bind(&review.flags)
+        // The engine's report, once written, is what the family reads: the
+        // supervisor adds its next step and flags, not its own summary.
+        .bind(flow::runs(&session))
         .execute(&state.pool)
         .await?;
         let data = json!({ "session_id": session.id, "child_id": child_id, "flags": review.flags });
+        events::publish(&state.pool, events::SESSION_REVIEWED, session.id, data).await?;
+        family_told = true;
+    }
+    // Without a supervisor the engine's report still reaches the family.
+    if let (false, Some(_), Some(child_id)) = (family_told, &engine_report, session.child_id) {
+        let data = json!({ "session_id": session.id, "child_id": child_id, "flags": [] });
         events::publish(&state.pool, events::SESSION_REVIEWED, session.id, data).await?;
     }
 
@@ -850,6 +909,7 @@ pub async fn review_session(state: &AppState, session_id: Uuid) -> ApiResult<()>
     .bind(session.id)
     .execute(&state.pool)
     .await?;
+    flow::delete_inputs_after_review(&state.pool, session.id).await?;
     sqlx::query("update sessions set reviewed_at = now() where id = $1")
         .bind(session.id)
         .execute(&state.pool)
