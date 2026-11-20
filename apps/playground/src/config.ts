@@ -22,7 +22,8 @@ export type Settings = {
    * Who runs a family's sessions: with "engine" the platform is asked for the
    * session engine and uses it where it can; otherwise the tutor runs them.
    */
-  flow: "engine" | null;
+  /** Whether the session engine is asked to run the sessions this page starts. */
+  engine: boolean;
   /** With a platform, sessions are created there and the supervisor takes part. */
   platform: { url: string; adminToken: string; childId: string | null } | null;
 };
@@ -68,9 +69,13 @@ export function readSettings(env: Record<string, string | undefined>): Settings 
   if (!Number.isInteger(dailySessions) || dailySessions < 1 || dailySessions > 100) {
     problems.push("PLAYGROUND_DAILY_SESSIONS must be a whole number from 1 to 100");
   }
-  const flow = get("PLAYGROUND_FLOW");
-  if (flow !== "" && flow !== "engine") {
-    problems.push('PLAYGROUND_FLOW must be "engine" or left out');
+  // Renamed: an old name left behind would turn the engine off without a word.
+  if (get("PLAYGROUND_FLOW") !== "") {
+    problems.push("PLAYGROUND_FLOW was renamed to PLAYGROUND_ENGINE (1 to turn the session engine on)");
+  }
+  const engine = get("PLAYGROUND_ENGINE");
+  if (engine !== "" && engine !== "1" && engine !== "0") {
+    problems.push("PLAYGROUND_ENGINE must be 1, 0 or left out");
   }
 
   const platformUrl = get("AULE_PLATFORM_URL").replace(/\/+$/, "");
@@ -99,7 +104,7 @@ export function readSettings(env: Record<string, string | undefined>): Settings 
     agentName: get("AULE_AGENT_NAME", "aule-tutor"),
     sessionMinutes,
     dailySessions,
-    flow: flow === "engine" ? "engine" : null,
+    engine: engine === "1",
     platform: platformUrl ? { url: platformUrl, adminToken, childId: childId || null } : null,
   };
 }

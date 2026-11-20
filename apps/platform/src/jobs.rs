@@ -129,7 +129,7 @@ pub async fn housekeeping(state: &AppState) -> Result<(), DbErr> {
 
     // What the student said, the turns and what went into the session engine,
     // goes after its time.
-    for table in ["session_turns", "session_flow_inputs"] {
+    for table in ["session_turns", "session_engine_inputs"] {
         let deleted = db
             .execute_raw(Statement::from_sql_and_values(
                 DbBackend::Postgres,

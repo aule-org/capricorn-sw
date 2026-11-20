@@ -57,8 +57,26 @@ async fn an_empty_database_gets_the_baseline(pool: PgPool) {
 #[sqlx::test(migrations = false)]
 async fn the_servers_database_becomes_the_baseline_without_changing(pool: PgPool) {
     as_before(&pool, 16).await;
+    // A session the engine ran, as the old schema says it.
+    sqlx::query(
+        "insert into sessions (id, audience, room, language, agent_token_hash, flow)
+         values (gen_random_uuid(), 'operator', 'room-1', 'es', 'hash-1', 'engine')",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
 
     migrate(&pool).await.unwrap();
+
+    // After the baseline, the migrations that follow it ran: the engine is called the engine.
+    let engine: bool = sqlx::query_scalar("select engine from sessions where room = 'room-1'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert!(engine);
+    let inputs: i64 =
+        sqlx::query_scalar("select count(*) from session_engine_inputs").fetch_one(&pool).await.unwrap();
+    assert_eq!(inputs, 0);
 
     assert_eq!(versions(&pool).await.first(), Some(&BASELINE));
     assert!(versions(&pool).await.iter().all(|version| *version >= BASELINE));

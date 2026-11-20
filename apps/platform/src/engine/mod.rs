@@ -46,13 +46,11 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::auth::{Agent, Caller, Input as Body, Session};
-use crate::entity::{attempt, child, guardian, session as session_row, session_flow_input};
+use crate::entity::{attempt, child, guardian, session as session_row, session_engine_input};
 use crate::error::{ApiError, ApiResult};
 use crate::families::{child_for, find_child};
 use crate::state::AppState;
 
-/// The value of `sessions.flow` for a session the engine runs.
-pub const ENGINE: &str = "engine";
 /// The subject, as families name it, of the bank compiled into the binary.
 const BANK_SUBJECT: &str = "matematica";
 /// The engine's texts exist in Spanish only.
@@ -394,7 +392,7 @@ enum Reply {
 }
 
 /// An engine and the inputs it has taken.
-pub struct Flow {
+pub struct Engine {
     motor: Motor,
     clock: Clock,
     setup: Setup,
@@ -483,7 +481,7 @@ fn lines_of(messages: Vec<Mensaje>, echoes: bool, out: &mut Vec<Line>) {
     }
 }
 
-impl Flow {
+impl Engine {
     pub fn new(setup: Setup, bank: Arc<Banco>) -> Self {
         let clock = Clock::default();
         Self {
@@ -502,12 +500,12 @@ impl Flow {
 
     /// The engine that took `records`, in order, each at its own time.
     pub fn replay(setup: Setup, bank: Arc<Banco>, records: &[Record]) -> Self {
-        let mut flow = Self::new(setup, bank);
+        let mut engine = Self::new(setup, bank);
         for record in records {
-            flow.feed(record.at_ms, &record.input);
+            engine.feed(record.at_ms, &record.input);
         }
-        flow.stored = records.len();
-        flow
+        engine.stored = records.len();
+        engine
     }
 
     pub fn started(&self) -> bool {
@@ -710,7 +708,7 @@ impl Flow {
             return self.turn(lines, Reply::Scripted);
         }
         if self.stored + self.unsaved.len() == 1 {
-            return Flow::new(self.setup.clone(), self.bank.clone()).open(0);
+            return Engine::new(self.setup.clone(), self.bank.clone()).open(0);
         }
         let lines = self.card().iter().map(card_line).collect();
         self.turn(lines, Reply::Scripted)
@@ -747,7 +745,7 @@ impl Flow {
     /// 3. "No sé" is a wrong answer where there are no hints (the screening
     ///    and the simulated exam) and a request for a hint elsewhere.
     /// 4. In the guided moments (a date, "shall we start?", the theory), text
-    ///    that moves the flow goes to the engine as text.
+    ///    that moves the engine goes to the engine as text.
     /// 5. Anything else is conversation: the engine is told its intent, and
     ///    the tutor's model replies under the engine's rules. Asking for help
     ///    or for the answer goes to the engine's hints instead.
@@ -831,7 +829,7 @@ impl Flow {
                 }
             }
             Esperando::Actividad { .. } => {
-                let chosen = |flow: &Self| flow.motor.vista().pausa.and_then(|pause| pause.actividad);
+                let chosen = |engine: &Self| engine.motor.vista().pausa.and_then(|pause| pause.actividad);
                 let before = chosen(self);
                 let messages = self.apply(at_ms, text());
                 if typed || chosen(self) != before {
@@ -946,7 +944,7 @@ impl Flow {
         Reply::Scripted
     }
 
-    /// Something said that is neither an answer nor a step of the flow.
+    /// Something said that is neither an answer nor a step of the engine.
     fn chat(&mut self, at_ms: u64, said: &str, intent: Intencion, out: &mut Vec<Line>) -> Reply {
         let chat = Input::Chat { text: said.to_string(), intent };
         match intent {
@@ -1073,7 +1071,7 @@ fn graded(
 
 /// A session's engine in this process.
 pub struct Live {
-    flow: Flow,
+    engine: Engine,
     /// The wall time of the engine's clock at zero.
     anchor: DateTime<Utc>,
     /// False while an input is being applied and stored. Left false by a
@@ -1083,13 +1081,13 @@ pub struct Live {
 }
 
 /// The engines of the sessions running in this process.
-pub type Flows = Arc<Mutex<HashMap<Uuid, Arc<tokio::sync::Mutex<Live>>>>>;
+pub type Engines = Arc<Mutex<HashMap<Uuid, Arc<tokio::sync::Mutex<Live>>>>>;
 
 /// An engine nobody has used for this long belongs to a session that is over.
 const FORGET_AFTER: std::time::Duration = std::time::Duration::from_secs(3 * 3600);
 
 pub fn runs(session: &Session) -> bool {
-    session.flow.as_deref() == Some(ENGINE)
+    session.engine
 }
 
 /// For the routes of the free mode: the engine and the supervisor's
@@ -1125,7 +1123,7 @@ async fn setup(state: &AppState, session: &Session) -> ApiResult<Setup> {
     let today = (session.created_at + Duration::minutes(i64::from(state.config.timezone_offset_minutes)))
         .date_naive();
     let start: Option<Start> =
-        stored.and_then(|row| row.flow_start).and_then(|start| serde_json::from_value(start).ok());
+        stored.and_then(|row| row.engine_start).and_then(|start| serde_json::from_value(start).ok());
     // A session from before this was stored started from nothing, at the engine's own length.
     let start = start.unwrap_or(Start { minutes: *ENGINE_MINUTES.end(), kept: Kept::default() });
     Ok(Setup {
@@ -1143,9 +1141,9 @@ async fn setup(state: &AppState, session: &Session) -> ApiResult<Setup> {
 async fn load(state: &AppState, session: &Session) -> ApiResult<Live> {
     let bank = bank().ok_or(ApiError::Unavailable("the session engine's bank is not valid"))?;
     let setup = setup(state, session).await?;
-    let rows = session_flow_input::Entity::find()
-        .filter(session_flow_input::Column::SessionId.eq(session.id))
-        .order_by_asc(session_flow_input::Column::Seq)
+    let rows = session_engine_input::Entity::find()
+        .filter(session_engine_input::Column::SessionId.eq(session.id))
+        .order_by_asc(session_engine_input::Column::Seq)
         .all(&state.db)
         .await?;
     let anchor = rows.first().map_or_else(Utc::now, |row| row.at);
@@ -1158,7 +1156,7 @@ async fn load(state: &AppState, session: &Session) -> ApiResult<Live> {
         })
         .collect::<ApiResult<_>>()?;
     Ok(Live {
-        flow: Flow::replay(setup, bank, &records),
+        engine: Engine::replay(setup, bank, &records),
         anchor,
         settled: true,
         used: std::time::Instant::now(),
@@ -1166,18 +1164,18 @@ async fn load(state: &AppState, session: &Session) -> ApiResult<Live> {
 }
 
 async fn live(state: &AppState, session: &Session) -> ApiResult<Arc<tokio::sync::Mutex<Live>>> {
-    if let Some(found) = state.flows.lock().expect("lock").get(&session.id).cloned() {
+    if let Some(found) = state.engines.lock().expect("lock").get(&session.id).cloned() {
         return Ok(found);
     }
     let built = Arc::new(tokio::sync::Mutex::new(load(state, session).await?));
-    let mut flows = state.flows.lock().expect("lock");
-    flows.retain(|_, live| live.try_lock().map_or(true, |live| live.used.elapsed() < FORGET_AFTER));
-    Ok(flows.entry(session.id).or_insert(built).clone())
+    let mut engines = state.engines.lock().expect("lock");
+    engines.retain(|_, live| live.try_lock().map_or(true, |live| live.used.elapsed() < FORGET_AFTER));
+    Ok(engines.entry(session.id).or_insert(built).clone())
 }
 
 /// Drops the session's engine from this process, when the session is over.
 pub fn forget(state: &AppState, session_id: Uuid) {
-    state.flows.lock().expect("lock").remove(&session_id);
+    state.engines.lock().expect("lock").remove(&session_id);
 }
 
 /// Stores the inputs applied since the last time. `queued` are lines the
@@ -1188,7 +1186,7 @@ async fn save(
     live: &mut Live,
     queued: Option<&Value>,
 ) -> Result<(), DbErr> {
-    let records = live.flow.unsaved();
+    let records = live.engine.unsaved();
     if records.is_empty() {
         return Ok(());
     }
@@ -1196,9 +1194,9 @@ async fn save(
     for (i, record) in records.iter().enumerate() {
         let last = i + 1 == records.len();
         let input = serde_json::to_value(&record.input).map_err(|error| DbErr::Custom(error.to_string()))?;
-        session_flow_input::Entity::insert(session_flow_input::ActiveModel {
+        session_engine_input::Entity::insert(session_engine_input::ActiveModel {
             session_id: Set(session_id),
-            seq: Set((live.flow.stored() + i) as i32),
+            seq: Set((live.engine.stored() + i) as i32),
             at_ms: Set(record.at_ms as i64),
             input: Set(input),
             queued: Set(queued.filter(|_| last).cloned()),
@@ -1208,7 +1206,7 @@ async fn save(
         .await?;
     }
     txn.commit().await?;
-    live.flow.saved();
+    live.engine.saved();
     Ok(())
 }
 
@@ -1217,25 +1215,25 @@ async fn save(
 async fn with_engine<T>(
     state: &AppState,
     session: &Session,
-    act: impl FnOnce(&mut Flow, u64) -> ApiResult<(T, Option<Value>)>,
+    act: impl FnOnce(&mut Engine, u64) -> ApiResult<(T, Option<Value>)>,
 ) -> ApiResult<T> {
     let live = live(state, session).await?;
     let mut live = live.lock().await;
     // Another process may have taken inputs, or the last call here failed half way.
-    let stored = session_flow_input::Entity::find()
-        .filter(session_flow_input::Column::SessionId.eq(session.id))
+    let stored = session_engine_input::Entity::find()
+        .filter(session_engine_input::Column::SessionId.eq(session.id))
         .count(&state.db)
         .await?;
-    if !live.settled || stored != live.flow.stored() as u64 {
+    if !live.settled || stored != live.engine.stored() as u64 {
         *live = load(state, session).await?;
     }
     live.settled = false;
     live.used = std::time::Instant::now();
-    if !live.flow.started() {
+    if !live.engine.started() {
         live.anchor = Utc::now();
     }
     let at_ms = (Utc::now() - live.anchor).num_milliseconds().max(0) as u64;
-    let (result, queued) = act(&mut live.flow, at_ms)?;
+    let (result, queued) = act(&mut live.engine, at_ms)?;
     save(&state.db, session.id, &mut live, queued.as_ref()).await?;
     live.settled = true;
     Ok(result)
@@ -1247,8 +1245,8 @@ fn script(lines: &[Line], closed: bool) -> Value {
 
 /// The engine's opening lines, for the tutor that just joined.
 pub async fn open(state: &AppState, session: &Session) -> ApiResult<Value> {
-    with_engine(state, session, |flow, at_ms| {
-        let turn = flow.open(at_ms);
+    with_engine(state, session, |engine, at_ms| {
+        let turn = engine.open(at_ms);
         Ok((script(&turn.lines, turn.closed), None))
     })
     .await
@@ -1261,10 +1259,10 @@ pub async fn queued(db: &DatabaseConnection, session_id: Uuid) -> Result<Option<
         .query_all_raw(Statement::from_sql_and_values(
             DbBackend::Postgres,
             "with due as (
-                 select seq, queued from session_flow_inputs
+                 select seq, queued from session_engine_inputs
                  where session_id = $1 and queued is not null for update
              ), handed as (
-                 update session_flow_inputs input set queued = null from due
+                 update session_engine_inputs input set queued = null from due
                  where input.session_id = $1 and input.seq = due.seq
              ) select queued from due order by seq",
             [session_id.into()],
@@ -1316,12 +1314,12 @@ pub async fn conclude(state: &AppState, session: &Session) -> ApiResult<Option<S
         Err(error) => return Err(error),
     };
     // Never started, or its inputs are already gone: what is stored stands.
-    if !live.flow.started() {
+    if !live.engine.started() {
         return Ok(None);
     }
     // A session reviewed late does not undo what a later one learned.
     let kept =
-        serde_json::to_value(live.flow.kept()).map_err(|error| ApiError::Internal(error.to_string()))?;
+        serde_json::to_value(live.engine.kept()).map_err(|error| ApiError::Internal(error.to_string()))?;
     child::Entity::update_many()
         .col_expr(child::Column::EngineProfile, Expr::value(kept))
         .col_expr(child::Column::EngineProfileAt, Expr::value(session.created_at))
@@ -1338,7 +1336,7 @@ pub async fn conclude(state: &AppState, session: &Session) -> ApiResult<Option<S
     let catalog: Vec<String> =
         crate::learning::catalog(&state.db).await?.into_iter().map(|skill| skill.id).collect();
     let attempts: Vec<crate::learning::NewAttempt> = live
-        .flow
+        .engine
         .outcomes()
         .iter()
         .filter_map(|outcome| {
@@ -1360,15 +1358,15 @@ pub async fn conclude(state: &AppState, session: &Session) -> ApiResult<Option<S
         .exec(&state.db)
         .await?;
     crate::learning::record(&state.db, child_id, Some(session.id), "engine", &attempts, Utc::now()).await?;
-    Ok(live.flow.report())
+    Ok(live.engine.report())
 }
 
 /// The same delete as for a session's turns, for its inputs.
 pub async fn delete_inputs_after_review(db: &DatabaseConnection, session_id: Uuid) -> Result<(), DbErr> {
     db.execute_raw(Statement::from_sql_and_values(
         DbBackend::Postgres,
-        "delete from session_flow_inputs using sessions
-         where session_flow_inputs.session_id = sessions.id and sessions.id = $1 and not sessions.keep_transcript",
+        "delete from session_engine_inputs using sessions
+         where session_engine_inputs.session_id = sessions.id and sessions.id = $1 and not sessions.keep_transcript",
         [session_id.into()],
     ))
     .await?;
@@ -1411,16 +1409,16 @@ pub async fn said(
     if let Some(explanation) = body.explanation.as_deref().filter(|text| !text.trim().is_empty()) {
         checked(explanation, "explanation")?;
     }
-    let turn = with_engine(&state, &session, |flow, at_ms| {
+    let turn = with_engine(&state, &session, |engine, at_ms| {
         if silence {
-            return Ok((flow.pass(at_ms), None));
+            return Ok((engine.pass(at_ms), None));
         }
         // A tutor that reports speech before asking for the opening gets the
         // opening: what was said came before the engine had asked anything.
-        if !flow.started() {
-            return Ok((flow.open(at_ms), None));
+        if !engine.started() {
+            return Ok((engine.open(at_ms), None));
         }
-        Ok((flow.said(at_ms, &body.said, body.explanation.as_deref(), false), None))
+        Ok((engine.said(at_ms, &body.said, body.explanation.as_deref(), false), None))
     })
     .await?;
     Ok(Json(json!({ "lines": turn.lines, "converse": turn.converse, "closed": turn.closed })))
@@ -1455,7 +1453,7 @@ pub async fn step(
     Path(session_id): Path<Uuid>,
 ) -> ApiResult<Json<Value>> {
     let session = session_for(&state, &caller, session_id).await?;
-    Ok(Json(with_engine(&state, &session, |flow, at_ms| Ok((flow.step(at_ms), None))).await?))
+    Ok(Json(with_engine(&state, &session, |engine, at_ms| Ok((engine.step(at_ms), None))).await?))
 }
 
 #[derive(Deserialize)]
@@ -1479,12 +1477,12 @@ pub async fn typed(
     if let Some(explanation) = body.explanation.as_deref().filter(|text| !text.trim().is_empty()) {
         checked(explanation, "explanation")?;
     }
-    let step = with_engine(&state, &session, |flow, at_ms| {
-        if !flow.started() {
+    let step = with_engine(&state, &session, |engine, at_ms| {
+        if !engine.started() {
             return Err(ApiError::Conflict("the session has not started"));
         }
-        let turn = flow.said(at_ms, &body.answer, body.explanation.as_deref(), true);
-        Ok((flow.step(at_ms), Some(script(&turn.lines, turn.closed))))
+        let turn = engine.said(at_ms, &body.answer, body.explanation.as_deref(), true);
+        Ok((engine.step(at_ms), Some(script(&turn.lines, turn.closed))))
     })
     .await?;
     Ok(Json(step))

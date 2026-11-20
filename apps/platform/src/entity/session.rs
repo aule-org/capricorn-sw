@@ -39,9 +39,10 @@ pub struct Model {
     pub tired_at: Option<DateTimeUtc>,
     #[sea_orm(column_type = "JsonBinary")]
     pub objective: Option<Json>,
-    pub flow: Option<String>,
+    /// Whether the session engine runs the session.
+    pub engine: bool,
     #[sea_orm(column_type = "JsonBinary")]
-    pub flow_start: Option<Json>,
+    pub engine_start: Option<Json>,
 }
 
 impl ActiveModelBehavior for ActiveModel {}

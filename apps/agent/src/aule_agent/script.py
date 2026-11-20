@@ -45,7 +45,7 @@ class Reply:
     closed: bool = False
 
 
-class Flow(Protocol):
+class Engine(Protocol):
     """The engine, as the tutor sees it: the platform."""
 
     def opening(self) -> tuple[Line, ...]: ...

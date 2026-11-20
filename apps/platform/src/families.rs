@@ -577,7 +577,7 @@ pub async fn record_consent(
                     .await?;
                 // What the student said: the turns, and what went into the session
                 // engine, of every session that has ended.
-                for table in ["session_turns", "session_flow_inputs"] {
+                for table in ["session_turns", "session_engine_inputs"] {
                     txn.execute_raw(Statement::from_sql_and_values(
                         DbBackend::Postgres,
                         format!(

@@ -36,7 +36,7 @@ pub struct AppState {
     pub claim_attempts: Arc<Mutex<HashMap<Uuid, (u32, std::time::Instant)>>>,
     /// The engines of the sessions the session engine runs. Each can be
     /// rebuilt from the database, so losing this loses nothing.
-    pub flows: crate::flow::Flows,
+    pub engines: crate::engine::Engines,
 }
 
 impl AppState {
@@ -85,7 +85,7 @@ impl AppState {
             google,
             watching: Arc::default(),
             claim_attempts: Arc::default(),
-            flows: Arc::default(),
+            engines: Arc::default(),
         }
     }
 }
