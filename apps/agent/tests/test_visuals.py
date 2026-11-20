@@ -75,12 +75,20 @@ def test_the_tool_is_the_contract():
     tool = visuals.tool_schema()
 
     assert tool["name"] == "show"
-    assert tool["parameters"]["properties"] == visuals.schema()["properties"]
+    contract = visuals.schema()["properties"]
+    # Every field of the contract, except what only the agent draws.
+    hidden = {field for fields in visuals.DRAWN_BY_THE_AGENT.values() for field in fields}
+    shown = {key: value for key, value in contract.items() if key not in hidden | {"kind"}}
+    assert {k: v for k, v in tool["parameters"]["properties"].items() if k != "kind"} == shown
+    kinds = tool["parameters"]["properties"]["kind"]["enum"]
+    assert set(kinds) == set(contract["kind"]["enum"]) - set(visuals.DRAWN_BY_THE_AGENT)
     assert tool["parameters"]["required"] == ["kind"]
     # The model's API refuses these at the top of a tool's schema.
     assert not any(key.startswith("$") for key in tool["parameters"])
     assert not {"allOf", "anyOf", "oneOf"} & set(tool["parameters"])
     for kind in visuals.schema()["properties"]["kind"]["enum"]:
+        if kind in visuals.DRAWN_BY_THE_AGENT:
+            continue
         assert kind in tool["description"], f"the description must say what {kind} needs"
 
 

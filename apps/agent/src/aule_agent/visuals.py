@@ -48,6 +48,11 @@ def _validator() -> Draft202012Validator:
     return Draft202012Validator(schema())
 
 
+# Kinds the agent draws itself from a measurement, never the model: the tune
+# of the student's voice in a pronunciation drill.
+DRAWN_BY_THE_AGENT = {"contour": ("count", "segments", "expected")}
+
+
 def tool_schema() -> dict[str, Any]:
     """The ``show`` tool as the model sees it.
 
@@ -55,9 +60,17 @@ def tool_schema() -> dict[str, Any]:
     for what each kind needs is in the description instead; ``problems`` still
     checks every call against the whole contract.
     """
+    whole = schema()
+    hidden = {field for fields in DRAWN_BY_THE_AGENT.values() for field in fields}
+    properties = {key: value for key, value in whole["properties"].items() if key not in hidden}
+    kinds = [kind for kind in whole["properties"]["kind"]["enum"] if kind not in DRAWN_BY_THE_AGENT]
+    properties["kind"] = {**whole["properties"]["kind"], "enum": kinds}
     parameters = {
-        key: value for key, value in schema().items() if not key.startswith("$") and key != "allOf"
+        key: value
+        for key, value in whole.items()
+        if not key.startswith("$") and key not in ("allOf", "properties")
     }
+    parameters["properties"] = properties
     return {"name": "show", "description": DESCRIPTION, "parameters": parameters}
 
 
