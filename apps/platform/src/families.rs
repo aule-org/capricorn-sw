@@ -232,8 +232,9 @@ impl ChildInput {
                     SUBJECTS.join(", ")
                 )));
             }
-            subjects.sort();
-            subjects.dedup();
+            // In the order the family chose them, each once.
+            let mut seen = std::collections::HashSet::new();
+            subjects.retain(|subject| seen.insert(subject.clone()));
         }
         if self.tutor_persona.as_deref().is_some_and(|persona| !TUTOR_PERSONAS.contains(&persona)) {
             return Err(ApiError::bad_request(
