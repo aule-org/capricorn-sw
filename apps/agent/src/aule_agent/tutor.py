@@ -362,8 +362,9 @@ async def checked(
     to say next, and what the model writes on its way there is its own
     reasoning ("the plan says start easy, so I show the bars before asking",
     "there is an exercise open, so I check what they said") or words said too
-    soon. None of it is spoken. With ``meanwhile`` one short fixed line is said
-    in its place, so the student is not left in silence while the tool works.
+    soon. None of it is spoken. What ``meanwhile`` gives is said in its place:
+    one short fixed line, so the student is not left in silence while the tool
+    works, or nothing when the turn already had its line.
 
     Any other step is the reply. Nothing of it reaches the voice before the
     gate on what is spoken has approved all of it: a safe beginning says
@@ -378,7 +379,9 @@ async def checked(
             logger.info(
                 "nothing of the model's said in a step with a tool", extra={"chars": left_out}
             )
-        yield meanwhile()
+        line = meanwhile()
+        if line:
+            yield line
         for chunk in chunks:
             if not _text_of(chunk):
                 yield chunk
@@ -499,8 +502,11 @@ class Tutor(Agent):
         self._language = language
         self._gates = gates
         self._camera = camera
-        # The short lines said while a tool works, one after the other.
+        # The short lines said while a tool works, one after the other, and
+        # whether this turn of the student still has one coming: a second tool
+        # in the same turn works in silence, or the lines would pile up.
         self._meanwhiles = itertools.cycle(MEANWHILE)
+        self._meanwhile_due = True
         # The frame taken when the student pressed the button, until it is used.
         self._shown: rtc.VideoFrame | None = None
         self._hazards_in_a_row = 0
@@ -621,6 +627,7 @@ class Tutor(Agent):
     async def on_user_turn_completed(
         self, turn_ctx: llm.ChatContext, new_message: llm.ChatMessage
     ) -> None:
+        self._meanwhile_due = True
         if not await self._may_answer(turn_ctx, new_message):
             # The stopped turn never reaches the model: StopResponse discards it.
             raise StopResponse()
@@ -662,6 +669,7 @@ class Tutor(Agent):
         text = text.strip()[:MAX_TYPED_CHARS]
         if not text:
             return
+        self._meanwhile_due = True
         await self.session.interrupt()
         message = llm.ChatMessage(role="user", content=[text])
         if not await self._may_answer(self.chat_ctx.copy(), message):
@@ -674,6 +682,9 @@ class Tutor(Agent):
         self.session.generate_reply(user_input=text)
 
     def _meanwhile(self) -> str:
+        if not self._meanwhile_due:
+            return ""
+        self._meanwhile_due = False
         return reply(next(self._meanwhiles), self._language)
 
     async def show_work(self) -> bool:
@@ -686,6 +697,7 @@ class Tutor(Agent):
         if frame is None:
             return False
         self._shown = frame
+        self._meanwhile_due = True
         await self.session.interrupt()
         self.session.generate_reply(user_input=SHOWN[self._language])
         return True

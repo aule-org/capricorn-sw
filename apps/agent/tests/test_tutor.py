@@ -498,12 +498,30 @@ async def test_the_step_that_calls_nothing_is_the_reply_and_is_judged():
     assert released == ["Muy bien, ", "sigamos."] and gates.spoken_texts == ["Muy bien, sigamos."]
 
 
-def test_the_lines_said_while_a_tool_works_take_turns():
-    tutor = Tutor(language="es", gates=ScriptedGates())
+async def test_one_line_per_turn_of_the_student_however_many_tools_the_turn_takes():
+    gates, session = ScriptedGates(ALLOW, ALLOW), Session()
+    tutor = Tutor(language="es", gates=gates)
+    check, pose, show = a_call("check_answer"), a_call("pose_exercise"), a_call("show")
 
-    said = [tutor._meanwhile() for _ in range(4)]
+    async def steps(*calls):
+        return [
+            chunk
+            for call in calls
+            async for chunk in checked(stream("pienso", call), gates, "es", tutor._meanwhile)
+        ]
 
-    assert said == [*(REPLIES[key]["es"] for key in MEANWHILE), REPLIES[MEANWHILE[0]]["es"]]
+    await hear(tutor, session, "creo que es dos")
+    first = await steps(check, pose, show)
+    await hear(tutor, session, "no sé")
+    second = await steps(check)
+
+    # The first tool of a turn gets the line; the ones after it work in silence.
+    assert first == [REPLIES[MEANWHILE[0]]["es"], check, pose, show]
+    assert second == [REPLIES[MEANWHILE[1]]["es"], check]
+
+
+def test_the_lines_said_while_a_tool_works_are_short_in_both_languages():
+    assert set(MEANWHILE) <= set(REPLIES)
     assert all(len(REPLIES[key][language]) <= 14 for key in MEANWHILE for language in ("es", "en"))
 
 
