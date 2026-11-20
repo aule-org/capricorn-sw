@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import re
 import time
 from collections.abc import AsyncIterable, Awaitable, Callable
 from dataclasses import dataclass
@@ -257,6 +258,34 @@ check_answer con sus palabras y haz lo que te indique. Sin un cálculo abierto n
 that computation is open, for everything they reply, an "I don't know" or a doubt too, call \
 check_answer with their words and do what it tells you. With none open, do not use them.""",
 }
+
+
+# Words with which a student shows something, or a tutor asks to see it. The
+# camera is looked at only then: an image on every turn made the tutor remark
+# on a face or a room nobody asked it about, and each one is paid in full.
+_SHOWING = re.compile(
+    r"\b(mira|mire|miren|f[íi]jate|foto|cuaderno|hoja|tarea|dibuj[oeé]|escrib[íi]|"
+    r"aqu[íi] est[áa]|te (lo )?(muestro|ense[ñn]o)|ya (lo hice|termin[ée]|est[áa])|"
+    r"mu[ée]strame|ens[ée][ñn]ame|d[ée]jame ver|ac[ée]rcal[oa]|a la c[áa]mara|"
+    r"look|photo|picture|notebook|sheet|homework|here it is|i (wrote|drew|did) it|"
+    r"show me|let me see|hold it up|bring it closer|to the camera)\b",
+    re.IGNORECASE,
+)
+
+
+def shows_something(chat_ctx: llm.ChatContext) -> bool:
+    """Whether the student is showing their work, or was just asked to: said
+    in the student's last message or in what the tutor said right before it."""
+    messages = [item for item in chat_ctx.items if item.type == "message"]
+    for item in reversed(messages):
+        if item.role not in ("user", "assistant"):
+            continue
+        if _SHOWING.search(item.text_content or ""):
+            return True
+        if item.role == "assistant":
+            # The tutor's line before the student's: nothing further back counts.
+            return False
+    return False
 
 
 def with_frame(chat_ctx: llm.ChatContext, frame: rtc.VideoFrame | None) -> llm.ChatContext:
@@ -586,7 +615,8 @@ class Tutor(Agent):
     async def llm_node(
         self, chat_ctx: llm.ChatContext, tools: list[llm.Tool], model_settings: ModelSettings
     ) -> AsyncIterable[llm.ChatChunk | str]:
-        frame = self._camera.latest() if self._camera is not None else None
+        looking = self._camera is not None and shows_something(chat_ctx)
+        frame = self._camera.latest() if looking else None
         stream = Agent.default.llm_node(self, with_frame(chat_ctx, frame), tools, model_settings)
         if self._gates.checks_spoken:
             # Buffering costs the time to the first word, so it is only paid
