@@ -180,10 +180,14 @@ async def entrypoint(ctx: JobContext) -> None:
     usage = Usage()
     model = build_llm(settings)
     model.on("metrics_collected", usage.add)
+    hearing = build_stt(settings, language)
+    hearing.on("metrics_collected", usage.heard)
+    voice = build_tts(settings, language)
+    voice.on("metrics_collected", usage.spoke)
     session = AgentSession(
-        stt=build_stt(settings, language),
+        stt=hearing,
         llm=model,
-        tts=build_tts(settings, language),
+        tts=voice,
         vad=ctx.proc.userdata["vad"],
         # Push-to-talk: the talk button commits each turn (see ``push_to_talk``
         # below), so the VAD must not end a turn on its own.
