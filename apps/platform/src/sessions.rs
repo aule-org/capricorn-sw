@@ -540,7 +540,7 @@ pub async fn agent_turns(
             tutor_said.push(content);
         }
     }
-    crate::practice::note_answer_said(&state.pool, session.id, &tutor_said).await?;
+    crate::practice::note_answer_said(&state.db, session.id, &tutor_said).await?;
 
     if child_spoke && state.llm.is_some() && state.watching.lock().expect("lock").insert(session.id) {
         let (state, session) = (state.clone(), session.clone());
@@ -615,7 +615,7 @@ async fn watch(state: &AppState, session: &Session) -> ApiResult<()> {
         }
         _ => Vec::new(),
     };
-    let open_exercise = crate::practice::open_exercise(&state.pool, session.id).await?;
+    let open_exercise = crate::practice::open_exercise(&state.db, session.id).await?;
     let reading = supervisor::watch(llm.as_ref(), &brief, &turns, &memories, open_exercise.as_ref());
     let guidance = llm::SESSION
         .scope(session.id, reading)
@@ -1035,7 +1035,7 @@ pub async fn supervisor_view(
     let review = session_review::Entity::find_by_id(session_id).one(&state.db).await?.map(|row| {
         json!({ "guardian_summary": row.guardian_summary, "next_step": row.next_step, "flags": row.flags })
     });
-    let exercises = crate::practice::exercises(&state.pool, session_id).await?;
+    let exercises = crate::practice::exercises(&state.db, session_id).await?;
     Ok(Json(json!({
         "status": status, "brief": brief, "guidance": guidance, "review": review, "exercises": exercises,
     })))

@@ -21,13 +21,16 @@ use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
 use chrono::Utc;
+use sea_orm::ActiveValue::Set;
+use sea_orm::sea_query::{Expr, ExprTrait};
+use sea_orm::{ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::algebra::{Problem, Shape};
 use crate::auth::{Agent, Input, Session};
+use crate::entity::{session, session_exercise as exercise_row, skill};
 use crate::error::{ApiError, ApiResult};
 use crate::exercise::{Exercise, Form, Misconception, Reading, Verdict, check, is_about_something_else};
 use crate::learning::{self, NewAttempt};
@@ -42,14 +45,35 @@ pub const HINTS: i32 = 3;
 /// What an answer is worth to the learner model when it needed help.
 const CREDIT_WITH_HINTS: f64 = 0.5;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, sqlx::Type)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "text", rename_all = "snake_case")]
 pub enum Status {
     Open,
     Correct,
     Failed,
     Dropped,
+}
+
+impl Status {
+    /// As it is stored.
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Open => "open",
+            Self::Correct => "correct",
+            Self::Failed => "failed",
+            Self::Dropped => "dropped",
+        }
+    }
+
+    /// A stored status; anything else is read as dropped, which counts for nothing.
+    fn stored(text: &str) -> Self {
+        match text {
+            "open" => Self::Open,
+            "correct" => Self::Correct,
+            "failed" => Self::Failed,
+            _ => Self::Dropped,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -335,18 +359,6 @@ pub fn judge(current: Current<'_>, past: &[Past], reading: &Reading) -> Outcome 
 
 // Storage and the agent's calls -------------------------------------------------
 
-#[derive(sqlx::FromRow)]
-struct Row {
-    id: i64,
-    skill_id: Option<String>,
-    expression: String,
-    answer: String,
-    form: String,
-    probe: bool,
-    attempts: i32,
-    hints: i32,
-}
-
 /// An exercise the platform can check: arithmetic, or the algebra of secondary school.
 #[derive(Debug, PartialEq)]
 enum Posed {
@@ -407,21 +419,47 @@ fn form_of(name: &str) -> Form {
 }
 
 async fn past(
-    pool: &PgPool,
+    db: &DatabaseConnection,
     session_id: Uuid,
     skill_id: Option<&str>,
     except: i64,
-) -> Result<Vec<Past>, sqlx::Error> {
-    let rows: Vec<(bool, Status)> = sqlx::query_as(
-        "select probe, status from session_exercises
-         where session_id = $1 and skill_id is not distinct from $2 and id <> $3 order by id",
-    )
-    .bind(session_id)
-    .bind(skill_id)
-    .bind(except)
-    .fetch_all(pool)
-    .await?;
-    Ok(rows.into_iter().map(|(probe, status)| Past { probe, status }).collect())
+) -> Result<Vec<Past>, DbErr> {
+    let same_skill = match skill_id {
+        Some(id) => exercise_row::Column::SkillId.eq(id),
+        None => exercise_row::Column::SkillId.is_null(),
+    };
+    let rows: Vec<(bool, String)> = exercise_row::Entity::find()
+        .filter(exercise_row::Column::SessionId.eq(session_id))
+        .filter(same_skill)
+        .filter(exercise_row::Column::Id.ne(except))
+        .order_by_asc(exercise_row::Column::Id)
+        .select_only()
+        .column(exercise_row::Column::Probe)
+        .column(exercise_row::Column::Status)
+        .into_tuple()
+        .all(db)
+        .await?;
+    Ok(rows.into_iter().map(|(probe, status)| Past { probe, status: Status::stored(&status) }).collect())
+}
+
+/// The session's open exercise, the newest if there were ever two.
+async fn open(db: &DatabaseConnection, session_id: Uuid) -> Result<Option<exercise_row::Model>, DbErr> {
+    exercise_row::Entity::find()
+        .filter(exercise_row::Column::SessionId.eq(session_id))
+        .filter(exercise_row::Column::Status.eq(Status::Open.as_str()))
+        .order_by_desc(exercise_row::Column::Id)
+        .one(db)
+        .await
+}
+
+/// Whether a skill is in the curriculum.
+async fn known_skill(db: &DatabaseConnection, id: &str) -> Result<Option<String>, DbErr> {
+    skill::Entity::find_by_id(id.to_string())
+        .select_only()
+        .column(skill::Column::Id)
+        .into_tuple()
+        .one(db)
+        .await
 }
 
 fn running(session: &Session) -> ApiResult<()> {
@@ -458,9 +496,13 @@ pub async fn pose(
     let Some(exercise) = Posed::parse(expression) else {
         // Counted, never quoted: how often the tutor asks for something this cannot check.
         tracing::info!(session_id = %session.id, "exercise not checked: not arithmetic or algebra it can work out");
-        sqlx::query("update sessions set unchecked_exercises = unchecked_exercises + 1 where id = $1")
-            .bind(session.id)
-            .execute(&state.pool)
+        session::Entity::update_many()
+            .col_expr(
+                session::Column::UncheckedExercises,
+                Expr::col(session::Column::UncheckedExercises).add(1),
+            )
+            .filter(session::Column::Id.eq(session.id))
+            .exec(&state.db)
             .await?;
         return Err(ApiError::bad_request(
             "expression is not arithmetic or algebra that can be checked; carry on without checking",
@@ -469,26 +511,15 @@ pub async fn pose(
     // Only a skill of the curriculum counts. An id the tutor made up is
     // treated as none, so it does not start a track of its own.
     let skill_id = match body.skill_id.as_deref().map(str::trim).filter(|id| learning::is_slug(id)) {
-        Some(id) => {
-            sqlx::query_scalar::<_, String>("select id from skills where id = $1")
-                .bind(id)
-                .fetch_optional(&state.pool)
-                .await?
-        }
+        Some(id) => known_skill(&state.db, id).await?,
         None => None,
     };
     let skill_id = skill_id.as_deref();
 
     // Stating the open exercise again (a retry, or "¿me repites?") changes
     // nothing: its tries and hints stay.
-    let open: Option<(i64, String, bool)> = sqlx::query_as(
-        "select id, expression, probe from session_exercises
-         where session_id = $1 and status = 'open' order by id desc limit 1",
-    )
-    .bind(session.id)
-    .fetch_optional(&state.pool)
-    .await?;
-    if let Some((id, open_expression, probe)) = open
+    if let Some(exercise_row::Model { id, expression: open_expression, probe, .. }) =
+        open(&state.db, session.id).await?
         && Posed::parse(&open_expression).is_some_and(|open| open == exercise)
     {
         let stage = if probe { Stage::Diagnose } else { Stage::Practice };
@@ -499,30 +530,31 @@ pub async fn pose(
         ));
     }
     // One exercise at a time: asking a new one leaves the last one behind.
-    sqlx::query("update session_exercises set status = 'dropped', resolved_at = now() where session_id = $1 and status = 'open'")
-        .bind(session.id)
-        .execute(&state.pool)
+    exercise_row::Entity::update_many()
+        .col_expr(exercise_row::Column::Status, Expr::value(Status::Dropped.as_str()))
+        .col_expr(exercise_row::Column::ResolvedAt, Expr::current_timestamp())
+        .filter(exercise_row::Column::SessionId.eq(session.id))
+        .filter(exercise_row::Column::Status.eq(Status::Open.as_str()))
+        .exec(&state.db)
         .await?;
-    let stage = stage(&past(&state.pool, session.id, skill_id, 0).await?);
+    let stage = stage(&past(&state.db, session.id, skill_id, 0).await?);
     let probe = stage == Stage::Diagnose;
     let form = exercise.form(if probe { Form::Any } else { body.form });
-    let id: i64 = sqlx::query_scalar(
-        "insert into session_exercises (session_id, skill_id, expression, answer, form, probe)
-         values ($1, $2, $3, $4, $5, $6) returning id",
-    )
-    .bind(session.id)
-    .bind(skill_id)
-    .bind(expression)
-    .bind(exercise.answer())
-    .bind(
-        serde_json::to_value(form)
+    let id = exercise_row::Entity::insert(exercise_row::ActiveModel {
+        session_id: Set(session.id),
+        skill_id: Set(skill_id.map(str::to_string)),
+        expression: Set(expression.to_string()),
+        answer: Set(exercise.answer()),
+        form: Set(serde_json::to_value(form)
             .ok()
             .and_then(|value| value.as_str().map(str::to_string))
-            .unwrap_or_default(),
-    )
-    .bind(probe)
-    .fetch_one(&state.pool)
-    .await?;
+            .unwrap_or_default()),
+        probe: Set(probe),
+        ..Default::default()
+    })
+    .exec(&state.db)
+    .await?
+    .last_insert_id;
     let say = match stage {
         Stage::Diagnose => {
             "To see what they can do: ask it plainly, no hints, and do not say if the answer is right."
@@ -550,14 +582,9 @@ pub async fn answer(
     if body.said.chars().count() > 500 {
         return Err(ApiError::bad_request("said must have at most 500 characters"));
     }
-    let row: Option<Row> = sqlx::query_as(
-        "select id, skill_id, expression, answer, form, probe, attempts, hints
-         from session_exercises where session_id = $1 and status = 'open' order by id desc limit 1",
-    )
-    .bind(session.id)
-    .fetch_optional(&state.pool)
-    .await?;
-    let row = row.ok_or(ApiError::Conflict("no exercise is open; state one first"))?;
+    let row = open(&state.db, session.id)
+        .await?
+        .ok_or(ApiError::Conflict("no exercise is open; state one first"))?;
     let exercise =
         Posed::parse(&row.expression).ok_or(ApiError::Conflict("the open exercise cannot be checked"))?;
     let form = form_of(&row.form);
@@ -569,7 +596,7 @@ pub async fn answer(
     {
         reading = Reading { read: None, verdict: Verdict::NotAnAnswer, misconception: None };
     }
-    let history = past(&state.pool, session.id, row.skill_id.as_deref(), row.id).await?;
+    let history = past(&state.db, session.id, row.skill_id.as_deref(), row.id).await?;
     let current =
         Current { probe: row.probe, attempts: row.attempts, hints: row.hints, answer: &row.answer, form };
     let outcome = judge(current, &history, &reading);
@@ -579,47 +606,44 @@ pub async fn answer(
         .misconception
         .and_then(|name| serde_json::to_value(name).ok())
         .and_then(|v| v.as_str().map(str::to_string));
-    sqlx::query(
-        "update session_exercises set status = $2, attempts = $3, hints = $4, first_try = $5,
-           misconception = coalesce($6, misconception), resolved_at = case when $7 then now() else null end
-         where id = $1",
-    )
-    .bind(row.id)
-    .bind(outcome.status)
-    .bind(outcome.attempts)
-    .bind(outcome.hints)
-    .bind(outcome.first_try)
-    .bind(named)
-    .bind(closed)
-    .execute(&state.pool)
-    .await?;
+    let mut update = exercise_row::Entity::update_many()
+        .col_expr(exercise_row::Column::Status, Expr::value(outcome.status.as_str()))
+        .col_expr(exercise_row::Column::Attempts, Expr::value(outcome.attempts))
+        .col_expr(exercise_row::Column::Hints, Expr::value(outcome.hints))
+        .col_expr(exercise_row::Column::FirstTry, Expr::value(outcome.first_try))
+        .col_expr(
+            exercise_row::Column::ResolvedAt,
+            if closed { Expr::current_timestamp() } else { Expr::value(None::<chrono::DateTime<Utc>>) },
+        )
+        .filter(exercise_row::Column::Id.eq(row.id));
+    // A misconception once seen stays, even when a later answer shows none.
+    if let Some(named) = named {
+        update = update.col_expr(exercise_row::Column::Misconception, Expr::value(named));
+    }
+    update.exec(&state.db).await?;
 
     // A closed exercise on a known skill is evidence for the learner model,
     // from the check itself and not from anyone's reading of the conversation.
-    if let (true, Some(child_id), Some(skill_id)) = (closed, session.child_id, row.skill_id.as_deref()) {
-        let known: Option<String> = sqlx::query_scalar("select id from skills where id = $1")
-            .bind(skill_id)
-            .fetch_optional(&state.pool)
-            .await?;
-        if known.is_some() {
-            let solved = outcome.status == Status::Correct;
-            let first_try = outcome.first_try == Some(true);
-            let attempt = NewAttempt {
-                skill_id: skill_id.to_string(),
-                question_id: None,
-                correct: solved && first_try,
-                credit: Some(if !solved {
-                    0.0
-                } else if first_try {
-                    1.0
-                } else {
-                    CREDIT_WITH_HINTS
-                }),
-                choice: false,
-                at: None,
-            };
-            learning::record(&state.db, child_id, Some(session.id), "tutor", &[attempt], Utc::now()).await?;
-        }
+    if let (true, Some(child_id), Some(skill_id)) = (closed, session.child_id, row.skill_id.as_deref())
+        && known_skill(&state.db, skill_id).await?.is_some()
+    {
+        let solved = outcome.status == Status::Correct;
+        let first_try = outcome.first_try == Some(true);
+        let attempt = NewAttempt {
+            skill_id: skill_id.to_string(),
+            question_id: None,
+            correct: solved && first_try,
+            credit: Some(if !solved {
+                0.0
+            } else if first_try {
+                1.0
+            } else {
+                CREDIT_WITH_HINTS
+            }),
+            choice: false,
+            at: None,
+        };
+        learning::record(&state.db, child_id, Some(session.id), "tutor", &[attempt], Utc::now()).await?;
     }
 
     Ok(Json(json!({
@@ -642,67 +666,54 @@ pub async fn answer(
 /// answer. Only the fact is kept. An answer said in the same moment the
 /// exercise closes is missed; this undercounts rather than accuse.
 pub async fn note_answer_said(
-    pool: &PgPool,
+    db: &DatabaseConnection,
     session_id: Uuid,
     tutor_said: &[String],
-) -> Result<(), sqlx::Error> {
+) -> Result<(), DbErr> {
     if tutor_said.is_empty() {
         return Ok(());
     }
-    let open: Option<(i64, String)> = sqlx::query_as(
-        "select id, expression from session_exercises
-         where session_id = $1 and status = 'open' and not answer_said order by id desc limit 1",
-    )
-    .bind(session_id)
-    .fetch_optional(pool)
-    .await?;
-    let Some((id, expression)) = open else { return Ok(()) };
-    let Some(exercise) = Posed::parse(&expression) else { return Ok(()) };
-    if tutor_said.iter().any(|said| exercise.is_given_away_by(&expression, said)) {
-        sqlx::query("update session_exercises set answer_said = true where id = $1")
-            .bind(id)
-            .execute(pool)
+    let Some(row) = open(db, session_id).await? else { return Ok(()) };
+    if row.answer_said {
+        return Ok(());
+    }
+    let Some(exercise) = Posed::parse(&row.expression) else { return Ok(()) };
+    if tutor_said.iter().any(|said| exercise.is_given_away_by(&row.expression, said)) {
+        exercise_row::Entity::update_many()
+            .col_expr(exercise_row::Column::AnswerSaid, Expr::value(true))
+            .filter(exercise_row::Column::Id.eq(row.id))
+            .exec(db)
             .await?;
     }
     Ok(())
 }
 
-pub async fn open_exercise(pool: &PgPool, session_id: Uuid) -> Result<Option<Value>, sqlx::Error> {
-    let open: Option<(String, bool, i32, i32)> = sqlx::query_as(
-        "select expression, probe, attempts, hints from session_exercises
-         where session_id = $1 and status = 'open' order by id desc limit 1",
-    )
-    .bind(session_id)
-    .fetch_optional(pool)
-    .await?;
-    Ok(open.map(|(expression, probe, attempts, hints)| {
+pub async fn open_exercise(db: &DatabaseConnection, session_id: Uuid) -> Result<Option<Value>, DbErr> {
+    Ok(open(db, session_id).await?.map(|row| {
         json!({
-            "exercise": expression,
-            "step": if probe { "finding out what the student can do: no hints, no right or wrong" } else { "practice with hints" },
-            "tries": attempts,
-            "hints_given": hints,
+            "exercise": row.expression,
+            "step": if row.probe { "finding out what the student can do: no hints, no right or wrong" } else { "practice with hints" },
+            "tries": row.attempts,
+            "hints_given": row.hints,
         })
     }))
 }
 
 /// The session's exercises with their answers, for the team's view. Never for
 /// the student's screen.
-pub async fn exercises(pool: &PgPool, session_id: Uuid) -> Result<Vec<Value>, sqlx::Error> {
-    type Line = (Option<String>, String, String, String, bool, i32, i32, Status, Option<String>);
-    let rows: Vec<Line> = sqlx::query_as(
-        "select skill_id, expression, answer, form, probe, attempts, hints, status, misconception
-         from session_exercises where session_id = $1 order by id",
-    )
-    .bind(session_id)
-    .fetch_all(pool)
-    .await?;
+pub async fn exercises(db: &DatabaseConnection, session_id: Uuid) -> Result<Vec<Value>, DbErr> {
+    let rows = exercise_row::Entity::find()
+        .filter(exercise_row::Column::SessionId.eq(session_id))
+        .order_by_asc(exercise_row::Column::Id)
+        .all(db)
+        .await?;
     Ok(rows
         .into_iter()
-        .map(|(skill_id, expression, answer, form, probe, attempts, hints, status, misconception)| {
+        .map(|row| {
             json!({
-                "skill_id": skill_id, "expression": expression, "answer": answer, "form": form,
-                "probe": probe, "attempts": attempts, "hints": hints, "status": status,
-                "misconception": misconception,
+                "skill_id": row.skill_id, "expression": row.expression, "answer": row.answer, "form": row.form,
+                "probe": row.probe, "attempts": row.attempts, "hints": row.hints,
+                "status": Status::stored(&row.status), "misconception": row.misconception,
             })
         })
         .collect())
