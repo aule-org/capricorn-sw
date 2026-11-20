@@ -243,7 +243,19 @@ async fn prepare_brief(state: &AppState, session_id: Uuid, child: &Child, use_me
     let now = Utc::now();
     let trace = learning::trace_child(&state.pool, child.id, now).await?;
     let catalog = learning::catalog(&state.pool).await?;
-    let candidates = learning::candidates(&trace.skills, &catalog, child.grade.as_deref(), now);
+    let objective: Option<Value> = sqlx::query_scalar("select objective from sessions where id = $1")
+        .bind(session_id)
+        .fetch_optional(&state.pool)
+        .await?
+        .flatten();
+    // What the family asked for comes first; the learner model's own choices follow.
+    let topic = objective.as_ref().and_then(|objective| objective["topic"].as_str()).unwrap_or_default();
+    let mut candidates = learning::asked(&trace.skills, &catalog, child.grade.as_deref(), topic);
+    for candidate in learning::candidates(&trace.skills, &catalog, child.grade.as_deref(), now) {
+        if candidates.iter().all(|asked| asked.skill_id != candidate.skill_id) {
+            candidates.push(candidate);
+        }
+    }
     let memories = if use_memory { memory::latest(&state.pool, child.id, 8).await? } else { Vec::new() };
     let last_next_step: Option<String> = sqlx::query_scalar(
         "select next_step from session_reviews where child_id = $1 order by created_at desc limit 1",
@@ -253,11 +265,6 @@ async fn prepare_brief(state: &AppState, session_id: Uuid, child: &Child, use_me
     .await?
     .flatten();
 
-    let objective: Option<Value> = sqlx::query_scalar("select objective from sessions where id = $1")
-        .bind(session_id)
-        .fetch_optional(&state.pool)
-        .await?
-        .flatten();
     let brief = match &state.llm {
         Some(llm) => {
             let inputs = PlanInputs {
