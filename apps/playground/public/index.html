@@ -6,6 +6,10 @@
     <meta name="robots" content="noindex, nofollow" />
     <title>Aule</title>
     <link rel="stylesheet" href="style.css" />
+    <!-- Signing in comes first: its scripts and Google's are fetched at once. -->
+    <link rel="modulepreload" href="students.js" />
+    <link rel="modulepreload" href="signin.js" />
+    <link rel="preload" as="script" href="https://accounts.google.com/gsi/client" />
   </head>
   <body>
     <main>
@@ -304,7 +308,9 @@
       <p id="message" class="message" role="alert" hidden></p>
       <div id="audio"></div>
     </main>
-    <script src="livekit-client.js"></script>
+    <!-- In this order: signing in runs before the call library has arrived. -->
+    <script type="module" src="signin.js"></script>
+    <script src="livekit-client.js" defer></script>
     <script type="module" src="wobnimo.js"></script>
     <script type="module" src="app.js"></script>
   </body>
