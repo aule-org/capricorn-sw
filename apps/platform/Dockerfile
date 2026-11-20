@@ -19,6 +19,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --uid 10001 --home-dir /tmp aule
 COPY --from=build /src/apps/platform/target/release/aule-platform /usr/local/bin/aule-platform
+# The skill catalogs, loaded by `serve` at start (see main.rs).
+COPY curriculum/*.json /usr/share/aule/curriculum/
 USER aule
 ENTRYPOINT ["aule-platform"]
 CMD ["serve"]

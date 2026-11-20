@@ -83,7 +83,7 @@ Skills per grade: P1 28, P2 28, P3 32, P4 34, P5 33, P6 33.
 
 ## Load it
 
-From the repository root, with the platform running (see `apps/platform/README.md`):
+The platform's image carries every catalog in this folder and `aule-platform serve` loads them when it starts, so a deploy is enough: new skills are added and changed ones updated. To load one by hand, from the repository root, with the platform running (see `apps/platform/README.md`):
 
 ```sh
 curl -X PUT "$AULE_PLATFORM_URL/v1/skills" \
