@@ -1,4 +1,5 @@
-"""The pace of a session: its breaks, the warning before the end and the goodbye.
+"""The pace of a session: its breaks, the warning before the end, the goodbye,
+and closing it when the student has gone.
 
 No model writes any of it. The lines are the reviewed ones in ``replies``, and
 each is said in a quiet moment: once the tutor has finished its reply and while
@@ -27,6 +28,13 @@ QUIET_POLL_SECONDS = 0.25
 # The platform repeats its offer of a break until it hears that one was taken.
 # Nothing is offered while a break is on, nor this soon after one.
 BREAK_COOLDOWN_SECONDS = 300.0
+# A student who says nothing for this long is asked whether they are still
+# there, and the session closes if they still say nothing. Long enough for an
+# exercise worked out in a notebook; silence while the tutor talks or during a
+# break does not count.
+IDLE_ASK_SECONDS = 180.0
+IDLE_CLOSE_SECONDS = 60.0
+IDLE_POLL_SECONDS = 5.0
 
 
 def warning(max_minutes: int) -> tuple[int, str] | None:
@@ -64,6 +72,9 @@ class Pace:
         self._on_break = False
         self._break_ended: float | None = None
         self._resume: asyncio.Task[None] | None = None
+        self._heard_at = self._started
+        self._asked_if_there = False
+        self.closed_for_inactivity = False
 
     def minutes(self) -> float:
         """How long the session has lasted."""
@@ -109,8 +120,33 @@ class Pace:
         finally:
             self._offering = False
 
+    async def watch(self) -> None:
+        """Asks a silent student whether they are still there, and closes the
+        session with a goodbye when they do not answer."""
+        while True:
+            await self._sleep(IDLE_POLL_SECONDS)
+            now = self._clock()
+            # The student is not expected to talk while the tutor does, or on a break.
+            tutor_busy = self._session.agent_state in ("thinking", "speaking")
+            if self._on_break or self._offering or tutor_busy:
+                self._heard_at = now
+                continue
+            silent = now - self._heard_at
+            if not self._asked_if_there and silent >= IDLE_ASK_SECONDS:
+                self._asked_if_there = True
+                await self._say("still_there", remembered=True)
+                self._heard_at = self._clock()
+            elif self._asked_if_there and silent >= IDLE_CLOSE_SECONDS:
+                self.closed_for_inactivity = True
+                logger.info("closed for inactivity", extra={"minutes": round(self.minutes(), 1)})
+                await self._say("idle_goodbye", remembered=False)
+                self._session.shutdown()
+                return
+
     def student_spoke(self) -> None:
-        """The student is back, or never left: the break is over."""
+        """The student said or wrote something: they are there, and back from a break."""
+        self._heard_at = self._clock()
+        self._asked_if_there = False
         if not self._on_break:
             return
         self._on_break = False

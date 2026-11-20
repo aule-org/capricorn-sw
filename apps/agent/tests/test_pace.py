@@ -2,7 +2,14 @@ import asyncio
 
 import pytest
 
-from aule_agent.pace import BREAK_COOLDOWN_SECONDS, QUIET_TIMEOUT_SECONDS, Pace, warning
+from aule_agent.pace import (
+    BREAK_COOLDOWN_SECONDS,
+    IDLE_ASK_SECONDS,
+    IDLE_CLOSE_SECONDS,
+    QUIET_TIMEOUT_SECONDS,
+    Pace,
+    warning,
+)
 from aule_agent.replies import BREAKS, REPLIES
 
 
@@ -177,3 +184,54 @@ async def test_a_break_just_taken_is_not_offered_again_and_the_next_one_is_anoth
 def test_there_is_a_line_for_every_break_and_they_alternate_waking_and_calming():
     assert set(BREAKS) <= set(REPLIES)
     assert BREAKS == ("break_stars", "break_balloon", "break_mirror", "break_cat")
+
+
+async def watched(made, time, seconds):
+    """Lets the watch run for a while of the session's own time."""
+    task = asyncio.create_task(made.watch())
+    end = time.now + seconds
+    while time.now < end and not task.done():
+        await asyncio.sleep(0)
+    if not task.done():
+        task.cancel()
+    return task
+
+
+async def test_a_silent_student_is_asked_once_and_then_the_session_closes():
+    made, session, time = pace()
+
+    await watched(made, time, IDLE_ASK_SECONDS + IDLE_CLOSE_SECONDS + 30)
+
+    said = [(at, text) for at, text, _, _ in session.said]
+    assert [text for _, text in said] == [line("still_there"), line("idle_goodbye")]
+    asked, closed = said[0][0], said[1][0]
+    assert IDLE_ASK_SECONDS <= asked < IDLE_ASK_SECONDS + 10
+    assert closed - asked >= IDLE_CLOSE_SECONDS and session.closed_at == closed
+    assert made.closed_for_inactivity
+
+
+async def test_a_student_who_answers_the_question_keeps_the_session():
+    made, session, time = pace()
+    task = asyncio.create_task(made.watch())
+    while not session.said:
+        await asyncio.sleep(0)
+    made.student_spoke()
+    end = time.now + IDLE_CLOSE_SECONDS + 30
+    while time.now < end:
+        await asyncio.sleep(0)
+    task.cancel()
+
+    assert [text for _, text, _, _ in session.said] == [line("still_there")]
+    assert session.closed_at is None and not made.closed_for_inactivity
+
+
+async def test_silence_while_the_tutor_talks_or_on_a_break_is_not_inactivity():
+    made, session, time = pace(break_minutes=10)
+    session.agent_state = "speaking"
+    await watched(made, time, IDLE_ASK_SECONDS * 2)
+    assert session.said == []
+
+    session.agent_state = "listening"
+    await made.take_a_break()
+    await watched(made, time, IDLE_ASK_SECONDS * 2)
+    assert [text for _, text, _, _ in session.said] == [line(BREAKS[0])]
