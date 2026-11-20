@@ -123,7 +123,8 @@ Built:
   - devices: registration with a per-device key, linking by claim code plus a signed challenge, signed session requests that cannot be replayed, and firmware offered only when newer, over the xiaozhi-esp32 check-in protocol;
   - the outbox, with delivery to the platform's own consumers and to a signed webhook;
   - notices to guardians, in the app, by email and with a push to their phone (Firebase Cloud Messaging) that says only that there is something to read;
-  - a Postgres job queue and the housekeeping that deletes transcripts on time and closes abandoned sessions.
+  - a Postgres job queue and the housekeeping that deletes transcripts on time and closes abandoned sessions;
+  - a first integration of the session engine (`engine/`): when asked, a child's session on a topic its bank covers is run by the engine, stored as its ordered inputs and rebuilt from them, with its lines handed to the agent, a step for the student's screen, and its report sent to the family as the session's summary.
 - The agent: a first tutor on LiveKit Agents with the camera as an image on each turn, connected to the platform for the plan, the turn reports and the guidance.
 - Visuals: the tutor can show an exercise or a simple diagram on the student's screen. It sends a small description that follows a shared contract, and the screen draws it in black on white; no image is generated. What is written on the screen passes the same gate as what is spoken.
 - The two safety gates in the agent: content moderation on what is heard and on what is about to be spoken, and the physical-safety check on what is heard. Both fail closed, a child's session does not start unless both are configured, and what they stop is reported as fixed categories.
@@ -132,6 +133,7 @@ Built:
 
 Not built yet:
 
+- Around the session engine: what it learns about a child (their level per topic, an unfinished screening) is not kept for the next session and does not reach the learner model, and nothing ties its own session length and breaks to the platform's.
 - The inbox for incoming events, and with it entitlements from a store (`order.paid`).
 - Drawing visuals on the device's e-ink screen. Only the playground draws them today.
 - The device side of `/ota/session`: the firmware does not have its LiveKit transport yet.
@@ -142,6 +144,7 @@ Not validated:
 - The learner model's parameters come from public datasets (ASSISTments 2009 and 2017), not from Aule's children. Its forgetting term showed no measurable effect there. `apps/platform/examples/skill_model_eval.rs` refits them from a log of answers.
 - The supervisor has only run against scripted answers in tests. How good its plans, guidance and reviews are with real conversations has not been measured.
 - The device routes have only been exercised by tests that play the device. No board has talked to them.
+- The session engine's routes have only been exercised by tests that play the agent and the page. Its texts were written for a page where the student types, and how they sound spoken, and how well speech is read as answers, has not been tried with a child.
 - Sign-in and notices have only sent mail to a stand-in; no SMTP server has been used.
 - No push has been sent through Firebase: the sender was written from its documentation and tested against a stand-in.
 - The safety gates have only run against stand-ins for their providers here. Requirement 4 is not met by code: the physical-safety provider needs an agreement covering minors' data, and the moderation provider's terms need checking, before a real child uses the tutor. "Configured and working" is enforced as "configured": nothing probes the providers when a session starts.
