@@ -456,7 +456,7 @@ class Opinion:
         self.read.append(text)
         return self.answer
 
-    async def only_schoolwork(self, tutor, child):
+    async def ordinary(self, tutor, child):
         self.read.append((tutor, child))
         return self.answer
 
@@ -506,12 +506,25 @@ async def test_what_the_provider_is_sure_about_never_gets_a_second_reading():
     assert opinion.read == []
 
 
-async def test_what_a_person_says_gets_no_second_reading_for_what_a_reply_would():
-    opinion = Opinion(True)
-    built, _ = unsure_gates(opinion)
+async def test_ordinary_words_the_provider_was_unsure_about_are_answered():
+    # "I'm back, I stretched" scores as sexual; the provider did not act on it.
+    reader = Opinion(True)
+    built, flags = unsure_gates(reader)
 
-    assert not (await built.heard(llm.ChatContext.empty(), said("algo"))).allowed
-    assert opinion.read == []
+    decision = await built.heard(after("Ponte de pie y estírate."), said("ya volví, ya me estiré"))
+
+    assert decision.allowed and flags == []
+    assert reader.read == [("Ponte de pie y estírate.", "ya volví, ya me estiré")]
+
+
+@pytest.mark.parametrize("answer", [False, None])
+async def test_unsure_words_the_reader_does_not_clear_stay_stopped(answer):
+    built, flags = unsure_gates(Opinion(answer))
+
+    decision = await built.heard(after("¿Seguimos?"), said("x"))
+
+    assert decision.reply == "redirect"
+    assert [flag[:2] for flag in flags] == [("moderation_input", "redirect")]
 
 
 async def test_the_second_reader_is_closed_with_the_gates():
@@ -524,6 +537,8 @@ async def test_the_second_reader_is_closed_with_the_gates():
 
 
 FAINT = Finding(categories=("self-harm", "self-harm/intent"), faint_self_harm=True)
+# A faint score under our thresholds: nothing was found.
+UNDER = Finding(faint_self_harm=True)
 
 
 def faint_gates(opinion, verdict=Verdict.ALLOW, finding=FAINT):
@@ -556,8 +571,9 @@ async def test_a_tired_student_is_answered_when_the_second_reader_says_it_is_abo
     assert reader.read == [("¿Hacemos otro ejercicio?", "ya no quiero seguir")]
 
 
-async def test_a_faint_score_the_reader_does_not_clear_keeps_the_line_for_distress():
-    built, flags = faint_gates(Opinion(False))
+@pytest.mark.parametrize("answer", [False, None])
+async def test_a_faint_score_over_our_thresholds_the_reader_does_not_clear_keeps_the_line(answer):
+    built, flags = faint_gates(Opinion(answer))
 
     decision = await built.heard(after("¿Seguimos?"), said("no quiero despertar mañana"))
 
@@ -567,20 +583,32 @@ async def test_a_faint_score_the_reader_does_not_clear_keeps_the_line_for_distre
 
 async def test_a_faint_score_the_other_gate_also_stops_keeps_the_line_for_distress():
     # "I don't want to wake up tomorrow" scores faintly and worries the
-    # physical-safety gate too: it is not read again, and the family is told
-    # of self-harm, not of a hazard.
-    reader = Opinion(True)
+    # physical-safety gate too: the reader sees a concern, and the family is
+    # told of self-harm, not of a hazard.
+    reader = Opinion(False)
     built, flags = faint_gates(reader, Verdict.ADULT_HELP)
 
     decision = await built.heard(after("¿Seguimos?"), said("no quiero despertar mañana"))
 
     assert (decision.action, decision.reply) == (Action.SUPPORT, "self_harm_support")
-    assert reader.read == []
     assert flags == [("moderation_input", "support", ["self_harm", "physical_hazard"])]
 
 
-@pytest.mark.parametrize("verdict", [Verdict.UNCERTAIN, Verdict.UNAVAILABLE, Verdict.CONTEXT_LIMIT])
-async def test_without_a_clear_verdict_on_the_hazard_nothing_is_read_again(verdict):
+async def test_veiled_words_the_other_gate_is_unsure_about_get_the_line_for_distress():
+    # "Ojalá no hubiera nacido": nothing over our thresholds, and the
+    # physical-safety gate unsure; without the reading it would hear "say
+    # it another way".
+    built, _ = faint_gates(Opinion(False), Verdict.UNCERTAIN, UNDER)
+
+    decision = await built.heard(
+        after("No pasa nada si fallamos."), said("ojalá no hubiera nacido")
+    )
+
+    assert (decision.action, decision.reply) == (Action.SUPPORT, "self_harm_support")
+
+
+@pytest.mark.parametrize("verdict", [Verdict.UNAVAILABLE, Verdict.CONTEXT_LIMIT])
+async def test_a_turn_the_other_gate_could_not_judge_is_not_read_again(verdict):
     reader = Opinion(True)
     built, _ = faint_gates(reader, verdict)
 
@@ -608,3 +636,38 @@ async def test_without_a_second_reader_a_faint_score_keeps_the_line_for_distress
     decision = await built.heard(after("¿Hacemos otro?"), said("ya no quiero seguir"))
 
     assert decision.reply == "self_harm_support"
+
+
+async def test_veiled_words_under_our_thresholds_are_stopped_when_two_readers_see_a_concern():
+    # "Todos estarían mejor sin mí" scores 0.04: nothing over our thresholds.
+    reader = Opinion(False)
+    built, flags = faint_gates(reader, finding=UNDER)
+
+    decision = await built.heard(after("Muy bien, sigamos."), said("todos estarían mejor sin mí"))
+
+    assert (decision.action, decision.reply) == (Action.SUPPORT, "self_harm_support")
+    assert len(reader.read) == 2
+    assert [flag[:2] for flag in flags] == [("moderation_input", "support")]
+
+
+class Split:
+    """Two readings that do not agree."""
+
+    def __init__(self, *answers):
+        self.answers, self.read = list(answers), []
+
+    async def ordinary(self, tutor, child):
+        self.read.append(child)
+        return self.answers.pop(0)
+
+    async def close(self):
+        pass
+
+
+@pytest.mark.parametrize("answers", [(False, None), (False, True), (None, None), (True, True)])
+async def test_under_our_thresholds_anything_short_of_two_concerns_lets_the_turn_through(answers):
+    built, flags = faint_gates(Split(*answers), finding=UNDER)
+
+    decision = await built.heard(after("¿Seguimos?"), said("ñañaña, no me importa"))
+
+    assert decision.allowed and flags == []

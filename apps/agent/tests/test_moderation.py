@@ -9,6 +9,7 @@ import pytest
 from aule_agent.moderation import (
     MAX_CHARS,
     SELF_HARM_FAINT_BELOW,
+    SELF_HARM_FAINT_FROM,
     THRESHOLDS,
     Action,
     Finding,
@@ -332,15 +333,19 @@ async def test_only_scores_the_provider_did_not_act_on_in_settled_categories_are
         assert not (await guard.check("x")).unsure
 
 
-async def test_self_harm_is_faint_only_when_low_alone_and_not_acted_on_by_the_provider():
+async def test_self_harm_is_faint_when_low_alone_and_not_acted_on_by_the_provider():
     for scores in (
+        # Over our thresholds, faintly.
         {"self_harm": 0.16},
         {"self_harm_intent": 0.12},
         {"self_harm": 0.16, "self_harm_intent": 0.16},
+        # Under them: nothing was found, and it is still read again.
+        {"self_harm": 0.05},
+        {"self_harm_intent": SELF_HARM_FAINT_FROM},
     ):
         guard, _ = moderator(provider_response(**scores))
         finding = await guard.check("ya no quiero seguir, terminemos")
-        assert finding.faint_self_harm and finding.flagged and not finding.unsure, scores
+        assert finding.faint_self_harm and not finding.unsure, scores
 
     named = provider_response(flagged=True, self_harm=0.18)
     named.results[0].categories.self_harm = True
@@ -355,8 +360,8 @@ async def test_self_harm_is_faint_only_when_low_alone_and_not_acted_on_by_the_pr
         # Something else was found with it.
         provider_response(self_harm=0.16, harassment=0.4),
         provider_response(self_harm_intent=0.12, sexual=0.2),
-        # Under our own thresholds nothing was found at all.
-        provider_response(self_harm=0.05),
+        # An everyday answer scores below the band.
+        provider_response(self_harm=0.001),
         provider_response(),
     ):
         guard, _ = moderator(answer)
