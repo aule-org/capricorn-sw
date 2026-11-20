@@ -636,8 +636,44 @@ main.in-session {
 /* In a session the page gives its room to the work: a short header, and a
    camera that leaves the board in view. */
 main.in-session header p,
-main.in-session .site-footer {
+main.in-session .site-footer,
+main.in-session .cookie-notice {
   display: none;
+}
+
+/* The cookie notice: a slip of paper at the bottom until it is read. */
+.cookie-notice {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 14px 18px;
+  background: var(--surface);
+  border: 2px solid var(--ink);
+  border-radius: 16px;
+  box-shadow: 5px 5px 0 var(--bg-2);
+  font-size: 0.875rem;
+}
+
+.cookie-notice p {
+  flex: 1 1 280px;
+  margin: 0;
+}
+
+.cookie-notice a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+.cookie-notice button {
+  flex: none;
 }
 
 .site-footer {
