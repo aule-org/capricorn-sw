@@ -1,5 +1,5 @@
 # Build from the repository root: docker build -f apps/platform/Dockerfile .
-FROM rust:1-slim-trixie AS build
+FROM rust:1-slim-trixie@sha256:6f14b2b4b278ec0d50aa1d69541c304ce0f95e0f6268487aa9924af1c2e9aebe AS build
 # The repository's own layout: the platform depends on the session engine by
 # path (../../engine), and the engine's crates take their settings from its
 # workspace file.
@@ -13,7 +13,7 @@ COPY apps/platform/examples ./apps/platform/examples
 WORKDIR /src/apps/platform
 RUN cargo build --release --locked --bin aule-platform
 
-FROM debian:trixie-slim
+FROM debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
