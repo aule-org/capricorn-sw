@@ -13,6 +13,26 @@ export type Tone = (typeof TONES)[number];
 export const SUBJECTS = ["matematica", "comunicacion", "ciencia", "personal_social", "ingles"] as const;
 export type Subject = (typeof SUBJECTS)[number];
 export const OBJECTIVE_KINDS = ["homework", "exam_prep", "exam_review", "explore"] as const;
+/**
+ * What a guardian can be to a student, as the platform codes it (FHIR R4
+ * RelatedPerson.relationship, HL7 v3 RoleCode): mother, father, stepmother,
+ * stepfather, grandmother, grandfather, aunt, uncle, sibling, legal guardian,
+ * other family member.
+ */
+export const RELATIONSHIPS = [
+  "MTH",
+  "FTH",
+  "STPMTH",
+  "STPFTH",
+  "GRMTH",
+  "GRFTH",
+  "AUNT",
+  "UNCLE",
+  "SIB",
+  "GUARD",
+  "FAMMEMB",
+] as const;
+export type Relationship = (typeof RELATIONSHIPS)[number];
 export type ObjectiveKind = (typeof OBJECTIVE_KINDS)[number];
 
 export type Profile = {
@@ -29,6 +49,8 @@ export type Profile = {
   /** What is remembered between sessions. */
   remembers: boolean;
   keepsTranscripts: boolean;
+  /** What the signed-in guardian is to the student; null when they would rather not say. */
+  relationship: Relationship | null;
 };
 
 export type Student = Profile & { id: string };
@@ -77,6 +99,7 @@ export function profileFrom(body: Record<string, unknown>): Profile | null {
   const tone = body.tone === undefined ? "calido" : oneOf(TONES, body.tone);
   const note = body.note === undefined ? "" : typeof body.note === "string" ? body.note.trim() : null;
   const subjects = absent(body.subjects) ? [] : texts(body.subjects, SUBJECTS.length, 40);
+  const relationship = absent(body.relationship) ? null : oneOf(RELATIONSHIPS, body.relationship);
   const flags = [body.remembers, body.keeps_transcripts].every(
     (flag) => flag === undefined || typeof flag === "boolean",
   );
@@ -90,6 +113,7 @@ export function profileFrom(body: Record<string, unknown>): Profile | null {
     note.length > MAX_NOTE_CHARS ||
     subjects === null ||
     subjects.some((subject) => oneOf(SUBJECTS, subject) === null) ||
+    (relationship === null && !absent(body.relationship)) ||
     !flags
   ) {
     return null;
@@ -104,6 +128,7 @@ export function profileFrom(body: Record<string, unknown>): Profile | null {
     subjects: absent(body.subjects) ? null : (subjects as Subject[]),
     remembers: body.remembers !== false,
     keepsTranscripts: body.keeps_transcripts === true,
+    relationship,
   };
 }
 
@@ -147,7 +172,7 @@ type Child = {
 };
 type Consent = { memory?: unknown; transcripts?: unknown };
 
-function studentOf(child: Child, consent: Consent): Student {
+function studentOf(child: Child, consent: Consent, relationship: unknown): Student {
   if (typeof child.id !== "string" || typeof child.nickname !== "string") {
     throw new PlatformError("the platform sent no student");
   }
@@ -167,19 +192,28 @@ function studentOf(child: Child, consent: Consent): Student {
         : null,
     remembers: consent.memory === true,
     keepsTranscripts: consent.transcripts === true,
+    relationship: oneOf(RELATIONSHIPS, relationship),
   };
 }
 
 const pathOf = (id: string) => `/v1/children/${encodeURIComponent(id)}`;
 
-async function fetchChild(settings: Settings, token: string, id: string): Promise<{ child: Child; consent: Consent }> {
-  const answer = (await platform(settings, pathOf(id), undefined, token)) as { child?: Child; consent?: Consent };
-  return { child: answer.child ?? {}, consent: answer.consent ?? {} };
+async function fetchChild(
+  settings: Settings,
+  token: string,
+  id: string,
+): Promise<{ child: Child; consent: Consent; relationship: unknown }> {
+  const answer = (await platform(settings, pathOf(id), undefined, token)) as {
+    child?: Child;
+    consent?: Consent;
+    relationship?: unknown;
+  };
+  return { child: answer.child ?? {}, consent: answer.consent ?? {}, relationship: answer.relationship };
 }
 
 export async function readStudent(settings: Settings, token: string, id: string): Promise<Student> {
   const kept = await fetchChild(settings, token, id);
-  return studentOf(kept.child, kept.consent);
+  return studentOf(kept.child, kept.consent, kept.relationship);
 }
 
 /** Each student of a family as the page shows them; one that cannot be read keeps only its name. */
@@ -210,8 +244,9 @@ function childBody(profile: Profile, keepsSubjects: boolean): Record<string, unk
     language: profile.language,
     interests: profile.interests,
     tutor_persona: profile.tone,
-    // An empty note removes the one that was there.
+    // An empty note removes the one that was there; so does an empty relationship.
     tutor_persona_note: profile.note,
+    relationship: profile.relationship ?? "",
     ...(keepsSubjects && profile.subjects ? { subjects: profile.subjects } : {}),
   };
 }
