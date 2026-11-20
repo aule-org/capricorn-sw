@@ -25,11 +25,17 @@ let students = [];
 // The subjects the platform keeps for a student; null when it keeps none, and
 // then neither they nor what a session is for are offered.
 let subjects = null;
-let enter = () => {};
+// Signing in runs before the rest of the page has loaded: a choice made in
+// that moment waits for it.
+let waiting = false;
+let enter = () => {
+  waiting = true;
+};
 
 /** What the page does once a signed-in person has chosen a student. */
 export function onEnter(callback) {
   enter = callback;
+  if (waiting) callback();
 }
 
 /** The body of the request for a session: the student's, or the team's code. */
@@ -145,39 +151,42 @@ function show(account, preferred) {
   showStudents(typeof preferred === "string" ? preferred : undefined);
 }
 
-function loadGoogle(clientId) {
-  const script = document.createElement("script");
-  script.src = GOOGLE_SCRIPT;
-  script.async = true;
-  script.addEventListener("load", () => {
-    window.google.accounts.id.initialize({
-      client_id: clientId,
-      ux_mode: "popup",
-      callback: async ({ credential }) => {
-        say("");
-        try {
-          const account = await call("api/signin", { credential });
-          show(account);
-          // A family with no student yet starts by adding one.
-          if (account.signed_in && !account.students?.length) edit(null);
-        } catch {
-          say("No se pudo entrar con esa cuenta de Google. Inténtalo otra vez.");
-        }
-      },
-    });
-    window.google.accounts.id.renderButton($("google"), {
-      theme: "outline",
-      size: "large",
-      text: "signin_with",
-      shape: "pill",
-      locale: "es",
-    });
+// Google's script is fetched while the page asks who is here; the button is
+// drawn once both are in.
+function loadGoogleScript() {
+  return new Promise((loaded, failed) => {
+    const script = document.createElement("script");
+    script.src = GOOGLE_SCRIPT;
+    script.async = true;
+    script.addEventListener("load", loaded);
+    script.addEventListener("error", failed);
+    document.head.append(script);
   });
-  // Somebody already signed in has no use for the button, nor for its failure.
-  script.addEventListener("error", () => {
-    if (!$("signed-out").hidden) say("No se pudo cargar el botón de Google.");
+}
+
+function drawGoogle(clientId) {
+  window.google.accounts.id.initialize({
+    client_id: clientId,
+    ux_mode: "popup",
+    callback: async ({ credential }) => {
+      say("");
+      try {
+        const account = await call("api/signin", { credential });
+        show(account);
+        // A family with no student yet starts by adding one.
+        if (account.signed_in && !account.students?.length) edit(null);
+      } catch {
+        say("No se pudo entrar con esa cuenta de Google. Inténtalo otra vez.");
+      }
+    },
   });
-  document.head.append(script);
+  window.google.accounts.id.renderButton($("google"), {
+    theme: "outline",
+    size: "large",
+    text: "signin_with",
+    shape: "pill",
+    locale: "es",
+  });
 }
 
 $("kind").replaceChildren(
@@ -234,9 +243,17 @@ $("entry").addEventListener("submit", () => {
   request = null;
 });
 
+const googleScript = loadGoogleScript();
 call("api/account")
   .then((account) => {
     show(account);
-    if (account.google_client_id) loadGoogle(account.google_client_id);
+    if (!account.google_client_id) return;
+    googleScript.then(
+      () => drawGoogle(account.google_client_id),
+      // Somebody already signed in has no use for the button, nor for its failure.
+      () => {
+        if (!$("signed-out").hidden) say("No se pudo cargar el botón de Google.");
+      },
+    );
   })
   .catch(() => show({ signed_in: false, google_client_id: null }));
