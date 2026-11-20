@@ -322,6 +322,7 @@ pub async fn agent_turns(
         return Err(ApiError::bad_request("too many turns in one request"));
     }
     let mut child_spoke = false;
+    let mut tutor_said = Vec::new();
     for turn in &body.turns {
         if !["child", "tutor"].contains(&turn.role.as_str()) || turn.seq < 0 {
             return Err(ApiError::bad_request("a turn needs seq >= 0 and role child or tutor"));
@@ -338,13 +339,17 @@ pub async fn agent_turns(
         .bind(session.id)
         .bind(turn.seq)
         .bind(&turn.role)
-        .bind(content)
+        .bind(&content)
         .execute(&state.pool)
         .await?
         .rows_affected()
             > 0;
         child_spoke |= stored && turn.role == "child";
+        if stored && turn.role == "tutor" {
+            tutor_said.push(content);
+        }
     }
+    crate::practice::note_answer_said(&state.pool, session.id, &tutor_said).await?;
 
     if child_spoke && state.llm.is_some() && state.watching.lock().expect("lock").insert(session.id) {
         let (state, session) = (state.clone(), session.clone());
@@ -470,6 +475,9 @@ pub struct EndInput {
     speaking_seconds: Option<i32>,
     #[serde(default)]
     end_reason: Option<String>,
+    /// What the agent measured about the session: names and numbers only.
+    #[serde(default)]
+    metrics: Option<Value>,
 }
 
 /// Closes the session and queues its review. Ending twice changes nothing.
@@ -490,6 +498,13 @@ pub async fn agent_end(
     .bind(session.id)
     .execute(&state.pool)
     .await?;
+    if let Some(metrics) = body.metrics.as_ref().and_then(crate::metrics::numbers_only) {
+        sqlx::query("update sessions set agent_metrics = $2 where id = $1 and status <> 'ended'")
+            .bind(session.id)
+            .bind(metrics)
+            .execute(&state.pool)
+            .await?;
+    }
     end_session(&state.pool, session.id, speaking_seconds, reason).await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -513,6 +528,21 @@ pub async fn end_session(
     .fetch_optional(&mut *tx)
     .await?;
     if let Some((child_id, device_id, started_at, ended_at)) = ended {
+        // How much each side spoke, counted now: the turns themselves are
+        // deleted after the review unless the family keeps transcripts.
+        sqlx::query(
+            "update sessions set
+               child_turns = (select count(*) from session_turns where session_id = $1 and role = 'child'),
+               tutor_turns = (select count(*) from session_turns where session_id = $1 and role = 'tutor'),
+               child_chars = (select coalesce(sum(char_length(content)), 0) from session_turns
+                              where session_id = $1 and role = 'child'),
+               tutor_chars = (select coalesce(sum(char_length(content)), 0) from session_turns
+                              where session_id = $1 and role = 'tutor')
+             where id = $1",
+        )
+        .bind(session_id)
+        .execute(&mut *tx)
+        .await?;
         jobs::enqueue(&mut *tx, jobs::REVIEW_SESSION, &json!({ "session_id": session_id })).await?;
         // The event is about a child's session on a device; a session from the
         // playground has neither.

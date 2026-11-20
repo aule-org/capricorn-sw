@@ -16,6 +16,7 @@ pub mod livekit;
 pub mod llm;
 pub mod mail;
 pub mod memory;
+pub mod metrics;
 pub mod notices;
 pub mod practice;
 pub mod push;
