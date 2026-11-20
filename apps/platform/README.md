@@ -55,7 +55,7 @@ Devices do not use a bearer token: they sign with the key burned into them.
 | Route | What it does |
 |---|---|
 | `POST /v1/families/{id}/children` | A child's profile. `grade` is `P1` to `P6` or `S1` to `S5` |
-| `GET`, `PUT`, `DELETE /v1/children/{id}` | Read, replace or erase a child and everything derived from them. `tutor_name` (1 to 20 letters, default `Aule`), `tutor_persona` (`calido`, `jugueton`, `aventurero` or `tranquilo`) and `tutor_persona_note` (one line, up to 200 characters; empty removes it) say how the tutor presents itself, and keep their value when left out. `subjects` are the school subjects the family wants reinforced, from the list `GET /v1/me` returns; left out of a `PUT`, they keep their value |
+| `GET`, `PUT`, `DELETE /v1/children/{id}` | Read, replace or erase a child and everything derived from them. `tutor_name` (1 to 20 letters, default `Aule`), `tutor_persona` (`calido`, `jugueton`, `aventurero` or `tranquilo`) and `tutor_persona_note` (one line, up to 200 characters; empty removes it) say how the tutor presents itself, and keep their value when left out. `subjects` are the school subjects the family wants reinforced, from the list `GET /v1/me` returns; left out of a `PUT`, they keep their value. `relationship` is what the signed-in guardian is to the child (see [People, as FHIR R4](#people-as-fhir-r4)); it keeps its value when left out, an empty text removes it, and `GET` returns the caller's own (`null` when not stated, or for the operator) |
 | `POST /v1/children/{id}/consents` | Grant or take back `voice`, `transcripts` or `memory` |
 | `GET /v1/children/{id}/skills` | What the child knows now, and what the model would work on next |
 | `POST /v1/children/{id}/attempts` | Answers reported by a guardian (the operator can also import past records) |
@@ -105,6 +105,24 @@ Devices do not use a bearer token: they sign with the key burned into them.
 | `POST /v1/agent/session/end` | Closes the session and queues its review. `metrics` (optional) is what the agent measured: an object of short names and numbers, such as `first_word_ms`; anything else in it is dropped |
 
 Errors are `{"error": {"code": "...", "message": "..."}}`.
+
+## People, as FHIR R4
+
+The tables that hold people follow FHIR R4's resources, so an export can be
+written without changing them. Nothing is served as FHIR yet.
+
+| Table | FHIR R4 | How |
+|---|---|---|
+| `families` | `Group` (`type: person`, `actual: true`) | Its members are the family's children. Siblings are children of the same family; they are not stored as a relationship |
+| `children` | `Patient` | `nickname` is `name.text`, `birth_year` is `birthDate` (a year alone is a valid FHIR date), `language` is `communication.language` |
+| `guardians` | `RelatedPerson`, one per child | `name`, and `email` as `telecom` with `system: email`; `patient` is the child |
+| `guardian_children` | `RelatedPerson.relationship` | A code of `http://terminology.hl7.org/CodeSystem/v3-RoleCode`: `MTH`, `FTH`, `STPMTH`, `STPFTH`, `GRMTH`, `GRFTH`, `AUNT`, `UNCLE`, `SIB`, `GUARD` or `FAMMEMB`. No row: the guardian has not said. Who may see a child does not depend on it |
+| `consent_records` | `Consent` | One per purpose and answer; `granted` is `provision.type` `permit` or `deny` |
+| `devices` | `Device` | |
+
+A teacher or a tutor outside the family would be a `Practitioner` with a
+`PractitionerRole`; there is none yet. The tutor's memory keeps nothing about
+the people in a child's life.
 
 ## Events
 
