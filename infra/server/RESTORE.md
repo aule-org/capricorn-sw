@@ -27,7 +27,7 @@ A backup can be older than the code, and restoring it over newer tables fails (t
 
 On 2026-11-20 migrations 0001 to 0016 were collapsed into `0017_baseline.sql`. A backup taken before that records migrations 1 to 16. Restored as above, the platform sees all sixteen, marks the backup as having run the baseline instead (its schema is the same, nothing in it changes), and migrates on from there.
 
-A backup older than migration 16 (some of 1 to 16 missing) is refused at start with an error that says so. Restore it in two steps: run the platform image tagged `pre-baseline` (git tag `pre-baseline`) once against it, which brings it to 16, take a backup of that, and restore that backup with the current image. Such backups stop existing once the oldest backup kept (180 days at home) is from after the cutover.
+A backup older than migration 16 (some of 1 to 16 missing) is refused at start with an error that says so. Migration 16 went live on 2026-11-20 at 18:05 UTC, so **every backup taken before 2026-11-20 19:02 UTC is in this case**. Restore it in two steps: run the platform image tagged `pre-baseline` (git tag `pre-baseline`) once against it, which brings it to 16, take a backup of that, and restore that backup with the current image. Such backups stop existing once the oldest backup kept (180 days at home) is from after the cutover.
 
 ## Test
 
