@@ -6,8 +6,8 @@ import json
 import pytest
 from livekit.agents import llm
 
-from capricorn_agent.moderation import Action, Decision
-from capricorn_agent.physical_safety import (
+from aule_agent.moderation import Action, Decision
+from aule_agent.physical_safety import (
     MAX_BYTES,
     MAX_HISTORY_ITEMS,
     QUESTION,
@@ -154,7 +154,7 @@ async def test_an_answer_from_another_model_cannot_allow(guard, provider, model)
 
 
 async def test_a_late_answer_is_unavailable_and_not_retried(guard, provider, monkeypatch):
-    monkeypatch.setattr("capricorn_agent.physical_safety.TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr("aule_agent.physical_safety.TIMEOUT_SECONDS", 0.01)
     provider.delay = 5
 
     assert await guard.check(empty(), message()) is Verdict.UNAVAILABLE

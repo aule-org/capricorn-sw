@@ -51,7 +51,7 @@ before(async () => {
   await new Promise<void>((resolve) => platform.listen(0, "127.0.0.1", resolve));
   const url = `http://127.0.0.1:${(platform.address() as AddressInfo).port}`;
   server = createPlayground(
-    readSettings({ ...COMPLETE, CAPRICORN_PLATFORM_URL: url, CAPRICORN_ADMIN_TOKEN: "admin", PLAYGROUND_DAILY_SESSIONS: "2" }),
+    readSettings({ ...COMPLETE, AULE_PLATFORM_URL: url, AULE_ADMIN_TOKEN: "admin", PLAYGROUND_DAILY_SESSIONS: "2" }),
   );
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/playground`;

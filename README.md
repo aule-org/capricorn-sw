@@ -1,22 +1,22 @@
-# Capricorn Server
+# Aule Server
 
 <p>
-  <a href="https://github.com/meet-aule/capricorn-hw"><img src="https://img.shields.io/badge/Hardware-capricorn--hw-1f6feb.svg" alt="Capricorn hardware"></a>
-  <a href="https://github.com/meet-aule/capricorn-fw"><img src="https://img.shields.io/badge/Firmware-capricorn--fw-2da44e.svg" alt="Capricorn firmware"></a>
-  <a href="https://github.com/meet-aule/capricorn-sw"><img src="https://img.shields.io/badge/Server-Capricorn-d97706.svg" alt="Capricorn server"></a>
-  <a href="https://github.com/meet-aule/capricorn-app"><img src="https://img.shields.io/badge/App-capricorn--app-8250df.svg" alt="Capricorn app"></a>
+  <a href="https://github.com/meet-aule/aule-hw"><img src="https://img.shields.io/badge/Hardware-aule--hw-1f6feb.svg" alt="Aule hardware"></a>
+  <a href="https://github.com/meet-aule/aule-fw"><img src="https://img.shields.io/badge/Firmware-aule--fw-2da44e.svg" alt="Aule firmware"></a>
+  <a href="https://github.com/meet-aule/aule-sw"><img src="https://img.shields.io/badge/Server-Aule-d97706.svg" alt="Aule server"></a>
+  <a href="https://github.com/meet-aule/aule-app"><img src="https://img.shields.io/badge/App-aule--app-8250df.svg" alt="Aule app"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="Apache 2.0"></a>
 </p>
 
-**Capricorn is the open-source AI tutor.** This repository is its central server: what every Capricorn device and the family app talk to.
+**Aule is the open-source AI tutor.** This repository is its central server: what every Aule device and the family app talk to.
 
 A tutor for children should not stop working when a company changes its plans. So the server is open too: you can run it at home, at a school, or use the one Aule hosts.
 
 ## What it does
 
 - **The voice tutor.** A [LiveKit Agents](https://github.com/livekit/agents) worker joins the device's room, listens, thinks and answers out loud. It keeps turns short and patient, asks before it explains, and does not hand out answers.
-- **Devices.** Links a new device to its family, issues per-device credentials and room tokens, and serves firmware updates over the air, speaking the bootstrap protocol of [xiaozhi-esp32](https://github.com/78/xiaozhi-esp32) that the [firmware](https://github.com/meet-aule/capricorn-fw) is built on.
-- **Families.** The API behind the [app](https://github.com/meet-aule/capricorn-app): setup, progress, invitations, consent, privacy settings and deleting a child's data.
+- **Devices.** Links a new device to its family, issues per-device credentials and room tokens, and serves firmware updates over the air, speaking the bootstrap protocol of [xiaozhi-esp32](https://github.com/78/xiaozhi-esp32) that the [firmware](https://github.com/meet-aule/aule-fw) is built on.
+- **Families.** The API behind the [app](https://github.com/meet-aule/aule-app): setup, progress, invitations, consent, privacy settings and deleting a child's data.
 - **A model of what each child knows.** An open learner model estimates, skill by skill, what a child has mastered and what they are forgetting, and picks what to work on next. It needs no language model and can be corrected by a parent or a teacher.
 - **A supervisor.** A second model plans each session, follows it without slowing the conversation down, and afterwards turns it into progress, memories and a note for the family.
 - **Memory.** The tutor remembers what matters about a child between sessions, with embeddings computed on your own server.
@@ -62,10 +62,10 @@ To run it, copy `.env.example` to `.env`, fill it in, run `docker compose up -d 
 ## How the pieces fit
 
 ```
-capricorn-hw   the device: board, e-ink, audio, enclosure
-capricorn-fw   firmware: xiaozhi-esp32 + a LiveKit (WebRTC) transport
-capricorn-sw   central server: voice tutor, devices, family API     (this repository)
-capricorn-app  the family app: set up the device, see progress, privacy controls
+aule-hw   the device: board, e-ink, audio, enclosure
+aule-fw   firmware: xiaozhi-esp32 + a LiveKit (WebRTC) transport
+aule-sw   central server: voice tutor, devices, family API     (this repository)
+aule-app  the family app: set up the device, see progress, privacy controls
 ```
 
 ## License

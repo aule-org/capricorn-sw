@@ -14,7 +14,7 @@
 //!    device, and the one the code was given to.
 //!
 //! The routes under `/ota/` speak the check-in and activation protocol of
-//! xiaozhi-esp32, which the Capricorn firmware is built on.
+//! xiaozhi-esp32, which the Aule firmware is built on.
 
 use axum::Json;
 use axum::extract::{Path, State};
@@ -67,7 +67,7 @@ pub struct NewDevice {
     serial: String,
     /// The 32-byte key burned into the device, as 64 hex characters.
     hmac_key: String,
-    /// The board, such as `capricorn-v0.2`. Firmware is published per model.
+    /// The board, such as `aule-v0.2`. Firmware is published per model.
     model: String,
 }
 
@@ -439,7 +439,7 @@ pub async fn check_in(
         .await?;
         answer["activation"] = json!({
             "code": code,
-            "message": format!("capricorn\n{code}"),
+            "message": format!("aule\n{code}"),
             "challenge": challenge,
             "timeout_ms": 30_000,
         });

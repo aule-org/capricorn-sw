@@ -1,13 +1,13 @@
 # Aule quality runner
 
-One GitHub Actions runner on `aule-server`, shared by Capricorn SW and FW. It runs
+One GitHub Actions runner on `aule-server`, shared by Aule SW and FW. It runs
 Ruff, Clippy, dependency checks and Cppcheck. Results are attached to Actions runs;
 SARIF reports from the default branches also appear in each repository's
 **Security → Code scanning**. Public pull requests use GitHub-hosted runners.
 
 The organization runner group must match `runner-group.json`: access is limited
 to these two repositories and their `quality.yml` workflows at `main` (SW) and
-`capricorn` (FW), plus SW's manual runner smoke test in `ci.yml` on `main`.
+`aule` (FW), plus SW's manual runner smoke test in `ci.yml` on `main`.
 Do not enable the repository variable until GitHub returns
 `restricted_to_workflows: true` and the exact three allowed workflow refs.
 
@@ -50,7 +50,7 @@ To stop using the server, delete `AULE_QUALITY_RUNNER` in both repositories, the
 stop this Compose project. Keep the runner group policy intact until its runner
 has been removed. Do not stop, prune or recreate the application's containers.
 
-FW's Cppcheck pass covers the Capricorn board source without generated ESP-IDF
+FW's Cppcheck pass covers the Aule board source without generated ESP-IDF
 headers. It complements the existing three-board compiler matrix; it does not
 validate runtime behavior or hardware. Dependabot does not support ESP-IDF's
 component registry; those components remain aligned with XiaoZhi upstream.

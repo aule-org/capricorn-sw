@@ -41,7 +41,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @capricorn/playground typecheck
+      - run: pnpm --filter @aule/playground typecheck
       - run: pnpm test
 
   agent:
@@ -116,7 +116,7 @@ jobs:
         app: [agent, playground, platform]
     steps:
       - uses: actions/checkout@v7
-      - run: docker build --file apps/${{ matrix.app }}/Dockerfile --tag capricorn-${{ matrix.app }}:ci .
+      - run: docker build --file apps/${{ matrix.app }}/Dockerfile --tag aule-${{ matrix.app }}:ci .
 
   required:
     name: Software CI

@@ -9,12 +9,12 @@ COPY apps/agent/src ./src
 RUN uv sync --locked --no-dev --no-editable
 
 FROM python:3.14-slim
-RUN useradd --system --uid 10001 --home-dir /tmp capricorn
+RUN useradd --system --uid 10001 --home-dir /tmp aule
 COPY --from=build /app/.venv /app/.venv
 COPY contracts /app/contracts
 ENV PATH=/app/.venv/bin:$PATH \
-    CAPRICORN_CONTRACTS_DIR=/app/contracts \
+    AULE_CONTRACTS_DIR=/app/contracts \
     HOME=/tmp \
     PYTHONUNBUFFERED=1
-USER capricorn
-CMD ["python", "-m", "capricorn_agent.worker", "start"]
+USER aule
+CMD ["python", "-m", "aule_agent.worker", "start"]

@@ -11,7 +11,7 @@ const TRANSCRIPTION_TOPIC = "lk.transcription";
 const AGENT_STATE = "lk.agent.state";
 // Set by the tutor when a turn lasts while a button is held, like on the
 // device, instead of ending when the person goes quiet.
-const TURNS = "capricorn.turns";
+const TURNS = "aule.turns";
 // How long the microphone stays open after the button is let go, so the last
 // syllable is not cut.
 const TALK_TAIL_MS = 200;

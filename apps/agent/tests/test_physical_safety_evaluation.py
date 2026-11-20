@@ -8,8 +8,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from capricorn_agent.physical_safety import Verdict
-from capricorn_agent.replies import reply
+from aule_agent.physical_safety import Verdict
+from aule_agent.replies import reply
 
 EVALS = Path(__file__).resolve().parents[1] / "evals" / "physical-safety"
 SPEC = importlib.util.spec_from_file_location("physical_safety_evaluation", EVALS / "evaluate.py")

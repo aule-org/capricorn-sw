@@ -22,8 +22,8 @@ from pathlib import Path
 
 from livekit.agents import llm
 
-from capricorn_agent import physical_safety as gate
-from capricorn_agent.replies import ADULT_HELP_SEQUENCE, reply
+from aule_agent import physical_safety as gate
+from aule_agent.replies import ADULT_HELP_SEQUENCE, reply
 
 MAX_REPETITIONS = 3
 

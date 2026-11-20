@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from capricorn_agent.moderation import (
+from aule_agent.moderation import (
     MAX_CHARS,
     THRESHOLDS,
     Action,
@@ -190,8 +190,8 @@ async def test_a_local_self_harm_match_survives_a_provider_failure():
 
 
 async def test_the_first_check_gets_longer_and_later_ones_stay_bounded(monkeypatch):
-    monkeypatch.setattr("capricorn_agent.moderation.INITIAL_TIMEOUT_SECONDS", 0.5)
-    monkeypatch.setattr("capricorn_agent.moderation.TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr("aule_agent.moderation.INITIAL_TIMEOUT_SECONDS", 0.5)
+    monkeypatch.setattr("aule_agent.moderation.TIMEOUT_SECONDS", 0.01)
     guard, client = moderator(delay=0.05)
 
     assert (await guard.check("hello")).available
@@ -200,7 +200,7 @@ async def test_the_first_check_gets_longer_and_later_ones_stay_bounded(monkeypat
 
 
 async def test_a_late_first_check_is_cancelled_and_unavailable(monkeypatch):
-    monkeypatch.setattr("capricorn_agent.moderation.INITIAL_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr("aule_agent.moderation.INITIAL_TIMEOUT_SECONDS", 0.01)
     guard, client = moderator(delay=5)
 
     assert not (await guard.check("hello")).available

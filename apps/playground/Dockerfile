@@ -5,7 +5,7 @@ WORKDIR /repo
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY contracts/package.json contracts/
 COPY apps/playground/package.json apps/playground/
-RUN pnpm install --frozen-lockfile --prod --filter @capricorn/playground
+RUN pnpm install --frozen-lockfile --prod --filter @aule/playground
 
 FROM node:24-alpine
 ENV NODE_ENV=production

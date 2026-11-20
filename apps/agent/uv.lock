@@ -217,7 +217,7 @@ wheels = [
 ]
 
 [[package]]
-name = "capricorn-agent"
+name = "aule-agent"
 version = "0.0.0"
 source = { editable = "." }
 dependencies = [

@@ -25,7 +25,7 @@ from .moderation import Action, Decision, Finding, Moderator, classify_heard, cl
 from .opinion import SecondOpinion
 from .physical_safety import PhysicalSafetyGuard, Verdict, combine_input_decisions
 
-logger = logging.getLogger("capricorn.agent.safety")
+logger = logging.getLogger("aule.agent.safety")
 
 Audience = Literal["operator", "child"]
 

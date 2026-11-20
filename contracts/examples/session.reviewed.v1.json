@@ -1,7 +1,7 @@
 {
   "specversion": "1.0",
   "id": "3e1c9a52-7b4d-4f0e-9a6b-2d8c5e7f1a90",
-  "source": "capricorn/platform",
+  "source": "aule/platform",
   "type": "session.reviewed.v1",
   "time": "2026-11-17T15:41:02Z",
   "datacontenttype": "application/json",

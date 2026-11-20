@@ -267,7 +267,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     settings = readSettings(process.env);
   } catch (error) {
     if (error instanceof ConfigError) {
-      console.error(`capricorn-playground: ${error.message}`);
+      console.error(`aule-playground: ${error.message}`);
       process.exit(1);
     }
     throw error;

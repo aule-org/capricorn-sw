@@ -1,15 +1,15 @@
 import pytest
 
-from capricorn_agent.config import ConfigError, Settings
+from aule_agent.config import ConfigError, Settings
 
 COMPLETE = {
     "LIVEKIT_URL": "ws://127.0.0.1:7880",
     "LIVEKIT_API_KEY": "key",
     "LIVEKIT_API_SECRET": "secret",
     "ANTHROPIC_API_KEY": "sk-test",
-    "CAPRICORN_STT": "assemblyai",
+    "AULE_STT": "assemblyai",
     "ASSEMBLYAI_API_KEY": "aai",
-    "CAPRICORN_TTS": "cartesia",
+    "AULE_TTS": "cartesia",
     "CARTESIA_API_KEY": "car",
 }
 
@@ -17,7 +17,7 @@ COMPLETE = {
 def test_reads_a_complete_environment_with_defaults():
     settings = Settings.from_env(COMPLETE)
 
-    assert settings.agent_name == "capricorn-tutor"
+    assert settings.agent_name == "aule-tutor"
     assert (settings.stt, settings.tts) == ("assemblyai", "cartesia")
     assert settings.language == "es"
     assert settings.session_max_minutes == 15
@@ -26,21 +26,21 @@ def test_reads_a_complete_environment_with_defaults():
 
 def test_reports_every_problem_at_once():
     with pytest.raises(ConfigError) as error:
-        Settings.from_env({"CAPRICORN_STT": "deepgram", "CAPRICORN_SESSION_MAX_MINUTES": "0"})
+        Settings.from_env({"AULE_STT": "deepgram", "AULE_SESSION_MAX_MINUTES": "0"})
 
     message = str(error.value)
     for expected in (
-        "CAPRICORN_TTS must be one of",
+        "AULE_TTS must be one of",
         "LIVEKIT_URL is not set",
         "ANTHROPIC_API_KEY is not set",
         "DEEPGRAM_API_KEY is not set",
-        "CAPRICORN_SESSION_MAX_MINUTES",
+        "AULE_SESSION_MAX_MINUTES",
     ):
         assert expected in message
 
 
 def test_requires_the_key_of_the_chosen_provider_only():
-    env = {**COMPLETE, "CAPRICORN_TTS": "openai"}
+    env = {**COMPLETE, "AULE_TTS": "openai"}
 
     with pytest.raises(ConfigError, match="^OPENAI_API_KEY is not set$"):
         Settings.from_env(env)
@@ -52,8 +52,8 @@ def test_a_blank_key_counts_as_missing():
 
 
 def test_rejects_an_unsupported_language():
-    with pytest.raises(ConfigError, match="CAPRICORN_LANGUAGE"):
-        Settings.from_env({**COMPLETE, "CAPRICORN_LANGUAGE": "fr"})
+    with pytest.raises(ConfigError, match="AULE_LANGUAGE"):
+        Settings.from_env({**COMPLETE, "AULE_LANGUAGE": "fr"})
 
 
 def test_each_gate_is_configured_by_its_key_and_no_key_is_shown():
@@ -73,20 +73,20 @@ def test_each_gate_is_configured_by_its_key_and_no_key_is_shown():
 def test_assemblyai_speaks_with_the_key_it_also_hears_with():
     # The STT key doubles as the TTS key, so choosing assemblyai for speech
     # needs nothing beyond what hearing already required.
-    settings = Settings.from_env({**COMPLETE, "CAPRICORN_TTS": "assemblyai"})
+    settings = Settings.from_env({**COMPLETE, "AULE_TTS": "assemblyai"})
 
     assert settings.tts == "assemblyai"
 
 
 def test_push_to_talk_is_off_unless_turned_on():
     assert Settings.from_env(COMPLETE).push_to_talk is False
-    assert Settings.from_env({**COMPLETE, "CAPRICORN_PUSH_TO_TALK": "1"}).push_to_talk is True
-    assert Settings.from_env({**COMPLETE, "CAPRICORN_PUSH_TO_TALK": "true"}).push_to_talk is True
-    assert Settings.from_env({**COMPLETE, "CAPRICORN_PUSH_TO_TALK": "no"}).push_to_talk is False
+    assert Settings.from_env({**COMPLETE, "AULE_PUSH_TO_TALK": "1"}).push_to_talk is True
+    assert Settings.from_env({**COMPLETE, "AULE_PUSH_TO_TALK": "true"}).push_to_talk is True
+    assert Settings.from_env({**COMPLETE, "AULE_PUSH_TO_TALK": "no"}).push_to_talk is False
 
 
 def test_the_moderation_key_is_also_the_speech_key_when_openai_speaks():
-    settings = Settings.from_env({**COMPLETE, "CAPRICORN_TTS": "openai", "OPENAI_API_KEY": "sk"})
+    settings = Settings.from_env({**COMPLETE, "AULE_TTS": "openai", "OPENAI_API_KEY": "sk"})
 
     assert settings.tts == "openai"
     assert settings.openai_api_key == "sk"
@@ -110,7 +110,7 @@ def test_the_tutor_model_answers_with_text_not_only_thinking(monkeypatch):
     # ceiling and can leave no text: every call must limit it to between tools.
     from livekit.plugins import anthropic
 
-    from capricorn_agent import providers
+    from aule_agent import providers
 
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
     seen = {}
@@ -120,7 +120,7 @@ def test_the_tutor_model_answers_with_text_not_only_thinking(monkeypatch):
     assert seen["extra_kwargs"]["thinking"] == {"type": "between_tools"}
 
     seen.clear()
-    other = Settings.from_env({**COMPLETE, "CAPRICORN_LLM_MODEL": "claude-opus-5-5"})
+    other = Settings.from_env({**COMPLETE, "AULE_LLM_MODEL": "claude-opus-5-5"})
     built = providers.build_llm(other)
     built.chat(chat_ctx=None)
     assert "extra_kwargs" not in seen

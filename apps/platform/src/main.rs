@@ -1,11 +1,11 @@
-//! `capricorn-platform serve` runs the API, `worker` runs the jobs, `migrate`
+//! `aule-platform serve` runs the API, `worker` runs the jobs, `migrate`
 //! only brings the database up to date, and `import-skills <file>` loads a
 //! skill catalog such as `curriculum/math-primaria.json`. `serve` and `worker`
 //! also migrate first, so one of them is enough to start from an empty database.
 
-use capricorn_platform::config::Config;
-use capricorn_platform::state::AppState;
-use capricorn_platform::{http, jobs, learning};
+use aule_platform::config::Config;
+use aule_platform::state::AppState;
+use aule_platform::{http, jobs, learning};
 use sqlx::postgres::PgPoolOptions;
 
 #[derive(serde::Deserialize)]
@@ -24,11 +24,11 @@ async fn main() {
 
     let command = std::env::args().nth(1).unwrap_or_else(|| "serve".to_string());
     if !["serve", "worker", "migrate", "import-skills"].contains(&command.as_str()) {
-        eprintln!("usage: capricorn-platform [serve|worker|migrate|import-skills <file>]");
+        eprintln!("usage: aule-platform [serve|worker|migrate|import-skills <file>]");
         std::process::exit(2);
     }
     let config = Config::from_env().unwrap_or_else(|error| {
-        eprintln!("capricorn-platform: {error}");
+        eprintln!("aule-platform: {error}");
         std::process::exit(1);
     });
     let pool = PgPoolOptions::new()
@@ -36,7 +36,7 @@ async fn main() {
         .connect(&config.database_url)
         .await
         .unwrap_or_else(|error| fail("the database could not be reached", error));
-    capricorn_platform::MIGRATOR.run(&pool).await.unwrap_or_else(|error| fail("migrations failed", error));
+    aule_platform::MIGRATOR.run(&pool).await.unwrap_or_else(|error| fail("migrations failed", error));
 
     let state = AppState::new(pool, config);
     match command.as_str() {
@@ -74,7 +74,7 @@ async fn main() {
 }
 
 fn fail(what: &str, error: impl std::fmt::Display) -> ! {
-    eprintln!("capricorn-platform: {what}: {error}");
+    eprintln!("aule-platform: {what}: {error}");
     std::process::exit(1);
 }
 

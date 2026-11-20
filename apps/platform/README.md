@@ -1,12 +1,12 @@
 # Platform
 
-What Capricorn knows and decides outside the conversation: children and what their guardians consented to, sessions, the learner model, memory and the supervisor. One Rust crate, two processes:
+What Aule knows and decides outside the conversation: children and what their guardians consented to, sessions, the learner model, memory and the supervisor. One Rust crate, two processes:
 
 ```bash
-capricorn-platform serve     # the API
-capricorn-platform worker    # session reviews, retention, housekeeping
-capricorn-platform migrate   # only bring the database up to date
-capricorn-platform import-skills curriculum/math-primaria.json
+aule-platform serve     # the API
+aule-platform worker    # session reviews, retention, housekeeping
+aule-platform migrate   # only bring the database up to date
+aule-platform import-skills curriculum/math-primaria.json
 ```
 
 `serve` and `worker` migrate on start, so either is enough for an empty database. [ARCHITECTURE.md](../../ARCHITECTURE.md) explains how the pieces think together.
@@ -29,7 +29,7 @@ capricorn-platform import-skills curriculum/math-primaria.json
 
 Three kinds of caller use `Authorization: Bearer ...`:
 
-- the **operator**, with `CAPRICORN_ADMIN_TOKEN`, for running the server;
+- the **operator**, with `AULE_ADMIN_TOKEN`, for running the server;
 - a **guardian**, with the token they get by signing in, who reaches only their own family;
 - the **agent**, with the token of one session.
 
@@ -78,14 +78,14 @@ Devices do not use a bearer token: they sign with the key burned into them.
 | `POST /ota/activate` | device | Signs the challenge that came with the code. 200 once linked, 202 while waiting for a guardian |
 | `POST /ota/session` | device | Starts a session for its child. Signed with a fresh timestamp; each signature works once |
 
-`/ota/` and `/ota/activate` follow the check-in and activation protocol of xiaozhi-esp32. `/ota/session` is Capricorn's own: the body is `{"serial_number", "timestamp", "hmac"}`, where `hmac` is HMAC-SHA256 of `session:<serial>:<timestamp>` under the device's key, in hex.
+`/ota/` and `/ota/activate` follow the check-in and activation protocol of xiaozhi-esp32. `/ota/session` is Aule's own: the body is `{"serial_number", "timestamp", "hmac"}`, where `hmac` is HMAC-SHA256 of `session:<serial>:<timestamp>` under the device's key, in hex.
 
 ### Operator only
 
 | Route | What it does |
 |---|---|
 | `POST /v1/families` | A family and its first guardian, without sign-in |
-| `PUT /v1/skills` | Loads skills into the catalog (`capricorn-platform import-skills <file>` does the same from a file) |
+| `PUT /v1/skills` | Loads skills into the catalog (`aule-platform import-skills <file>` does the same from a file) |
 | `GET /v1/sessions/{id}/supervisor` | The plan and guidance of one session and, once it has been reviewed, `review`: the summary and next step written for the family, and `exercises`: each checked exercise with its answer, tries, hints and outcome |
 
 ### Agent
@@ -114,11 +114,11 @@ Events are written to an outbox in the same transaction as the change they descr
 
 The platform consumes its own events to write notices: a summary after each reviewed session, and one short, fixed-text note per session when a gate that listens to the child answered with support or asked for an adult. A new notice is also emailed and announced with a push. The push carries fixed text and the notice's id, never the child's name or what happened, because a locked phone shows it to whoever holds it.
 
-With `CAPRICORN_EVENTS_WEBHOOK_URL` set, each event is also posted there as a CloudEvent with `X-Capricorn-Signature: sha256=<HMAC of the body>`.
+With `AULE_EVENTS_WEBHOOK_URL` set, each event is also posted there as a CloudEvent with `X-Aule-Signature: sha256=<HMAC of the body>`.
 
 ## Settings
 
-`.env.example` at the repository root lists them. Only `DATABASE_URL` and `CAPRICORN_ADMIN_TOKEN` are required: without LiveKit keys no session can be created, without mail settings nobody can sign in and notices stay in the app, without a Firebase service account there are no pushes, without `ANTHROPIC_API_KEY` plans come from the learner model alone and there is no guidance or review, and without `CAPRICORN_EMBEDDINGS_URL` memories are recalled by date.
+`.env.example` at the repository root lists them. Only `DATABASE_URL` and `AULE_ADMIN_TOKEN` are required: without LiveKit keys no session can be created, without mail settings nobody can sign in and notices stay in the app, without a Firebase service account there are no pushes, without `ANTHROPIC_API_KEY` plans come from the learner model alone and there is no guidance or review, and without `AULE_EMBEDDINGS_URL` memories are recalled by date.
 
 The embedding model must return 1024 dimensions (`bge-m3` does). Another size needs a migration.
 

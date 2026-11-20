@@ -16,7 +16,7 @@ from jsonschema import Draft202012Validator
 from .events import contracts_dir
 
 # The room's text-stream topic visuals travel on.
-TOPIC = "capricorn.visual"
+TOPIC = "aule.visual"
 
 DESCRIPTION = (
     "Show something on the student's screen while you keep talking. Each call replaces what "

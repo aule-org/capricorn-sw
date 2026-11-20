@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from capricorn_agent.usage import Usage
+from aule_agent.usage import Usage
 
 
 def test_a_session_adds_up_its_model_calls():

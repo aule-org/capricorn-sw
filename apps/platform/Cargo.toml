@@ -1,19 +1,19 @@
 [package]
-name = "capricorn-platform"
+name = "aule-platform"
 version = "0.0.0"
 edition = "2024"
 rust-version = "1.94"
 license = "Apache-2.0"
-description = "Capricorn's platform: families, children, consent, sessions, the learning model, memory and the supervisor"
-repository = "https://github.com/meet-aule/capricorn-sw"
+description = "Aule's platform: families, children, consent, sessions, the learning model, memory and the supervisor"
+repository = "https://github.com/meet-aule/aule-sw"
 publish = false
 
 [lib]
-name = "capricorn_platform"
+name = "aule_platform"
 path = "src/lib.rs"
 
 [[bin]]
-name = "capricorn-platform"
+name = "aule-platform"
 path = "src/main.rs"
 
 [dependencies]

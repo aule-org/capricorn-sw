@@ -1,9 +1,9 @@
 {
-  "name": "@capricorn/playground",
+  "name": "@aule/playground",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "A web page to talk to the Capricorn tutor with a microphone and a camera, for the people running a server",
+  "description": "A web page to talk to the Aule tutor with a microphone and a camera, for the people running a server",
   "scripts": {
     "start": "node src/server.ts",
     "typecheck": "tsc --noEmit",

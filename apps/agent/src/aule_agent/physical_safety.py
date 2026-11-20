@@ -25,7 +25,7 @@ from livekit.agents import llm
 
 from .moderation import Action, Decision
 
-logger = logging.getLogger("capricorn.agent.physical_safety")
+logger = logging.getLogger("aule.agent.physical_safety")
 
 # The model, the question and the thresholds were evaluated together (see
 # evals/physical-safety). Changing any of them needs a new evaluation.

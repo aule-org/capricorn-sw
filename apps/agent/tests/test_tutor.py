@@ -7,9 +7,9 @@ import pytest
 from livekit import rtc
 from livekit.agents import StopResponse, llm
 
-from capricorn_agent.moderation import Action, Decision
-from capricorn_agent.replies import ADULT_HELP_SEQUENCE, REPLIES, reply
-from capricorn_agent.tutor import (
+from aule_agent.moderation import Action, Decision
+from aule_agent.replies import ADULT_HELP_SEQUENCE, REPLIES, reply
+from aule_agent.tutor import (
     INSTRUCTIONS,
     MAX_TYPED_CHARS,
     UNCHECKED,
@@ -21,12 +21,12 @@ from capricorn_agent.tutor import (
     persona_notes,
     with_frame,
 )
-from capricorn_agent.worker import GOODBYE, language_of, persona_of
+from aule_agent.worker import GOODBYE, language_of, persona_of
 
 
 @pytest.fixture(autouse=True)
 def no_waiting_for_a_missing_reply(monkeypatch):
-    monkeypatch.setattr("capricorn_agent.tutor.NO_REPLY_SECONDS", 0)
+    monkeypatch.setattr("aule_agent.tutor.NO_REPLY_SECONDS", 0)
 
 
 def frame():
@@ -389,7 +389,7 @@ async def test_an_accepted_turn_without_a_reply_is_reported(caplog):
     session = Session()
     session.agent_state = "listening"
 
-    with caplog.at_level("WARNING", logger="capricorn.agent.tutor"):
+    with caplog.at_level("WARNING", logger="aule.agent.tutor"):
         assert await hear(tutor, session)
         with patch.object(Tutor, "session", new_callable=PropertyMock, return_value=session):
             await asyncio.gather(*tutor._watches)
@@ -403,7 +403,7 @@ async def test_an_answered_turn_is_not_reported(caplog):
     session = Session()
     session.agent_state = "speaking"
 
-    with caplog.at_level("WARNING", logger="capricorn.agent.tutor"):
+    with caplog.at_level("WARNING", logger="aule.agent.tutor"):
         assert await hear(tutor, session)
         tutor._model_done_at = time.monotonic()
         with patch.object(Tutor, "session", new_callable=PropertyMock, return_value=session):

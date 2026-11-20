@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from capricorn_agent.opinion import MODEL, SecondOpinion
+from aule_agent.opinion import MODEL, SecondOpinion
 
 
 class FakeClient:
@@ -43,7 +43,7 @@ async def test_the_reply_is_sent_alone_to_the_small_model():
 
 
 async def test_no_opinion_is_not_a_yes(monkeypatch):
-    monkeypatch.setattr("capricorn_agent.opinion.TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr("aule_agent.opinion.TIMEOUT_SECONDS", 0.01)
 
     assert not await SecondOpinion(client=FakeClient(delay=1)).safe("x")
     assert not await SecondOpinion(client=FakeClient(RuntimeError("down"))).safe("x")

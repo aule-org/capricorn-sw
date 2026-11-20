@@ -1,6 +1,6 @@
 # Contracts
 
-The events Capricorn's components send each other, as JSON Schema. This folder is the single source of truth: the Node platform and the Python agent both validate against these files, so a change here that one side does not follow fails its tests.
+The events Aule's components send each other, as JSON Schema. This folder is the single source of truth: the Node platform and the Python agent both validate against these files, so a change here that one side does not follow fails its tests.
 
 ```text
 envelope.schema.json   the envelope every event uses (CloudEvents 1.0, structured JSON)
@@ -28,4 +28,4 @@ cd apps/agent && uv run pytest          # Python: same examples, plus the agent'
 
 ## Visuals
 
-`visuals/visual.v1.schema.json` describes what the tutor can put on the student's screen: the statement of an exercise, fraction bars, a number line, an array of dots, a table, a bar chart or a rectangle with its sides. It is a description, not a picture. The agent's `show` tool takes exactly this shape, checks it and sends it to the room on the text-stream topic `capricorn.visual`; each screen draws it itself, in black on white, so it costs nothing to render and works on e-ink. A new kind needs its example here, a drawing in every screen that shows visuals, and a line in the tool's description.
+`visuals/visual.v1.schema.json` describes what the tutor can put on the student's screen: the statement of an exercise, fraction bars, a number line, an array of dots, a table, a bar chart or a rectangle with its sides. It is a description, not a picture. The agent's `show` tool takes exactly this shape, checks it and sends it to the room on the text-stream topic `aule.visual`; each screen draws it itself, in black on white, so it costs nothing to render and works on e-ink. A new kind needs its example here, a drawing in every screen that shows visuals, and a line in the tool's description.

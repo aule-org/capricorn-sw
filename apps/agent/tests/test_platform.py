@@ -1,7 +1,7 @@
 import asyncio
 import json
 
-from capricorn_agent.platform import (
+from aule_agent.platform import (
     FLAG_COOLDOWN_SECONDS,
     MAX_FLAGS_IN_FLIGHT,
     MAX_PENDING_TURNS,
@@ -11,7 +11,7 @@ from capricorn_agent.platform import (
 )
 
 SESSION = PlatformSession(url="http://platform", token="t")
-ENV = {"CAPRICORN_PLATFORM_URL": "http://platform/"}
+ENV = {"AULE_PLATFORM_URL": "http://platform/"}
 
 
 class Recorder:
@@ -40,14 +40,14 @@ def test_a_job_belongs_to_a_platform_session_only_with_a_url_and_a_token():
 
 
 async def test_start_returns_the_instructions_or_nothing(monkeypatch):
-    monkeypatch.setattr("capricorn_agent.platform.START_RETRY_SECONDS", 0)
+    monkeypatch.setattr("aule_agent.platform.START_RETRY_SECONDS", 0)
     assert await Platform(SESSION, Recorder({"instructions": "Plan"})).start() == "Plan"
     assert await Platform(SESSION, Recorder({})).start() == ""
     assert await Platform(SESSION, Recorder(RuntimeError("down"))).start() == ""
 
 
 async def test_start_tries_once_more_when_the_platform_is_restarting(monkeypatch):
-    monkeypatch.setattr("capricorn_agent.platform.START_RETRY_SECONDS", 0)
+    monkeypatch.setattr("aule_agent.platform.START_RETRY_SECONDS", 0)
     send = Recorder(RuntimeError("down"), {"instructions": "Plan"})
 
     assert await Platform(SESSION, send).start() == "Plan"
@@ -166,7 +166,7 @@ async def test_backlogged_turns_fit_the_api_limit_before_ending():
 
 
 async def test_a_failed_report_is_retried_without_waiting_for_another_turn(monkeypatch):
-    monkeypatch.setattr("capricorn_agent.platform.REPORT_RETRY_SECONDS", 0.01, raising=False)
+    monkeypatch.setattr("aule_agent.platform.REPORT_RETRY_SECONDS", 0.01, raising=False)
     delivered = asyncio.Event()
     calls = []
 
@@ -219,7 +219,7 @@ async def test_cancelling_an_inflight_report_keeps_its_turn_for_shutdown():
 
 
 async def test_shutdown_retries_a_failed_flush_before_ending(monkeypatch):
-    monkeypatch.setattr("capricorn_agent.platform.REPORT_RETRY_SECONDS", 0.01)
+    monkeypatch.setattr("aule_agent.platform.REPORT_RETRY_SECONDS", 0.01)
     send = Recorder(RuntimeError("temporary outage"), {}, {})
     platform = Platform(SESSION, send)
     platform.heard("user", "last turn")
@@ -235,8 +235,8 @@ async def test_shutdown_retries_a_failed_flush_before_ending(monkeypatch):
 
 
 async def test_shutdown_bounds_an_outage_and_reports_the_loss(monkeypatch, caplog):
-    monkeypatch.setattr("capricorn_agent.platform.REPORT_RETRY_SECONDS", 0.01)
-    monkeypatch.setattr("capricorn_agent.platform.END_FLUSH_TIMEOUT_SECONDS", 0.03)
+    monkeypatch.setattr("aule_agent.platform.REPORT_RETRY_SECONDS", 0.01)
+    monkeypatch.setattr("aule_agent.platform.END_FLUSH_TIMEOUT_SECONDS", 0.03)
     calls = []
 
     async def send(method, path, body, timeout):
@@ -351,7 +351,7 @@ async def test_a_flag_that_did_not_arrive_does_not_use_up_the_cooldown():
 
 
 async def test_flags_in_flight_are_bounded_and_the_end_does_not_wait_for_them(monkeypatch):
-    monkeypatch.setattr("capricorn_agent.platform.FLAG_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr("aule_agent.platform.FLAG_TIMEOUT_SECONDS", 0.01)
     calls = []
 
     async def send(method, path, body, timeout):
