@@ -11,6 +11,7 @@ from livekit import rtc
 from livekit.agents import Agent, ModelSettings, StopResponse, function_tool, llm
 
 from . import visuals
+from .greetings import greeting as written_greeting
 from .replies import ADULT_HELP_SEQUENCE, OFFERS, reply
 from .safety import Gates
 
@@ -255,13 +256,6 @@ that computation is open, for everything they reply, an "I don't know" or a doub
 check_answer with their words and do what it tells you. With none open, do not use them.""",
 }
 
-GREETING = {
-    "es": "Saluda con calidez en una frase como Aule y hazle una sola pregunta corta para \
-romper el hielo, sobre cómo le fue hoy o esta semana. Todavía no empieces la actividad.",
-    "en": "Greet warmly in one sentence as Aule and ask one short question to break the ice, \
-about how today or this week went. Do not start the activity yet.",
-}
-
 
 def with_frame(chat_ctx: llm.ChatContext, frame: rtc.VideoFrame | None) -> llm.ChatContext:
     """A copy of the context whose last user message also carries the camera frame.
@@ -361,12 +355,15 @@ class Tutor(Agent):
         show: Show | None = None,
         persona: Persona | None = None,
         checker: Checker | None = None,
+        student_name: str | None = None,
+        session_number: int | None = None,
     ) -> None:
         # `context` is what the platform knows about this student and the
         # supervisor's plan for the session; empty when there is no platform.
         # `show` is given when the student has a screen to draw on.
         # `checker` judges answers to computations, so the model neither has to
         # work them out nor holds the answer of an exercise that is still open.
+        # `student_name` and `session_number` only choose and fill the greeting.
         # `persona` is the tutor's name, tone preset and (already-moderated)
         # family note; the default leaves the prompt exactly as written.
         persona = persona or Persona()
@@ -423,10 +420,9 @@ class Tutor(Agent):
         self._hazards_in_a_row = 0
         self._model_done_at = 0.0
         self._watches: set[asyncio.Task[None]] = set()
-        greeting = GREETING[language]
-        if persona.name != DEFAULT_TUTOR_NAME:
-            greeting = greeting.replace(DEFAULT_TUTOR_NAME, persona.name)
-        self._greeting = greeting
+        self._tutor_name = persona.name
+        self._student_name = student_name
+        self._session_number = session_number
 
     async def advise(self, guidance: str) -> None:
         """Applies the supervisor's latest guidance to the turns that follow.
@@ -448,7 +444,19 @@ class Tutor(Agent):
         await self.update_instructions(with_notes(self._base, self._guidance))
 
     async def on_enter(self) -> None:
-        self.session.generate_reply(instructions=self._greeting)
+        # A written greeting, said at once. The name is a family's own text, so
+        # the greeting with it is judged like anything else that is spoken, and
+        # the one without it is said if that does not pass.
+        named = written_greeting(
+            self._language, self._tutor_name, self._student_name, self._session_number
+        )
+        allowed = self._student_name is None or (await self._gates.spoken(named)).allowed
+        text = (
+            named
+            if allowed
+            else written_greeting(self._language, self._tutor_name, None, self._session_number)
+        )
+        await self.session.say(text, add_to_chat_ctx=True, allow_interruptions=True)
 
     async def on_user_turn_completed(
         self, turn_ctx: llm.ChatContext, new_message: llm.ChatMessage
