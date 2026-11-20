@@ -669,10 +669,52 @@ function closeLobby() {
   entry.hidden = false;
 }
 
+// The end of a session sounds like Aule nodding off: three soft bell notes
+// going down, the last one sinking a little, like a yawn. Made here with the
+// browser's own audio, so there is no file to fetch. The audio is unlocked
+// when the person joins, since browsers only play after a click.
+let chimes = null;
+
+function readyChime() {
+  try {
+    chimes ??= new AudioContext();
+    chimes.resume();
+  } catch {
+    // Without audio the session still ends; it just ends quietly.
+  }
+}
+
+function chime() {
+  if (!chimes) return;
+  const start = chimes.currentTime + 0.05;
+  // G5, E5, C5, with a faint octave over the last one, like the ring of a bell.
+  const notes = [
+    { hz: 783.99, at: 0, length: 0.5, loud: 0.14 },
+    { hz: 659.25, at: 0.17, length: 0.5, loud: 0.13 },
+    { hz: 523.25, at: 0.34, length: 1.3, loud: 0.15, sinks: true },
+    { hz: 1046.5, at: 0.34, length: 0.9, loud: 0.03 },
+  ];
+  for (const note of notes) {
+    const tone = chimes.createOscillator();
+    const level = chimes.createGain();
+    const when = start + note.at;
+    tone.type = note.loud > 0.05 ? "triangle" : "sine";
+    tone.frequency.setValueAtTime(note.hz, when);
+    if (note.sinks) tone.frequency.exponentialRampToValueAtTime(note.hz * 0.94, when + note.length);
+    level.gain.setValueAtTime(0.0001, when);
+    level.gain.exponentialRampToValueAtTime(note.loud, when + 0.015);
+    level.gain.exponentialRampToValueAtTime(0.0001, when + note.length);
+    tone.connect(level).connect(chimes.destination);
+    tone.start(when);
+    tone.stop(when + note.length + 0.05);
+  }
+}
+
 function leave(reason) {
   if (!room) return;
   const leaving = room;
   room = null;
+  chime();
   clearInterval(clock);
   clearTimeout(tutorTimer);
   stopSteps();
@@ -715,6 +757,7 @@ $("lobby-cam").addEventListener("click", () => {
 $("back").addEventListener("click", closeLobby);
 
 $("join").addEventListener("click", async () => {
+  readyChime();
   $("join").disabled = true;
   $("transcript").replaceChildren();
   following = true;

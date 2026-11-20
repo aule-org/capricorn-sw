@@ -75,6 +75,7 @@ class Pace:
         self._heard_at = self._started
         self._asked_if_there = False
         self.closed_for_inactivity = False
+        self.closed_after_goodbye = False
 
     def minutes(self) -> float:
         """How long the session has lasted."""
@@ -89,6 +90,15 @@ class Pace:
             await self._say(line, remembered=True)
         await self._sleep(max(0.0, self._max_seconds - (self._clock() - self._started)))
         await self._say("goodbye", remembered=False)
+        self._session.shutdown()
+
+    async def farewell(self) -> None:
+        """The student said goodbye: the tutor says it back and the session closes."""
+        if self.closed_after_goodbye:
+            return
+        self.closed_after_goodbye = True
+        logger.info("closed after a goodbye", extra={"minutes": round(self.minutes(), 1)})
+        await self._say("farewell", remembered=False)
         self._session.shutdown()
 
     async def take_a_break(self) -> None:
