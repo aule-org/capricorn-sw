@@ -163,6 +163,8 @@ async def entrypoint(ctx: JobContext) -> None:
         show=show,
         persona=persona,
         checker=platform,
+        student_name=platform.student_name if platform else None,
+        session_number=platform.session_number if platform else None,
     )
     usage = Usage()
     model = build_llm(settings)

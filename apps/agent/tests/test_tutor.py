@@ -7,6 +7,7 @@ import pytest
 from livekit import rtc
 from livekit.agents import StopResponse, llm
 
+from aule_agent.greetings import GREETINGS, greeting
 from aule_agent.moderation import Action, Decision
 from aule_agent.replies import ADULT_HELP_SEQUENCE, REPLIES, reply
 from aule_agent.tutor import (
@@ -251,13 +252,13 @@ def test_persona_notes_add_nothing_by_default_and_a_bounded_wish_with_a_note():
 def test_a_named_persona_renames_the_tutor_and_the_default_leaves_the_prompt_as_written():
     default = Tutor(language="es", gates=ScriptedGates(ALLOW))
     assert default._base == INSTRUCTIONS["es"]
-    assert "Aule" in default._greeting
+    assert default._tutor_name == "Aule"
 
     named = Tutor(
         language="es", gates=ScriptedGates(ALLOW), persona=Persona(name="Luna", preset="jugueton")
     )
     assert "Eres Luna" in named._base and "Aule" not in named._base
-    assert "Luna" in named._greeting and "Aule" not in named._greeting
+    assert named._tutor_name == "Luna"
     # The tone line sits last, after the teaching, safety and context.
     assert named._base.rstrip().endswith("divertido.")
 
@@ -455,3 +456,45 @@ async def test_only_the_paragraph_for_the_student_is_spoken_and_judged():
 def test_a_reply_of_one_paragraph_is_left_as_written():
     assert for_the_student("Muy bien.\nSigamos.") == "Muy bien.\nSigamos."
     assert for_the_student("Pienso.\n\n\n  Hola.  ") == "Hola."
+
+
+async def enter(tutor, session):
+    with patch.object(Tutor, "session", new_callable=PropertyMock, return_value=session):
+        await tutor.on_enter()
+
+
+async def test_the_session_opens_with_a_written_greeting_and_no_model():
+    tutor = Tutor(language="es", gates=ScriptedGates(ALLOW), student_name="Liam", session_number=0)
+    session = Session()
+
+    await enter(tutor, session)
+
+    assert session.said == [
+        ("¡Hola, Liam! Soy Aule, qué gusto verte. Cuéntame, ¿cómo te fue hoy?", True, True)
+    ]
+    assert not hasattr(session, "replies_to")
+
+
+async def test_a_name_the_gate_stops_is_left_out_of_the_greeting():
+    stopped = ScriptedGates(Decision(Action.REDIRECT, "redirect"))
+    tutor = Tutor(language="en", gates=stopped, student_name="x", session_number=1)
+    session = Session()
+
+    await enter(tutor, session)
+
+    assert session.said == [("Hi! Aule here. What was the best part of your day?", True, True)]
+
+
+def test_greetings_are_taken_in_turn_carry_the_tutors_name_and_exist_in_every_language():
+    for language in ("es", "en"):
+        said = [
+            greeting(language, "Luna", "Liam", number) for number in range(len(GREETINGS[language]))
+        ]
+        assert len(set(said)) == len(GREETINGS[language])
+        assert all("Luna" in text and "Liam" in text and "{" not in text for text in said)
+        assert greeting(language, "Luna", None, 0) != said[0]
+        assert greeting(language, "Luna", "Liam", len(said)) == said[0]
+        assert greeting(language, "Luna") in [
+            greeting(language, "Luna", None, number) for number in range(len(said))
+        ]
+    assert len(GREETINGS["es"]) == len(GREETINGS["en"]) >= 10

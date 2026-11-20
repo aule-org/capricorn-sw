@@ -428,3 +428,14 @@ async def test_a_session_stopped_for_not_working_ends_saying_so():
     await platform.end()
 
     assert send.calls[-1] == ("POST", "/v1/agent/session/end", {"end_reason": "not_working"})
+
+
+async def test_the_name_and_the_number_of_the_session_are_read_for_the_greeting():
+    platform = Platform(SESSION, Recorder({"student_name": " Liam ", "session_number": 7}))
+    odd = Platform(SESSION, Recorder({"student_name": "x" * 41, "session_number": True}))
+
+    await platform.start()
+    await odd.start()
+
+    assert (platform.student_name, platform.session_number) == ("Liam", 7)
+    assert (odd.student_name, odd.session_number) == (None, None)
