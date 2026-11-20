@@ -27,6 +27,9 @@ pub struct Config {
     /// The Google client that guardians' sign-ins must have been issued for.
     /// Without one, the emailed code is the only way in.
     pub google_client_id: Option<String>,
+    /// The addresses of Aule's team: signed in like a family, they also reach
+    /// the admin routes.
+    pub admin_emails: Vec<String>,
     /// GitHub's OAuth app, Meta's app and Apple's Services ID for sign-in.
     /// Each provider is offered only when all its settings are there.
     pub github: Option<OAuthApp>,
@@ -225,6 +228,16 @@ impl Config {
             problems.push("AULE_GOOGLE_CLIENT_ID must end in .apps.googleusercontent.com".into());
         }
 
+        let admin_emails: Vec<String> = get("AULE_ADMIN_EMAILS")
+            .unwrap_or_default()
+            .split(',')
+            .map(|email| email.trim().to_lowercase())
+            .filter(|email| !email.is_empty())
+            .collect();
+        if admin_emails.iter().any(|email| crate::signin::normalized_email(email).is_err()) {
+            problems.push("AULE_ADMIN_EMAILS must be email addresses separated by commas".into());
+        }
+
         let mut app = |id: &str, secret: &str| match (get(id), get(secret)) {
             (Some(client_id), Some(client_secret)) => {
                 Some(OAuthApp { client_id: client_id.to_string(), client_secret: client_secret.to_string() })
@@ -288,6 +301,7 @@ impl Config {
             events_webhook,
             fcm_service_account: get("AULE_FCM_SERVICE_ACCOUNT").map(str::to_string),
             google_client_id,
+            admin_emails,
             github,
             meta,
             apple,
@@ -320,6 +334,16 @@ mod tests {
         assert!(config.livekit.is_none() && config.supervisor.is_none() && config.embeddings.is_none());
         assert!(config.mail.is_none() && config.events_webhook.is_none());
         assert!(config.github.is_none() && config.meta.is_none() && config.apple.is_none());
+        assert!(config.admin_emails.is_empty());
+
+        let mut env = complete();
+        env.insert("AULE_ADMIN_EMAILS".into(), " Admin@Example.org, gonzalo@example.org ,".into());
+        assert_eq!(
+            Config::from_map(&env).unwrap().admin_emails,
+            ["admin@example.org", "gonzalo@example.org"]
+        );
+        env.insert("AULE_ADMIN_EMAILS".into(), "admin@example.org; nobody".into());
+        assert!(Config::from_map(&env).unwrap_err().to_string().contains("AULE_ADMIN_EMAILS"));
         assert_eq!(config.timezone_offset_minutes, -300);
     }
 

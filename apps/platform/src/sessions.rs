@@ -120,6 +120,10 @@ pub async fn create_session(
         None => None,
     };
     let objective = body.objective.map(ObjectiveInput::checked).transpose()?;
+    // A family's sessions are what its plan allows; the team's are not counted.
+    if let (Caller::Guardian { .. }, Some(child)) = (&caller, &child) {
+        crate::plans::admit(&state, child.family_id).await?;
+    }
     let session =
         open_session(&state, child, &body.audience, body.language, None, objective, body.engine).await?;
     Ok((StatusCode::CREATED, Json(session)))
