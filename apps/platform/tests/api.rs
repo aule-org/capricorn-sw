@@ -451,7 +451,12 @@ async fn a_session_is_planned_watched_and_reviewed(pool: PgPool) {
     let (session, token) = app.session(&child).await;
     let agent = Some(token.as_str());
 
-    // Before: the tutor gets the student's profile and the supervisor's plan.
+    // Before: the tutor gets the student's profile and, when it is already
+    // written, the supervisor's plan.
+    eventually("the plan was written", || async {
+        app.count("select count(*) from session_briefs").await == 1
+    })
+    .await;
     let (status, start) = app.call(Method::GET, "/v1/agent/session", agent, None).await;
     assert_eq!(status, StatusCode::OK, "{start}");
     let instructions = start["instructions"].as_str().unwrap();
@@ -466,6 +471,7 @@ async fn a_session_is_planned_watched_and_reviewed(pool: PgPool) {
     ]});
     let (status, first) = app.call(Method::POST, "/v1/agent/session/turns", agent, Some(turns.clone())).await;
     assert_eq!(status, StatusCode::OK, "{first}");
+    assert_eq!(first["plan"], Value::Null, "a plan handed over at the start is not sent again");
     eventually("the supervisor wrote guidance", || async {
         app.count("select count(*) from session_guidance").await == 1
     })
@@ -475,6 +481,11 @@ async fn a_session_is_planned_watched_and_reviewed(pool: PgPool) {
     assert_eq!(app.count("select count(*) from session_turns").await, 2);
     let guidance = &second["guidance"][0];
     assert!(guidance["instructions"].as_str().unwrap().contains("Give a smaller hint and wait."));
+    // A plan finished after the tutor started travels with the turns instead.
+    sqlx::query("update session_briefs set sent_at_start = false").execute(&app.state.pool).await.unwrap();
+    let (_, late) =
+        app.call(Method::POST, "/v1/agent/session/turns", agent, Some(json!({ "turns": [] }))).await;
+    assert!(late["plan"].as_str().unwrap().contains("Review adding fractions with football examples."));
     let (_, view) = app.admin(Method::GET, &format!("/v1/sessions/{session}/supervisor"), None).await;
     assert_eq!(view["status"], "active");
     assert_eq!(view["brief"]["skills"][0]["skill_id"], "fractions.add");

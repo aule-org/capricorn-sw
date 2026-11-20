@@ -25,7 +25,10 @@ use crate::{events, jobs, learning, memory};
 pub const AUDIENCES: [&str; 2] = ["child", "operator"];
 /// How long the agent waits for the supervisor's plan before starting with
 /// the learner model's own.
-const BRIEF_WAIT: std::time::Duration = std::time::Duration::from_secs(6);
+// A plan written without a model is ready at once; one a model writes takes
+// seconds, and the greeting does not need it. The tutor does not wait for
+// that one: it arrives with the answer to its first report of turns.
+const BRIEF_WAIT: std::time::Duration = std::time::Duration::from_millis(250);
 const MAX_TURN_CHARS: usize = 4000;
 const MAX_TURNS_PER_REQUEST: usize = 20;
 
@@ -210,6 +213,28 @@ async fn stored_brief(pool: &PgPool, session_id: Uuid) -> Result<Option<Brief>, 
     Ok(brief.map(|brief| brief.0))
 }
 
+/// The plan, if it is ready when the tutor starts. It is marked as handed
+/// over, so it is not sent a second time with the turns.
+async fn brief_at_start(pool: &PgPool, session_id: Uuid) -> Result<Option<Brief>, sqlx::Error> {
+    let brief: Option<sqlx::types::Json<Brief>> = sqlx::query_scalar(
+        "update session_briefs set sent_at_start = true where session_id = $1 returning brief",
+    )
+    .bind(session_id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(brief.map(|brief| brief.0))
+}
+
+/// The plan, when it was finished after the tutor had started.
+async fn late_brief(pool: &PgPool, session_id: Uuid) -> Result<Option<Brief>, sqlx::Error> {
+    let brief: Option<sqlx::types::Json<Brief>> =
+        sqlx::query_scalar("select brief from session_briefs where session_id = $1 and not sent_at_start")
+            .bind(session_id)
+            .fetch_optional(pool)
+            .await?;
+    Ok(brief.map(|brief| brief.0))
+}
+
 /// What the tutor is told about the student, in words.
 fn student_line(child: &Child) -> String {
     let mut line = format!("The student's name is {}.", child.nickname);
@@ -226,7 +251,8 @@ fn student_line(child: &Child) -> String {
 }
 
 /// The agent's first call: marks the session as running and returns what the
-/// tutor should know before it says hello.
+/// tutor should know before it says hello. The plan is included when it is
+/// already written; otherwise it follows in the answer to the turns.
 pub async fn agent_start(Agent(session): Agent, State(state): State<AppState>) -> ApiResult<Json<Value>> {
     if session.status == "ended" {
         return Err(ApiError::Conflict("the session has ended"));
@@ -246,7 +272,7 @@ pub async fn agent_start(Agent(session): Agent, State(state): State<AppState>) -
     let child = find_child(&state.pool, child_id).await?;
     let deadline = tokio::time::Instant::now() + BRIEF_WAIT;
     let brief = loop {
-        if let Some(brief) = stored_brief(&state.pool, session.id).await? {
+        if let Some(brief) = brief_at_start(&state.pool, session.id).await? {
             break Some(brief);
         }
         if tokio::time::Instant::now() >= deadline {
@@ -344,7 +370,9 @@ pub async fn agent_turns(
             json!({ "id": id, "instructions": instructions })
         })
         .collect();
-    Ok(Json(json!({ "guidance": guidance })))
+    // Repeated on every answer: the agent keeps the first one it sees.
+    let plan = late_brief(&state.pool, session.id).await?.map(|brief| brief.as_instructions());
+    Ok(Json(json!({ "guidance": guidance, "plan": plan })))
 }
 
 pub async fn load_turns(pool: &PgPool, session_id: Uuid) -> Result<Vec<Turn>, sqlx::Error> {
