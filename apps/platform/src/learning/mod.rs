@@ -318,6 +318,8 @@ pub enum Reason {
     InProgress,
     /// Not seen yet, and everything it builds on is mastered.
     Ready,
+    /// What the family said today's session is about.
+    Asked,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -332,6 +334,79 @@ pub struct Candidate {
 }
 
 pub const MAX_CANDIDATES_PER_REASON: usize = 3;
+
+/// Lower case without accents, cut into words.
+fn words(text: &str) -> Vec<String> {
+    let plain: String = text
+        .to_lowercase()
+        .chars()
+        .map(|letter| match letter {
+            'á' | 'à' | 'ä' => 'a',
+            'é' | 'è' | 'ë' => 'e',
+            'í' | 'ì' | 'ï' => 'i',
+            'ó' | 'ò' | 'ö' => 'o',
+            'ú' | 'ù' | 'ü' => 'u',
+            other => other,
+        })
+        .collect();
+    plain
+        .split(|letter: char| !letter.is_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .map(String::from)
+        .collect()
+}
+
+/// The skills that the topic of today's session names, best match first. A
+/// homework on perimeter is about the perimeter skills whether or not the
+/// learner model would have offered them today, so these come from the whole
+/// catalog up to the student's grade. Words are compared by their first
+/// letters: "triángulos" finds "triángulo", and "multiplication" finds
+/// "multiplicación".
+pub fn asked(trace: &[SkillTrace], catalog: &[Skill], grade: Option<&str>, topic: &str) -> Vec<Candidate> {
+    const STEM: usize = 5;
+    let stems: BTreeSet<String> = words(topic)
+        .into_iter()
+        .filter(|word| word.chars().count() >= 4)
+        .map(|word| word.chars().take(STEM).collect())
+        .collect();
+    if stems.is_empty() {
+        return Vec::new();
+    }
+    let traced: BTreeMap<&str, &SkillTrace> =
+        trace.iter().map(|skill| (skill.skill_id.as_str(), skill)).collect();
+    let mut found: Vec<(usize, &Skill)> = catalog
+        .iter()
+        .filter(|skill| match (skill.grade.as_deref(), grade) {
+            (Some(skill_grade), Some(child_grade)) if is_grade(skill_grade) && is_grade(child_grade) => {
+                skill_grade <= child_grade
+            }
+            _ => true,
+        })
+        .filter_map(|skill| {
+            let named = words(&format!("{} {}", skill.id, skill.name));
+            let hits =
+                stems.iter().filter(|stem| named.iter().any(|word| word.starts_with(stem.as_str()))).count();
+            (hits > 0).then_some((hits, skill))
+        })
+        .collect();
+    // Most words in common first; among equals, the student's own grade.
+    found
+        .sort_by_key(|(hits, skill)| (usize::MAX - hits, grade.is_none() || skill.grade.as_deref() != grade));
+    found
+        .into_iter()
+        .take(MAX_CANDIDATES_PER_REASON)
+        .map(|(_, skill)| {
+            let known = traced.get(skill.id.as_str());
+            Candidate {
+                skill_id: skill.id.clone(),
+                name: Some(skill.name.clone()),
+                reason: Reason::Asked,
+                p_now: known.map(|skill| skill.p_now),
+                target_difficulty: known.map(|skill| skill.target_difficulty),
+            }
+        })
+        .collect()
+}
 
 /// The skills worth offering to whoever plans the session, most useful first
 /// within each reason. It narrows the choice; it does not make it.
@@ -561,5 +636,26 @@ mod tests {
         assert_eq!(offered[0].skill_id, "close");
         assert!(offered.iter().all(|candidate| candidate.reason == Reason::InProgress));
         assert!(offered.iter().all(|candidate| candidate.skill_id != "weak"));
+    }
+    #[test]
+    fn the_topic_of_the_day_names_its_skills_whatever_the_learner_model_would_offer() {
+        let catalog = [
+            skill("geometria.area-triangulo", "P5", &["geometria.area-rectangulo"]),
+            skill("geometria.perimetro-rectangulo", "P4", &[]),
+            skill("geometria.problemas-de-perimetro", "P6", &[]),
+            skill("multiplicacion.tablas-7-8-9", "P3", &[]),
+        ];
+        let ids =
+            |offered: &[Candidate]| -> Vec<String> { offered.iter().map(|c| c.skill_id.clone()).collect() };
+        let offered = asked(&[], &catalog, Some("P5"), "Perímetro y área de rectángulos y triángulos");
+        // Two words in common before one; the student's grade before an earlier one; nothing of a later grade.
+        assert_eq!(ids(&offered), ["geometria.area-triangulo", "geometria.perimetro-rectangulo"]);
+        assert!(offered.iter().all(|candidate| candidate.reason == Reason::Asked));
+        assert_eq!(
+            ids(&asked(&[], &catalog, Some("P3"), "multiplication tables")),
+            ["multiplicacion.tablas-7-8-9"]
+        );
+        assert!(asked(&[], &catalog, Some("P5"), "").is_empty());
+        assert!(asked(&[], &catalog, Some("P5"), "los cóndores").is_empty());
     }
 }
