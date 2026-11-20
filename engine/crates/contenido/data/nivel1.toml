@@ -68,7 +68,7 @@ verificar = "3/8"
 [[etapa1.asistidos]]
 enunciado = "Ahora tú: ¿qué fracción del círculo está pintada?"
 grafico = { tipo = "circulo", partes = 5, sombreadas = 2 }
-secuencia = ["Contar todas las partes", "Contar las partes pintadas", "Escribir la fracción"]
+secuencia = ["Contar todas las partes", "Contar las partes pintadas", "Formar la fracción"]
 respuesta = "2/5"
 verificar = "2/5"
 [[etapa1.asistidos.pasos]]
@@ -90,7 +90,7 @@ solucion = "Pintadas arriba (2) y total abajo (5): 2/5."
 [[etapa1.asistidos]]
 enunciado = "Ahora tú: en una bolsa hay 9 caramelos y 4 son de fresa. ¿Qué fracción de los caramelos es de fresa?"
 grafico = { tipo = "conjunto", total = 9, marcados = 4, icono = "🍬" }
-secuencia = ["Contar el total", "Contar los que te piden", "Escribir la fracción"]
+secuencia = ["Contar el total", "Contar los que te piden", "Formar la fracción"]
 respuesta = "4/9"
 verificar = "4/9"
 [[etapa1.asistidos.pasos]]
@@ -114,7 +114,7 @@ pregunta = "Con tus propias palabras: en una fracción como 3/4, ¿qué signific
 criterio = "Explica que el denominador (abajo) dice en cuántas partes iguales se dividió el todo y que el numerador (arriba) dice cuántas de esas partes se toman o se pintan."
 claves = [["abajo", "denominador"], ["partes iguales", "total", "divid", "partid", "en cuantas"], ["arriba", "numerador"], ["pint", "toma", "coge", "agarr", "comi", "se usan"]]
 minimo_claves = 3
-pistas = ["Si partes una pizza en 4 partes iguales, ¿qué número te dice en cuántas partes la partiste?", "Si te comes 3 de esas partes, ¿dónde escribes ese 3: arriba o abajo?"]
+pistas = ["Si partes una pizza en 4 partes iguales, ¿qué número te dice en cuántas partes la partiste?", "Si te comes 3 de esas partes, ¿dónde va ese 3: arriba o abajo?"]
 pista_grafica = { texto = "Mira: la pizza tiene 4 partes iguales y 3 están pintadas.", grafico = { tipo = "circulo", partes = 4, sombreadas = 3 } }
 
 [[etapa1.repaso]]
@@ -167,14 +167,14 @@ verificar = "3/5"
 [[ejercicios]]
 id = "n1-e03"
 angulo = "calculo"
-enunciado = "Escribe con números la fracción «siete novenos»."
+enunciado = "¿Cómo se escribe con números la fracción «siete novenos»?"
 respuesta = "7/9"
 verificar = "7/9"
 tiempo_s = 60
 pistas = ["¿Qué palabra te dice en cuántas partes iguales se partió el todo?", "¿Cuántas partes se toman según la primera palabra?"]
 pista_grafica = { texto = "Novenos quiere decir que el todo está partido en 9 partes iguales.", grafico = { tipo = "barra", partes = 9, sombreadas = 0, etiqueta = "novenos" } }
 [ejercicios.similar]
-enunciado = "Escribe con números la fracción «cinco octavos»."
+enunciado = "¿Cómo se escribe con números la fracción «cinco octavos»?"
 pasos = ["«Octavos» dice que el todo se partió en 8 partes iguales: el denominador es 8.", "«Cinco» dice cuántas partes se toman: el numerador es 5.", "La fracción es 5/8."]
 respuesta = "5/8"
 verificar = "5/8"
@@ -182,14 +182,14 @@ verificar = "5/8"
 [[ejercicios]]
 id = "n1-e04"
 angulo = "calculo"
-enunciado = "Una fracción tiene denominador 10 y numerador 3. Escríbela con números."
+enunciado = "Una fracción tiene denominador 10 y numerador 3. ¿Qué fracción es?"
 respuesta = "3/10"
 verificar = "3/10"
 tiempo_s = 60
 pistas = ["¿El denominador va arriba o abajo de la raya?", "¿Qué número queda arriba, entonces?"]
 pista_grafica = { texto = "Una barra partida en 10 partes iguales: el 10 va abajo.", grafico = { tipo = "barra", partes = 10, sombreadas = 0, etiqueta = "décimos" } }
 [ejercicios.similar]
-enunciado = "Una fracción tiene numerador 2 y denominador 7. Escríbela con números."
+enunciado = "Una fracción tiene numerador 2 y denominador 7. ¿Qué fracción es?"
 pasos = ["El numerador va arriba: 2.", "El denominador va abajo: 7.", "La fracción es 2/7, dos séptimos."]
 respuesta = "2/7"
 verificar = "2/7"
@@ -231,7 +231,7 @@ verificar = "7/10"
 [[ejercicios]]
 id = "n1-e07"
 angulo = "error"
-enunciado = "Luis mira esta barra y dice que la parte pintada es 5/2, porque «primero se escriben todas las partes». ¿Qué fracción está pintada en realidad? Escríbela y explica el error de Luis."
+enunciado = "Luis mira esta barra y dice que la parte pintada es 5/2, porque «primero se escriben todas las partes». ¿Qué fracción está pintada en realidad? Dímela y explica el error de Luis."
 grafico = { tipo = "barra", partes = 5, sombreadas = 2 }
 respuesta = "2/5"
 verificar = "2/5"
@@ -315,7 +315,7 @@ tiempo_s = 60
 
 [[simulacion]]
 id = "n1-s2"
-enunciado = "Escribe con números la fracción «cuatro quintos»."
+enunciado = "¿Cómo se escribe con números la fracción «cuatro quintos»?"
 respuesta = "4/5"
 verificar = "4/5"
 tiempo_s = 60

@@ -431,7 +431,7 @@ pub fn respuesta_guion(
                 )
             } else if n == "que" || n == "eh" || n == "como" || n.len() <= 4 {
                 elegir(&[
-                    "Perdón, no fui claro. Escríbeme con otras palabras qué necesitas y te ayudo.",
+                    "Perdón, no fui claro. Dime con otras palabras qué necesitas y te ayudo.",
                     "Te lo digo de otra forma: estoy aquí para aclararte cualquier palabra del ejercicio. ¿Cuál te confunde?",
                     "A ver, más simple: si algo no se entiende, pregúntame qué significa y te lo explico.",
                 ])

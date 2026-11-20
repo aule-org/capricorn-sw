@@ -81,7 +81,7 @@ solucion = "3 × 7 = 21. Entonces 3/4 de 28 es 21."
 [[etapa1.asistidos]]
 enunciado = "Ahora tú: Martín gastó 1/2 de su propina en un cuaderno y 1/5 en un lápiz. ¿Qué parte de su propina le queda?"
 grafico = { tipo = "barras", filas = [{ partes = 10, sombreadas = 5, etiqueta = "cuaderno 1/2" }, { partes = 10, sombreadas = 2, etiqueta = "lápiz 1/5" }] }
-secuencia = ["Sumar lo gastado", "Escribir el total como fracción", "Restar"]
+secuencia = ["Sumar lo gastado", "Expresar el total como fracción", "Restar"]
 respuesta = "3/10"
 verificar = "1 - (1/2 + 1/5)"
 [[etapa1.asistidos.pasos]]
@@ -90,7 +90,7 @@ respuesta = "7/10"
 ayuda = "¿Qué denominador común sirve para medios y quintos? ¿Cuántos décimos son 1/2 y cuántos son 1/5?"
 solucion = "1/2 = 5/10 y 1/5 = 2/10. Entonces 5/10 + 2/10 = 7/10."
 [[etapa1.asistidos.pasos]]
-indicacion = "Paso 2: toda la propina es 1 entero. ¿Cómo escribes 1 entero en décimos?"
+indicacion = "Paso 2: toda la propina es 1 entero. ¿Cuántos décimos son 1 entero?"
 respuesta = "10/10"
 ayuda = "Si la propina está partida en 10 partes iguales, ¿cuántas partes tiene toda la propina?"
 solucion = "1 entero = 10/10."
@@ -220,7 +220,7 @@ verificar = "40 - (1/2) * 40 - (1/8) * 40"
 [[ejercicios]]
 id = "n5-e07"
 angulo = "error"
-enunciado = "Pablo dice: 'Para calcular 3/4 de 32, divido 32 entre 3 y multiplico por 4'. ¿Qué hizo mal? Escribe el resultado correcto y explica."
+enunciado = "Pablo dice: 'Para calcular 3/4 de 32, divido 32 entre 3 y multiplico por 4'. ¿Qué hizo mal? Dime el resultado correcto y explica."
 respuesta = "24"
 verificar = "(3/4) * 32"
 pide_explicacion = true
