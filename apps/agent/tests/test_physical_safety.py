@@ -153,9 +153,35 @@ async def test_an_answer_from_another_model_cannot_allow(guard, provider, model)
     assert await guard.check(empty(), message()) is Verdict.UNAVAILABLE
 
 
-async def test_a_late_answer_is_unavailable_and_not_retried(guard, provider, monkeypatch):
-    monkeypatch.setattr("aule_agent.physical_safety.TIMEOUT_SECONDS", 0.01)
+async def test_no_answer_is_asked_once_more_and_then_is_unavailable(guard, provider, monkeypatch):
+    monkeypatch.setattr("aule_agent.physical_safety.FIRST_TRY_SECONDS", 0.01)
+    monkeypatch.setattr("aule_agent.physical_safety.SECOND_TRY_SECONDS", 0.01)
     provider.delay = 5
+
+    assert await guard.check(empty(), message()) is Verdict.UNAVAILABLE
+    assert len(provider.requests) == 2
+
+
+async def test_a_second_try_that_answers_counts(guard, provider, monkeypatch):
+    monkeypatch.setattr("aule_agent.physical_safety.FIRST_TRY_SECONDS", 0.01)
+    provider.payload = response(0.99)
+    provider.delay = 5
+
+    async def slow_then_quick(body, calls=[]):  # noqa: B006
+        calls.append(body)
+        provider.delay = 5 if len(calls) == 1 else 0
+        return await Provider.__call__(provider, body)
+
+    guard._send = slow_then_quick
+
+    assert await guard.check(empty(), message("Voy a meter un tenedor en el enchufe")) is (
+        Verdict.ADULT_HELP
+    )
+    assert len(provider.requests) == 2
+
+
+async def test_an_answer_that_is_refused_or_malformed_is_not_asked_again(guard, provider):
+    provider.error = ValueError("unexpected status")
 
     assert await guard.check(empty(), message()) is Verdict.UNAVAILABLE
     assert len(provider.requests) == 1
