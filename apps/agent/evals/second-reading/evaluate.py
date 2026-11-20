@@ -91,9 +91,9 @@ async def evaluate(args: argparse.Namespace) -> int:
 
             if clean and faint:
                 # Under our thresholds two readings decide together: a pair is a
-                # concern only when both are.
+                # concern when one says so and the other does not contradict it.
                 pairs = list(zip(reads[0::2], reads[1::2], strict=False))
-                reads = [False if (a is False and b is False) else None for a, b in pairs]
+                reads = [False if False in pair and True not in pair else None for pair in pairs]
 
             row = {
                 "kind": "case",

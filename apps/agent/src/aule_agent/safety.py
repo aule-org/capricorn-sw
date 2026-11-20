@@ -187,8 +187,9 @@ class Gates:
         A sentence is read again when the provider did not act on it and all
         it found is either a faint self-harm score or one of the categories
         where ordinary words score high (see ``Finding``). Over our thresholds,
-        only a clear "ordinary" lets it through. Under them, two clear
-        "concern"s stop it with the line for a child in distress. Otherwise the
+        only a clear "ordinary" lets it through. Under them, two readers are
+        asked at once, and a "concern" that the other reader does not contradict
+        stops it with the line for a child in distress. Otherwise the
         finding stays as it was. When the physical-safety gate could not judge
         the turn at all, it is stopped anyway and is not read again.
         """
@@ -201,14 +202,16 @@ class Gates:
             # Stopped unless the reader is clear that it is ordinary.
             ordinary = await self._second_opinion.ordinary(tutor, text)
         else:
-            # Nothing over our thresholds: let through unless two readers, at
-            # once, are both clear that it is a concern. One reader alone
-            # hears worry in "ñañaña, no me importa" two times in five.
+            # Nothing over our thresholds: two readers at once, and it is a
+            # concern when one says so and neither says it is ordinary. One
+            # reader alone hears worry in "ñañaña, no me importa" two times in
+            # five; a reader that is late must not let a veiled sentence pass.
             readings = await asyncio.gather(
                 self._second_opinion.ordinary(tutor, text),
                 self._second_opinion.ordinary(tutor, text),
             )
-            ordinary = False if all(reading is False for reading in readings) else None
+            concern = False in readings and True not in readings
+            ordinary = False if concern else None
         # Counts only: what was said is never logged.
         logger.info("read again", extra={"ordinary": ordinary, "found": list(finding.categories)})
         if ordinary is True:

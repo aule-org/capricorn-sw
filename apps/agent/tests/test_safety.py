@@ -664,10 +664,21 @@ class Split:
         pass
 
 
-@pytest.mark.parametrize("answers", [(False, None), (False, True), (None, None), (True, True)])
-async def test_under_our_thresholds_anything_short_of_two_concerns_lets_the_turn_through(answers):
+@pytest.mark.parametrize("answers", [(False, True), (True, False), (None, None), (True, True)])
+async def test_under_our_thresholds_a_concern_contradicted_or_none_at_all_lets_the_turn_through(
+    answers,
+):
     built, flags = faint_gates(Split(*answers), finding=UNDER)
 
     decision = await built.heard(after("¿Seguimos?"), said("ñañaña, no me importa"))
 
     assert decision.allowed and flags == []
+
+
+@pytest.mark.parametrize("answers", [(False, None), (None, False)])
+async def test_under_our_thresholds_a_late_reader_does_not_let_a_concern_through(answers):
+    built, _ = faint_gates(Split(*answers), finding=UNDER)
+
+    decision = await built.heard(after("¿Seguimos?"), said("I don't want to be here anymore"))
+
+    assert decision.reply == "self_harm_support"
