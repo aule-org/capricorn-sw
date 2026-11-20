@@ -74,7 +74,13 @@ const STATIC: Record<string, { file: string | URL; type: string }> = {
   "/signin.js": { file: new URL("signin.js", publicDir), type: "text/javascript; charset=utf-8" },
   "/visuals.js": { file: new URL("visuals.js", publicDir), type: "text/javascript; charset=utf-8" },
   "/style.css": { file: new URL("style.css", publicDir), type: "text/css; charset=utf-8" },
-  "/dwarves.svg": { file: new URL("dwarves.svg", publicDir), type: "image/svg+xml" },
+  // The page's pixels: the wall, what is drawn behind the page, the dancing cuyes,
+  // their manta and the frame (Kenney's Fantasy UI Borders, CC0).
+  "/wall.png": { file: new URL("wall.png", publicDir), type: "image/png" },
+  "/motifs.png": { file: new URL("motifs.png", publicDir), type: "image/png" },
+  "/dancers.png": { file: new URL("dancers.png", publicDir), type: "image/png" },
+  "/manta.png": { file: new URL("manta.png", publicDir), type: "image/png" },
+  "/frame.png": { file: new URL("frame.png", publicDir), type: "image/png" },
   "/icon.svg": { file: new URL("icon.svg", publicDir), type: "image/svg+xml" },
   "/manifest.webmanifest": { file: new URL("manifest.webmanifest", publicDir), type: "application/manifest+json" },
   // The team's panel. The page is the same for anyone; its data only for the team.
