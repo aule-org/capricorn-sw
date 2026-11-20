@@ -285,6 +285,23 @@ if (outcome) {
   if (outcome === "failed") say("No se pudo entrar con esa cuenta. Inténtalo otra vez o usa otra.");
 }
 
+// The cookie notice, until the person says they have read it. Remembered in
+// this browser only; where the browser keeps nothing, it is shown each time.
+const COOKIES_READ = "aule.cookies";
+try {
+  $("cookies").hidden = localStorage.getItem(COOKIES_READ) === "read";
+} catch {
+  $("cookies").hidden = false;
+}
+$("cookies-ok").addEventListener("click", () => {
+  $("cookies").hidden = true;
+  try {
+    localStorage.setItem(COOKIES_READ, "read");
+  } catch {
+    // Not remembered: it shows again next time.
+  }
+});
+
 const googleScript = loadGoogleScript();
 call("api/account")
   .then((account) => {
