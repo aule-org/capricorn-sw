@@ -86,14 +86,16 @@ REPLIES: dict[str, dict[str, str]] = {
         "es": "Se nos acabó el tiempo por hoy. ¡Buen trabajo! Hasta la próxima.",
         "en": "That is all our time for today. Good work! See you next time.",
     },
-    # An active break: one short thing to do away from the work, then back.
+    # An active break: one short thing to do away from the work, then back. A
+    # break can come a minute into a session, when the student says they are
+    # tired, so no line says how long the work has gone on.
     "break_stars": {
-        "es": "Llevamos un buen rato trabajando, así que toca una pausa. Ponte de pie donde "
-        "tengas espacio y haz quince saltos de estrella, abriendo brazos y piernas. Cuando "
-        "vuelvas, avísame y seguimos.",
-        "en": "We have been working for a good while, so it is time for a break. Stand up "
-        "where you have room and do fifteen star jumps, opening your arms and legs. Tell me "
-        "when you are back and we'll carry on.",
+        "es": "Hagamos una pausa para recargar energía. Ponte de pie donde tengas espacio y "
+        "haz quince saltos de estrella, abriendo brazos y piernas. Cuando vuelvas, avísame y "
+        "seguimos.",
+        "en": "Let's take a break to recharge. Stand up where you have room and do fifteen "
+        "star jumps, opening your arms and legs. Tell me when you are back and we'll carry "
+        "on.",
     },
     "break_balloon": {
         "es": "Buen momento para una pausa. Busca una postura cómoda, pon las manos en la "
@@ -112,11 +114,11 @@ REPLIES: dict[str, dict[str, str]] = {
         "we'll carry on.",
     },
     "break_cat": {
-        "es": "Hagamos una pausa. Estira los brazos hacia arriba como un gato que despierta, "
-        "gira despacio el cuello a un lado y al otro, y toma agua si tienes a la mano. Cuando "
-        "vuelvas, avísame y seguimos.",
-        "en": "Let's take a break. Stretch your arms up like a cat waking up, turn your neck "
-        "slowly to one side and the other, and drink some water if you have some nearby. "
+        "es": "Vamos con una pausa corta. Estira los brazos hacia arriba como un gato que "
+        "despierta, gira despacio el cuello a un lado y al otro, y toma agua si tienes a la "
+        "mano. Cuando vuelvas, avísame y seguimos.",
+        "en": "Time for a short break. Stretch your arms up like a cat waking up, turn your "
+        "neck slowly to one side and the other, and drink some water if you have some nearby. "
         "Tell me when you are back and we'll carry on.",
     },
     "break_over": {
