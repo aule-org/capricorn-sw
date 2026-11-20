@@ -208,10 +208,20 @@ class Gates:
             # concern when one says so and neither says it is ordinary. One
             # reader alone hears worry in "ñañaña, no me importa" two times in
             # five; a reader that is late must not let a veiled sentence pass.
-            readings = await asyncio.gather(
-                self._second_opinion.ordinary(tutor, text),
-                self._second_opinion.ordinary(tutor, text),
-            )
+            # A clear "ordinary" from either settles it, so the child does not
+            # wait for the slower one.
+            readers = [
+                asyncio.create_task(self._second_opinion.ordinary(tutor, text)) for _ in range(2)
+            ]
+            readings: list[bool | None] = []
+            try:
+                for reading in asyncio.as_completed(readers):
+                    readings.append(await reading)
+                    if readings[-1] is True:
+                        break
+            finally:
+                for reader in readers:
+                    reader.cancel()
             concern = False in readings and True not in readings
             ordinary = False if concern else None
         # Counts only: what was said is never logged.
