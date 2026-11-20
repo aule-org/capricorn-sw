@@ -117,6 +117,24 @@ export async function account(settings: Settings, token: string): Promise<Accoun
 }
 
 /** What the supervisor planned and advised in a session the platform created. */
+/**
+ * Where a session run by the engine stands: the stage, the route and the card
+ * of the exercise. Never the answer. `token` is the guardian's when signed in.
+ */
+export function step(settings: Settings, sessionId: string, token?: string): Promise<unknown> {
+  return platform(settings, `/v1/sessions/${encodeURIComponent(sessionId)}/step`, undefined, token);
+}
+
+/** An answer written on the page, checked by the platform like a spoken one. */
+export function answer(
+  settings: Settings,
+  sessionId: string,
+  written: { answer: string; explanation?: string },
+  token?: string,
+): Promise<unknown> {
+  return platform(settings, `/v1/sessions/${encodeURIComponent(sessionId)}/answers`, written, token);
+}
+
 export function supervisorView(settings: Settings, sessionId: string): Promise<unknown> {
   return platform(settings, `/v1/sessions/${encodeURIComponent(sessionId)}/supervisor`);
 }

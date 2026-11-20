@@ -10,13 +10,15 @@ import { fileURLToPath } from "node:url";
 import { GuessLimiter, sameCode } from "./access.ts";
 import { ConfigError, LANGUAGES, readSettings, type Language, type Settings } from "./config.ts";
 import {
-  PlatformError,
   account,
+  answer,
   createSession,
   eraseAccount,
   googleClient,
+  PlatformError,
   signIn,
   signOut,
+  step,
   supervisorView,
 } from "./session.ts";
 import {
@@ -65,6 +67,9 @@ const MAX_SIGN_IN_BYTES = 8_000;
 // A student's profile: a name, up to ten interests and a line from the family.
 const MAX_PROFILE_BYTES = 4_000;
 const ID = /^[0-9a-f-]{36}$/i;
+// What a student writes in the two boxes of an exercise.
+const MAX_ANSWER_CHARS = 200;
+const MAX_EXPLANATION_CHARS = 600;
 // Where the browser gets Google's sign-in button from, and nothing else of Google's.
 const GOOGLE = "https://accounts.google.com/gsi/";
 
@@ -254,6 +259,45 @@ export function createPlayground(settings: Settings): Server {
     return json(response, 200, await startSession(settings, token, id, language, objective));
   }
 
+  // A session the engine runs: where it stands, and an answer written on the
+  // page. A signed-in guardian asks with their own session; the team, with the
+  // access code. The platform decides whose session it is.
+  async function engine(path: string, request: IncomingMessage, response: ServerResponse) {
+    if (!settings.platform) return json(response, 404, { error: "not_found" });
+    let body: Record<string, unknown>;
+    try {
+      body = await readJson(request);
+    } catch {
+      return json(response, 400, { error: "bad_request" });
+    }
+    const token = guardianToken(request) ?? undefined;
+    if (!token) {
+      if (limiter.blocked()) return json(response, 429, { error: "too_many_attempts" });
+      if (typeof body.code !== "string" || !sameCode(body.code, settings.accessCode)) {
+        limiter.recordFailure();
+        return json(response, 401, { error: "wrong_code" });
+      }
+    }
+    const id = body.session_id;
+    if (typeof id !== "string" || !ID.test(id)) return json(response, 400, { error: "bad_request" });
+    try {
+      if (path === "/api/step") return json(response, 200, await step(settings, id, token));
+      const written = typeof body.answer === "string" ? body.answer.trim() : "";
+      const explanation = typeof body.explanation === "string" ? body.explanation.trim() : "";
+      if (!written || written.length > MAX_ANSWER_CHARS || explanation.length > MAX_EXPLANATION_CHARS) {
+        return json(response, 400, { error: "bad_request" });
+      }
+      const sent = explanation ? { answer: written, explanation } : { answer: written };
+      return json(response, 200, await answer(settings, id, sent, token));
+    } catch (error) {
+      // Not the engine's session, or it is over: the page stops asking.
+      if (error instanceof PlatformError && [403, 404, 409].includes(error.status)) {
+        return json(response, 409, { error: "no_step" });
+      }
+      throw error;
+    }
+  }
+
   async function session(path: string, request: IncomingMessage, response: ServerResponse) {
     if (limiter.blocked()) return json(response, 429, { error: "too_many_attempts" });
     let body: Record<string, unknown>;
@@ -306,6 +350,10 @@ export function createPlayground(settings: Settings): Server {
       ) {
         if (request.method !== "POST") return json(response, 405, { error: "method_not_allowed" });
         return signedIn(path, request, response);
+      }
+      if (path === "/api/step" || path === "/api/answer") {
+        if (request.method !== "POST") return json(response, 405, { error: "method_not_allowed" });
+        return engine(path, request, response);
       }
       if (path === "/api/session" || path === "/api/supervisor") {
         if (request.method !== "POST") return json(response, 405, { error: "method_not_allowed" });

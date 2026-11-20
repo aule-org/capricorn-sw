@@ -45,6 +45,9 @@ const LOST = new Set([
 ]);
 
 const SUPERVISOR_POLL_MS = 3000;
+// How often the page asks where an engine-run session stands. The tutor's own
+// words arrive by voice; this only keeps the strip and the card in step.
+const STEP_POLL_MS = 3000;
 // The review is written after the session ends; it usually takes under a
 // minute. After this long the page stops asking.
 const REPORT_WAIT_MS = 120_000;
@@ -86,6 +89,10 @@ let room = null;
 let clock = null;
 let tutorTimer = null;
 let supervisorTimer = null;
+let stepTimer = null;
+// What the card last showed, so a poll that changes nothing leaves a
+// half-written answer alone.
+let cardShown = "";
 let reportTimer = null;
 // The platform's id for the session being shown, when there is one.
 let sessionId = null;
@@ -170,6 +177,117 @@ function followTranscript(always = false) {
     list.scrollTop = list.scrollHeight;
   });
 }
+
+// --- a session run by the engine: its stages and the exercise in hand ---------
+
+const ROUTE_STATE = { done: "Hecho", current: "Ahora", pending: "Después" };
+
+function stopSteps() {
+  clearInterval(stepTimer);
+  stepTimer = null;
+  cardShown = "";
+  $("route").hidden = true;
+  $("card").hidden = true;
+  document.querySelector(".work").classList.remove("with-card");
+}
+
+function followSteps(id) {
+  stopSteps();
+  const ask = () => showStep(id).catch(() => undefined);
+  ask();
+  stepTimer = setInterval(ask, STEP_POLL_MS);
+}
+
+async function engineCall(path, id, more = {}) {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    // The code only matters for the team's sessions; a family is known by its sign-in.
+    body: JSON.stringify({ code: $("code").value, session_id: id, ...more }),
+  });
+  if (response.status === 409) return null;
+  if (!response.ok) throw new Error("step");
+  return response.json();
+}
+
+async function showStep(id, given) {
+  const step = given ?? (await engineCall("api/step", id));
+  if (id !== sessionId) return;
+  // Not the engine's session, or it is over: nothing more to follow.
+  if (!step) return stopSteps();
+
+  $("route").replaceChildren(
+    ...(step.route ?? []).map((stop) => {
+      const line = document.createElement("li");
+      line.dataset.state = stop.state;
+      const name = document.createElement("strong");
+      name.textContent = stop.name;
+      const detail = document.createElement("span");
+      detail.textContent = stop.detail ?? "";
+      line.append(name, detail);
+      line.setAttribute("aria-label", `${stop.name}: ${ROUTE_STATE[stop.state] ?? ""}`);
+      if (stop.state === "current") line.setAttribute("aria-current", "step");
+      return line;
+    }),
+  );
+  $("route").hidden = !(step.route ?? []).length;
+
+  const card = step.card;
+  const shown = card ? `${card.title}|${card.statement}` : "";
+  if (shown === cardShown) return;
+  cardShown = shown;
+  $("card").hidden = !card;
+  document.querySelector(".work").classList.toggle("with-card", Boolean(card));
+  if (!card) return;
+  $("card-title").textContent = card.title ?? "";
+  $("card-statement").textContent = card.statement ?? "";
+  $("answer").hidden = !card.asks_answer;
+  $("explanation-line").hidden = !card.asks_explanation;
+  $("card-help").textContent = card.format_help ?? "";
+  $("card-help").hidden = !card.format_help;
+  $("answer-text").value = "";
+  $("explanation-text").value = "";
+  // Until the tutor draws it, the card's own drawing is on the board.
+  if (card.visual && $("board").hidden) {
+    try {
+      $("board").innerHTML = renderVisual(card.visual);
+      $("board").hidden = false;
+    } catch {
+      // A drawing the page cannot make is simply not shown.
+    }
+  }
+}
+
+$("answer").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const id = sessionId;
+  const written = $("answer-text").value.trim();
+  if (!id || !written) return;
+  $("answer-send").disabled = true;
+  showMessage("");
+  try {
+    const explanation = $("explanation-text").value.trim();
+    const next = await engineCall("api/answer", id, explanation ? { answer: written, explanation } : { answer: written });
+    // What they wrote is part of the conversation too.
+    const line = item(explanation ? `${written}. ${explanation}` : written);
+    line.dataset.who = "you";
+    line.dataset.name = "Tú (escrito)";
+    $("transcript").append(line);
+    followTranscript(true);
+    // The tutor says what the engine answered: tell it there is something waiting.
+    if (room && tutorIdentity) {
+      room.localParticipant
+        .performRpc({ destinationIdentity: tutorIdentity, method: "answered", payload: "" })
+        .catch(() => undefined);
+    }
+    cardShown = "";
+    await showStep(id, next ?? undefined);
+  } catch {
+    showMessage("No se pudo enviar tu respuesta. Inténtalo otra vez o dila en voz alta.");
+  } finally {
+    $("answer-send").disabled = false;
+  }
+});
 
 function item(text) {
   const element = document.createElement("li");
@@ -461,6 +579,7 @@ async function join(session) {
   // The supervisor's plan is for the team. It stays off the screen unless the
   // person asked for it, so a child never reads what the tutor is aiming at.
   sessionId = session.session_id ?? null;
+  if (session.session_id && session.flow === "engine") followSteps(session.session_id);
   clearTimeout(reportTimer);
   $("report").hidden = true;
   if (session.session_id && $("operator").checked) {
@@ -577,6 +696,7 @@ function leave(reason) {
   clearInterval(clock);
   clearTimeout(tutorTimer);
   clearInterval(supervisorTimer);
+  stopSteps();
   $("supervisor").hidden = true;
   tutorIdentity = null;
   photos = false;

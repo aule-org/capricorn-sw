@@ -205,6 +205,8 @@
       </section>
 
       <section id="stage" hidden>
+        <!-- A session the engine runs says where it is: done, now, to come. -->
+        <ol id="route" class="route" hidden aria-label="Etapas de la sesión"></ol>
         <!-- Left: what the student works on. The camera on their notebook and the board. -->
         <div class="work">
           <div class="tile">
@@ -212,6 +214,24 @@
             <span class="tile-label">Tú</span>
             <p id="camera-off" class="tile-empty" hidden>Cámara apagada</p>
           </div>
+          <!-- The exercise in hand, with room to answer in writing. -->
+          <section id="card" class="card" hidden aria-live="polite">
+            <p id="card-title" class="card-title"></p>
+            <p id="card-statement" class="card-statement"></p>
+            <form id="answer" autocomplete="off" hidden>
+              <label id="answer-line">
+                Tu respuesta
+                <input id="answer-text" type="text" maxlength="200" autocomplete="off" />
+              </label>
+              <label id="explanation-line" hidden>
+                ¿Cómo lo pensaste?
+                <textarea id="explanation-text" rows="2" maxlength="600"></textarea>
+              </label>
+              <p id="card-help" class="note" hidden></p>
+              <button type="submit" id="answer-send" data-icon="send">Responder</button>
+              <p class="note">También puedes decirlo en voz alta, o resolverlo en tu cuaderno y mostrárselo a Aule.</p>
+            </form>
+          </section>
           <figure id="board" class="board" hidden aria-live="polite"></figure>
             <!-- Until something is drawn, the board is a quiet empty sheet. -->
             <p class="board-empty">Aquí verás lo que Aule te muestre.</p>

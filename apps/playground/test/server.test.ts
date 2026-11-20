@@ -113,6 +113,9 @@ test("too many wrong codes lock the endpoint, even for the right one", async () 
   }
 });
 
+const ENGINE_SESSION = "0198c5a0-0000-7000-8000-00000000e001";
+const OTHER_SESSION = "0198c5a0-0000-7000-8000-00000000e002";
+
 test("with a platform, the session and the supervisor's view come from it", async () => {
   const seen: { path: string; auth: string | undefined; body: unknown }[] = [];
   const platform = createServer(async (request, response) => {
@@ -124,6 +127,16 @@ test("with a platform, the session and the supervisor's view come from it", asyn
     if (request.url === "/v1/sessions") {
       response.statusCode = 201;
       return response.end(JSON.stringify({ session_id: "s-1", serverUrl: "wss://x", token: "jwt", room: "r" }));
+    }
+    if (request.url === `/v1/sessions/${ENGINE_SESSION}/step`) {
+      return response.end(JSON.stringify({ stage: "Tamizaje", route: [], card: null, closed: false }));
+    }
+    if (request.url === `/v1/sessions/${ENGINE_SESSION}/answers`) {
+      return response.end(JSON.stringify({ stage: "Tamizaje", route: [], card: null, closed: false }));
+    }
+    if (request.url === `/v1/sessions/${OTHER_SESSION}/step`) {
+      response.statusCode = 409;
+      return response.end(JSON.stringify({ error: { code: "conflict", message: "not run by the engine" } }));
     }
     if (request.url === "/v1/sessions/s-1/supervisor") {
       return response.end(JSON.stringify({ brief: { goal: "Review" }, guidance: [] }));
@@ -159,6 +172,23 @@ test("with a platform, the session and the supervisor's view come from it", asyn
     const view = await post("supervisor", { code, session_id: "s-1" });
     assert.deepEqual(await view.json(), { brief: { goal: "Review" }, guidance: [] });
     assert.equal((await post("supervisor", { code: "wrong", session_id: "s-1" })).status, 401);
+
+    // A session the engine runs: where it stands, and an answer written on the page.
+    const step = await post("step", { code, session_id: ENGINE_SESSION });
+    assert.deepEqual(await step.json(), { stage: "Tamizaje", route: [], card: null, closed: false });
+    assert.equal((await post("step", { code: "wrong", session_id: ENGINE_SESSION })).status, 401);
+    assert.equal((await post("step", { code, session_id: "not-an-id" })).status, 400);
+    const none = await post("step", { code, session_id: OTHER_SESSION });
+    assert.equal(none.status, 409, "the page stops asking about a session the engine does not run");
+    assert.deepEqual(await none.json(), { error: "no_step" });
+    assert.equal((await post("answer", { code, session_id: ENGINE_SESSION })).status, 400, "an answer needs words");
+    const answered = await post("answer", { code, session_id: ENGINE_SESSION, answer: " 3/8 ", explanation: "tres de ocho" });
+    assert.equal(answered.status, 200);
+    assert.deepEqual(seen.at(-1), {
+      path: `/v1/sessions/${ENGINE_SESSION}/answers`,
+      auth: "Bearer admin-token",
+      body: { answer: "3/8", explanation: "tres de ocho" },
+    });
 
     const refused = await post("supervisor", { code, session_id: "other" });
     assert.equal(refused.status, 502);
