@@ -22,15 +22,15 @@ REPLIES: dict[str, dict[str, str]] = {
         "en": "We stop here for today. I'll let your family know so we can find another time. "
         "See you soon!",
     },
+    # A student who says something out of place is brought back to the work,
+    # with no other plan offered: a game here would reward it.
     "redirect": {
-        "es": "Con eso no puedo ayudarte. Podemos pensar en cómo cuidarnos o inventar una "
-        "aventura juntos.",
-        "en": "I can't help with that. We can talk about staying safe or make up an adventure "
-        "together.",
+        "es": "De eso no puedo hablar. Sigamos con lo nuestro.",
+        "en": "I can't talk about that. Let's get back to our work.",
     },
     "child_support": {
-        "es": "Gracias por contármelo. Si algo te hizo sentir incómodo o en peligro, busca a un "
-        "adulto de confianza que pueda ayudarte. No tienes que resolverlo a solas.",
+        "es": "Gracias por contármelo. Si algo te incomodó o te hizo sentir en peligro, busca a "
+        "un adulto de confianza que pueda ayudarte. No tienes que resolverlo a solas.",
         "en": "Thank you for telling me. If something made you feel uncomfortable or unsafe, "
         "find a trusted adult who can help. You don't have to handle it alone.",
     },
@@ -47,29 +47,30 @@ REPLIES: dict[str, dict[str, str]] = {
         "en": "I can't respond safely right now. Try again in a moment or ask a trusted adult "
         "for help.",
     },
+    # The three below end on going back to the work. Worded as "afterwards",
+    # not "once you are safe": the gate reads the second as a danger still
+    # open and then stops a plain "let's carry on" (measured with the cases
+    # in evals/physical-safety).
     "adult_help": {
         "es": "Primero, pide ayuda a un adulto de confianza que esté cerca. No lo intentes tú. "
-        "Después podemos jugar una adivinanza o inventar una aventura. ¿Qué prefieres?",
-        "en": "First, ask a trusted adult nearby for help. Don't try it yourself. Afterwards we "
-        "can play a guessing game or make up an adventure. Which would you like?",
+        "Después seguimos con lo que estábamos haciendo.",
+        "en": "First, ask a trusted adult nearby for help. Don't try it yourself. After that, "
+        "we'll carry on with what we were doing.",
     },
-    "adult_help_riddle": {
-        "es": "No lo intentes tú; pide ayuda a un adulto de confianza cercano. Cuando estés a "
-        "salvo, podemos jugar una adivinanza.",
-        "en": "Don't try it yourself; ask a trusted adult nearby for help. Once you're safe, we "
-        "can play a guessing game.",
+    "adult_help_again": {
+        "es": "No lo intentes tú; pide ayuda a un adulto de confianza cercano. Después seguimos.",
+        "en": "Don't try it yourself; ask a trusted adult nearby for help. After that, we'll "
+        "carry on.",
     },
-    "adult_help_story": {
-        "es": "Busca a un adulto de confianza que esté cerca; deja que se encargue. Cuando estés "
-        "a salvo, podemos inventar un cuento.",
-        "en": "Find a trusted adult nearby and let them handle it. Once you're safe, we can make "
-        "up a story.",
+    "adult_help_wait": {
+        "es": "Busca a un adulto de confianza que esté cerca; deja que se encargue. Después "
+        "seguimos con lo nuestro.",
+        "en": "Find a trusted adult nearby and let them handle it. After that, we'll carry on "
+        "with our work.",
     },
     "clarify": {
-        "es": "No estoy seguro de qué quieres hacer. ¿Me lo cuentas de otra manera? También "
-        "podemos jugar una adivinanza o inventar un cuento.",
-        "en": "I'm not sure what you want to do. Can you tell me another way? We can also play a "
-        "guessing game or make up a story.",
+        "es": "No entendí bien qué quieres hacer. ¿Me lo cuentas de otra manera?",
+        "en": "I didn't quite get what you want to do. Can you tell me another way?",
     },
     # The clock. Said in a quiet moment, never over a reply: a session does not
     # end without a warning.
@@ -130,14 +131,15 @@ REPLIES: dict[str, dict[str, str]] = {
     },
 }
 
-# Consecutive physical hazards get the full offer first and then alternate two
+# Consecutive physical hazards get the full reply first and then alternate two
 # shorter reminders. Each one stands alone: none assumes the hazard is the same
 # one or that it is over.
-ADULT_HELP_SEQUENCE = ("adult_help", "adult_help_riddle", "adult_help_story")
+ADULT_HELP_SEQUENCE = ("adult_help", "adult_help_again", "adult_help_wait")
 
-# Replies that offer something to do next. They stay in the conversation so
-# that "the riddle" has something to refer to on the following turn.
-OFFERS = frozenset({*ADULT_HELP_SEQUENCE, "clarify"})
+# Replies the following turn may answer ("ya vino mi mamá", the same thing said
+# another way). They stay in the conversation so that it has something to
+# refer to.
+ANSWERABLE = frozenset({*ADULT_HELP_SEQUENCE, "clarify"})
 
 # One activity per break, in turn: one that wakes up, then one that calms. They
 # are the four the session engine proposes, shortened to be heard.

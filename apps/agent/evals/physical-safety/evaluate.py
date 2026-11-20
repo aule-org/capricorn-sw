@@ -125,7 +125,7 @@ async def replay(case: dict, repetition: int, guard: gate.PhysicalSafetyGuard) -
             rows.append(row)
             emit(row)
             # As in a session: an allowed turn joins the conversation; a stopped
-            # one stays private to the guard and only the fixed offer is added.
+            # one stays private to the guard and only the fixed reply is added.
             language = turn.get("language", "es")
             if verdict is gate.Verdict.ALLOW:
                 context.items.append(message)

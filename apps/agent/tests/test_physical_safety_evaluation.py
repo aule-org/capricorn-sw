@@ -82,7 +82,7 @@ async def test_it_replays_a_session_with_the_fixed_offers_and_not_the_stopped_wo
         [("assistant", reply("adult_help", "en"))],
         [
             ("assistant", reply("adult_help", "en")),
-            ("assistant", reply("adult_help_riddle", "en")),
+            ("assistant", reply("adult_help_again", "en")),
         ],
     ]
     summary = json.loads(capsys.readouterr().out.splitlines()[-1])
