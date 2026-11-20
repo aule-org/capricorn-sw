@@ -241,6 +241,9 @@ pub struct Signals {
     /// The student is plainly fooling around instead of working, in this turn.
     #[serde(default)]
     pub not_trying: bool,
+    /// The student is tired or says so: a break would help more than a hint.
+    #[serde(default)]
+    pub tired: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -277,13 +280,14 @@ fn guidance_schema() -> Value {
             "signals": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["frustrated", "off_task", "answer_given", "ready_for_more", "not_trying"],
+                "required": ["frustrated", "off_task", "answer_given", "ready_for_more", "not_trying", "tired"],
                 "properties": {
                     "frustrated": { "type": "boolean" },
                     "off_task": { "type": "boolean" },
                     "answer_given": { "type": "boolean" },
                     "ready_for_more": { "type": "boolean" },
-                    "not_trying": { "type": "boolean", "description": "The student's latest turn is deliberate fooling around instead of working: silly or random talk, provoking the tutor, refusing to do anything. False for confusion, frustration, shyness, a short or wrong answer, a question about something else for school, and words that look garbled, which are usually a mistake of the speech recognition." }
+                    "not_trying": { "type": "boolean", "description": "The student's latest turn is deliberate fooling around instead of working: silly or random talk, provoking the tutor, refusing to do anything. False for confusion, frustration, shyness, a short or wrong answer, a question about something else for school, and words that look garbled, which are usually a mistake of the speech recognition." },
+                    "tired": { "type": "boolean", "description": "The student says they are tired or bored, or their answers have become much shorter and slower than earlier in the session. False for a single short answer." }
                 }
             }
         }

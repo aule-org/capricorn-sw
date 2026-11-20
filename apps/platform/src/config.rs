@@ -14,6 +14,8 @@ pub struct Config {
     pub livekit: Option<LiveKit>,
     pub agent_name: String,
     pub session_minutes: u32,
+    /// Minutes of work after which a break is offered.
+    pub break_every_minutes: u32,
     /// Hours a transcript is kept when the guardian agreed to keep it.
     pub transcript_hours: u32,
     pub supervisor: Option<Supervisor>,
@@ -110,6 +112,7 @@ impl Config {
             }
         };
         let session_minutes = whole("AULE_SESSION_MINUTES", 20, 1, 120);
+        let break_every_minutes = whole("AULE_BREAK_EVERY_MINUTES", 30, 5, 120);
         let transcript_hours = whole("AULE_TRANSCRIPT_HOURS", 24, 1, 24);
 
         let livekit = match (get("LIVEKIT_API_KEY"), get("LIVEKIT_API_SECRET")) {
@@ -212,6 +215,7 @@ impl Config {
             livekit,
             agent_name: get("AULE_AGENT_NAME").unwrap_or("aule-tutor").to_string(),
             session_minutes,
+            break_every_minutes,
             transcript_hours,
             supervisor,
             embeddings,

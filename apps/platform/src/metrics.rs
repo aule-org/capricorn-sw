@@ -111,6 +111,10 @@ pub async fn daily(
              'warned', (select count(*) from s where s.day = b.day and stop_step is not null),
              'closed', (select count(*) from s where s.day = b.day and stop_step = 'end')
            ),
+           'breaks', jsonb_build_object(
+             'taken', (select coalesce(sum(breaks), 0) from s where s.day = b.day),
+             'sessions_with_one', (select count(*) from s where s.day = b.day and breaks > 0)
+           ),
            'agent', (select coalesce(jsonb_object_agg(name, value), '{}'::jsonb) from (
                        select m.key as name, round(avg((m.value)::text::numeric), 2) as value
                        from s, jsonb_each(s.agent_metrics) m
