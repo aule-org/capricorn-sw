@@ -11,7 +11,7 @@ from aule_agent.config import Settings
 from aule_agent.events import contracts_dir
 from aule_agent.moderation import _PATTERN_DEFINITIONS, THRESHOLDS, Action, Decision, Finding
 from aule_agent.physical_safety import Verdict
-from aule_agent.replies import ADULT_HELP_SEQUENCE, OFFERS, REPLIES
+from aule_agent.replies import ADULT_HELP_SEQUENCE, ANSWERABLE, REPLIES
 from aule_agent.safety import (
     _PROVIDER_CATEGORY,
     FLAG_ACTIONS,
@@ -434,7 +434,7 @@ def test_the_flag_vocabulary_fits_the_safety_flagged_contract():
 def test_every_reply_exists_in_every_language():
     assert all(set(texts) == {"es", "en"} for texts in REPLIES.values())
     assert all(text.strip() for texts in REPLIES.values() for text in texts.values())
-    assert set(ADULT_HELP_SEQUENCE) | OFFERS <= set(REPLIES)
+    assert set(ADULT_HELP_SEQUENCE) | ANSWERABLE <= set(REPLIES)
 
 
 @pytest.mark.parametrize("finding", [Finding(available=False), Finding(categories=("hate",))])
