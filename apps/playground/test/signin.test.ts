@@ -106,6 +106,10 @@ test("the mailed code is offered whether or not Google is set up", async () => {
     const response = await fetch(`${base}/api/account`);
 
     assert.deepEqual(await response.json(), { google_client_id: null, mail: true, signed_in: false });
+    // Signed in, the page still knows a way in exists: it has no use for the access code open.
+    const inside = await (await fetch(`${base}/api/account`, { headers: { Cookie: COOKIE } })).json();
+    assert.equal(inside.signed_in, true);
+    assert.equal(inside.mail, true);
   } finally {
     googleOn = true;
   }
@@ -119,7 +123,7 @@ test("a Google credential the platform accepts signs the person in with a cookie
   assert.match(cookie, new RegExp(`^aule_guardian=${TOKEN}; Max-Age=2592000; Path=/playground/; HttpOnly; Secure; SameSite=Strict$`));
   // The page is told who it is and never sees the session.
   const body = await response.json();
-  assert.deepEqual(body, { google_client_id: "client-1", signed_in: true, name: "Ana", students: [], subjects: null });
+  assert.deepEqual(body, { google_client_id: "client-1", mail: true, signed_in: true, name: "Ana", students: [], subjects: null });
   assert.ok(!JSON.stringify(body).includes(TOKEN));
 });
 

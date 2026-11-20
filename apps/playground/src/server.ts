@@ -164,6 +164,7 @@ export function createPlayground(settings: Settings): Server {
       const students = await readStudents(settings, token, who.students);
       return reply({
         google_client_id: clientId,
+        mail: true,
         signed_in: true,
         name: who.name,
         students,
