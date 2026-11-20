@@ -244,6 +244,15 @@ async def entrypoint(ctx: JobContext) -> None:
     tasks = [asyncio.create_task(pace.run()), asyncio.create_task(pace.watch())]
     asides: set[asyncio.Task[None]] = set()
 
+    def goodbye() -> None:
+        # In its own task: the turn that said goodbye ends at once, and the
+        # tutor says it back once it is quiet.
+        task = asyncio.create_task(pace.farewell())
+        asides.add(task)
+        task.add_done_callback(asides.discard)
+
+    tutor.on_goodbye = goodbye
+
     @session.on("conversation_item_added")
     def back_from_a_break(event) -> None:
         if getattr(event.item, "type", None) == "message" and event.item.role == "user":
@@ -314,6 +323,7 @@ async def entrypoint(ctx: JobContext) -> None:
                 "minutes": round(pace.minutes(), 1),
                 "breaks_taken": pace.breaks_taken,
                 "closed_for_inactivity": int(pace.closed_for_inactivity),
+                "closed_after_goodbye": int(pace.closed_after_goodbye),
             }
             await platform.end({**usage.summary(), **timing.summary(), **measures})
 
