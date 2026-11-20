@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use crate::config::Config;
 use crate::google::{Google, IdentityProvider};
+use crate::oauth::{Apple, CodeProvider, Github, Meta};
 use crate::llm::{Anthropic, Llm};
 use crate::mail::{Mailer, SmtpMailer};
 use crate::memory::{Embedder, HttpEmbedder};
@@ -29,6 +30,9 @@ pub struct AppState {
     pub pusher: Option<Arc<dyn Pusher>>,
     /// Without one, guardians sign in with an emailed code only.
     pub google: Option<Arc<dyn IdentityProvider>>,
+    pub github: Option<Arc<dyn CodeProvider>>,
+    pub meta: Option<Arc<dyn CodeProvider>>,
+    pub apple: Option<Arc<dyn CodeProvider>>,
     /// Sessions the supervisor is reading right now, so a burst of turns
     /// starts one reading, not one per turn.
     pub watching: Arc<Mutex<HashSet<Uuid>>>,
@@ -74,6 +78,18 @@ impl AppState {
         });
         let google =
             config.google_client_id.clone().map(|id| Arc::new(Google::new(id)) as Arc<dyn IdentityProvider>);
+        let github = config.github.clone().map(|app| {
+            Arc::new(Github::new(app.client_id, app.client_secret)) as Arc<dyn CodeProvider>
+        });
+        let meta =
+            config.meta.clone().map(|app| Arc::new(Meta::new(app.client_id, app.client_secret)) as Arc<dyn CodeProvider>);
+        // The settings already checked the key, so this only fails if that check is wrong.
+        let apple = config.apple.clone().and_then(|apple| {
+            Apple::new(apple.services_id, apple.team_id, apple.key_id, &apple.key_pem)
+                .inspect_err(|error| tracing::error!(%error, "sign-in with Apple is off: its key could not be used"))
+                .ok()
+                .map(|apple| Arc::new(apple) as Arc<dyn CodeProvider>)
+        });
         Self {
             db,
             pool,
@@ -83,6 +99,9 @@ impl AppState {
             mailer,
             pusher,
             google,
+            github,
+            meta,
+            apple,
             watching: Arc::default(),
             claim_attempts: Arc::default(),
             engines: Arc::default(),

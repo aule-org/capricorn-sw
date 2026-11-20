@@ -27,8 +27,28 @@ pub struct Config {
     /// The Google client that guardians' sign-ins must have been issued for.
     /// Without one, the emailed code is the only way in.
     pub google_client_id: Option<String>,
+    /// GitHub's OAuth app, Meta's app and Apple's Services ID for sign-in.
+    /// Each provider is offered only when all its settings are there.
+    pub github: Option<OAuthApp>,
+    pub meta: Option<OAuthApp>,
+    pub apple: Option<AppleSignIn>,
     /// Minutes east of UTC that devices are told, for their clock.
     pub timezone_offset_minutes: i32,
+}
+
+#[derive(Clone, Debug)]
+pub struct OAuthApp {
+    pub client_id: String,
+    pub client_secret: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct AppleSignIn {
+    pub services_id: String,
+    pub team_id: String,
+    pub key_id: String,
+    /// The `.p8` file Apple gave for Sign in with Apple.
+    pub key_pem: Vec<u8>,
 }
 
 #[derive(Clone, Debug)]
@@ -205,6 +225,49 @@ impl Config {
             problems.push("AULE_GOOGLE_CLIENT_ID must end in .apps.googleusercontent.com".into());
         }
 
+        let mut app = |id: &str, secret: &str| match (get(id), get(secret)) {
+            (Some(client_id), Some(client_secret)) => {
+                Some(OAuthApp { client_id: client_id.to_string(), client_secret: client_secret.to_string() })
+            }
+            (None, None) => None,
+            _ => {
+                problems.push(format!("{id} and {secret} must be set together"));
+                None
+            }
+        };
+        let github = app("AULE_GITHUB_CLIENT_ID", "AULE_GITHUB_CLIENT_SECRET");
+        let meta = app("AULE_META_APP_ID", "AULE_META_APP_SECRET");
+
+        const APPLE: [&str; 4] =
+            ["AULE_APPLE_SERVICES_ID", "AULE_APPLE_TEAM_ID", "AULE_APPLE_KEY_ID", "AULE_APPLE_PRIVATE_KEY"];
+        let apple = match APPLE.map(get) {
+            [Some(services_id), Some(team_id), Some(key_id), Some(key)] => {
+                if !crate::oauth::is_services_id(services_id) {
+                    problems.push("AULE_APPLE_SERVICES_ID must look like com.example.signin".into());
+                }
+                if !crate::oauth::is_apple_id(team_id) || !crate::oauth::is_apple_id(key_id) {
+                    problems.push("AULE_APPLE_TEAM_ID and AULE_APPLE_KEY_ID must be ten letters and digits".into());
+                }
+                // The .p8 file in base64, so that it fits on one line.
+                use base64::Engine as _;
+                let key_pem = base64::engine::general_purpose::STANDARD.decode(key).unwrap_or_default();
+                if jsonwebtoken::EncodingKey::from_ec_pem(&key_pem).is_err() {
+                    problems.push("AULE_APPLE_PRIVATE_KEY must be the .p8 key file in base64".into());
+                }
+                Some(AppleSignIn {
+                    services_id: services_id.to_string(),
+                    team_id: team_id.to_string(),
+                    key_id: key_id.to_string(),
+                    key_pem,
+                })
+            }
+            [None, None, None, None] => None,
+            _ => {
+                problems.push(format!("{} must be set together", APPLE.join(", ")));
+                None
+            }
+        };
+
         if !problems.is_empty() {
             return Err(ConfigError(problems.join("; ")));
         }
@@ -223,6 +286,9 @@ impl Config {
             events_webhook,
             fcm_service_account: get("AULE_FCM_SERVICE_ACCOUNT").map(str::to_string),
             google_client_id,
+            github,
+            meta,
+            apple,
             timezone_offset_minutes,
         })
     }
@@ -251,7 +317,33 @@ mod tests {
         assert_eq!((config.session_minutes, config.transcript_hours), (20, 24));
         assert!(config.livekit.is_none() && config.supervisor.is_none() && config.embeddings.is_none());
         assert!(config.mail.is_none() && config.events_webhook.is_none());
+        assert!(config.github.is_none() && config.meta.is_none() && config.apple.is_none());
         assert_eq!(config.timezone_offset_minutes, -300);
+    }
+
+    #[test]
+    fn a_sign_in_provider_needs_all_its_settings() {
+        let mut env = complete();
+        env.insert("AULE_GITHUB_CLIENT_ID".into(), "Ov23liExample".into());
+        env.insert("AULE_APPLE_SERVICES_ID".into(), "com.example.signin".into());
+        let message = Config::from_map(&env).unwrap_err().to_string();
+        assert!(message.contains("AULE_GITHUB_CLIENT_ID and AULE_GITHUB_CLIENT_SECRET"), "{message}");
+        assert!(message.contains("AULE_APPLE_PRIVATE_KEY must be set together"), "{message}");
+
+        env.insert("AULE_GITHUB_CLIENT_SECRET".into(), "secret".into());
+        env.insert("AULE_APPLE_TEAM_ID".into(), "TEAM123456".into());
+        env.insert("AULE_APPLE_KEY_ID".into(), "KEY1234567".into());
+        env.insert("AULE_APPLE_PRIVATE_KEY".into(), "bm90IGEga2V5".into());
+        let message = Config::from_map(&env).unwrap_err().to_string();
+        assert!(message.contains("AULE_APPLE_PRIVATE_KEY must be the .p8 key file"), "{message}");
+
+        env.remove("AULE_APPLE_SERVICES_ID");
+        env.remove("AULE_APPLE_TEAM_ID");
+        env.remove("AULE_APPLE_KEY_ID");
+        env.remove("AULE_APPLE_PRIVATE_KEY");
+        let config = Config::from_map(&env).unwrap();
+        assert_eq!(config.github.unwrap().client_id, "Ov23liExample");
+        assert!(config.apple.is_none());
     }
 
     #[test]

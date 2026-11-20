@@ -11,6 +11,7 @@ use aule_platform::google::{Identity, IdentityError, IdentityProvider};
 use aule_platform::llm::{Llm, LlmError, Request as LlmRequest};
 use aule_platform::mail::{MailError, Mailer};
 use aule_platform::memory::{DIMENSIONS, Embedder, MemoryError, NewMemory};
+use aule_platform::oauth::CodeProvider;
 use aule_platform::push::{Delivery, Push, PushError, Pusher};
 use aule_platform::state::AppState;
 use aule_platform::{events, http, jobs};
@@ -132,6 +133,24 @@ impl Pusher for Phones {
 
 const GOOGLE_CLIENT: &str = "1234-test.apps.googleusercontent.com";
 
+/// Stands in for GitHub: a code is `ok:<email>:<name>`, `down` plays an outage,
+/// anything else is refused. The redirect it was given must be the page's.
+struct PretendGithub;
+
+#[async_trait]
+impl CodeProvider for PretendGithub {
+    fn client_id(&self) -> &str {
+        "pretend-github"
+    }
+
+    async fn identify(&self, code: &str, redirect_uri: &str) -> Result<Identity, IdentityError> {
+        if redirect_uri != "https://page.example.org/api/signin/github/callback" {
+            return Err(IdentityError::Refused("another redirect".into()));
+        }
+        PretendGoogle.identify(code).await
+    }
+}
+
 /// Stands in for Google: a credential is `ok:<email>:<name>`, `down` plays an
 /// outage, and anything else is refused.
 struct PretendGoogle;
@@ -183,6 +202,9 @@ fn app_with(pool: PgPool, events_webhook: Option<EventsWebhook>) -> App {
         events_webhook,
         fcm_service_account: None,
         google_client_id: Some(GOOGLE_CLIENT.into()),
+        github: None,
+        meta: None,
+        apple: None,
         timezone_offset_minutes: -300,
     };
     let mail = Arc::new(Outbox::default());
@@ -197,6 +219,9 @@ fn app_with(pool: PgPool, events_webhook: Option<EventsWebhook>) -> App {
         mailer: Some(mail.clone()),
         pusher: Some(phones.clone()),
         google: Some(Arc::new(PretendGoogle)),
+        github: Some(Arc::new(PretendGithub)),
+        meta: None,
+        apple: None,
         watching: Arc::new(Mutex::new(HashSet::new())),
         claim_attempts: Arc::new(Mutex::new(HashMap::new())),
         engines: Default::default(),
@@ -1624,6 +1649,52 @@ async fn a_guardian_signs_in_with_google_and_it_is_the_same_account_as_by_code(p
     );
     assert_eq!(app.call(Method::GET, "/v1/me", Some(&token), None).await.0, StatusCode::UNAUTHORIZED);
     assert_eq!(app.call(Method::GET, "/v1/me", Some(&by_code), None).await.0, StatusCode::OK);
+}
+
+#[sqlx::test(migrator = "aule_platform::MIGRATOR")]
+async fn a_guardian_signs_in_with_github_into_the_family_of_that_address(pool: PgPool) {
+    let app = app(pool);
+    const PAGE: &str = "https://page.example.org/api/signin/github/callback";
+    let github = |code: &str, redirect: &str| {
+        let body = json!({ "code": code, "redirect_uri": redirect });
+        app.call(Method::POST, "/v1/auth/github", None, Some(body))
+    };
+
+    // The page learns which providers are set up, and their public ids.
+    let (status, providers) = app.call(Method::GET, "/v1/auth/providers", None, None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        providers,
+        json!({ "google": GOOGLE_CLIENT, "github": "pretend-github", "meta": null, "apple": null })
+    );
+
+    // A provider that is not set up, a refused code, an outage and bad requests.
+    let meta = json!({ "code": "ok:ana@example.org:Ana", "redirect_uri": PAGE });
+    let (status, _) = app.call(Method::POST, "/v1/auth/meta", None, Some(meta)).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(github("forged", PAGE).await.0, StatusCode::FORBIDDEN);
+    assert_eq!(github("ok:ana@example.org:Ana", "https://elsewhere.example.org/").await.0, StatusCode::FORBIDDEN);
+    assert_eq!(github("down", PAGE).await.0, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(github("ok:ana@example.org:Ana", "http://page.example.org/").await.0, StatusCode::BAD_REQUEST);
+    assert_eq!(github("", PAGE).await.0, StatusCode::BAD_REQUEST);
+    assert_eq!(app.count("select count(*) from guardians").await, 0);
+
+    // The address GitHub vouches for opens the same family as Google does.
+    let google = json!({ "credential": "ok:ana@example.org:Ana" });
+    let (status, by_google) = app.call(Method::POST, "/v1/auth/google", None, Some(google)).await;
+    assert_eq!(status, StatusCode::OK, "{by_google}");
+    let (status, by_github) = github("ok:Ana@Example.org:ana-gh", PAGE).await;
+    assert_eq!(status, StatusCode::OK, "{by_github}");
+    assert_eq!(
+        (by_github["new_account"].as_bool(), &by_github["family_id"]),
+        (Some(false), &by_google["family_id"])
+    );
+
+    // A new address becomes a family named from the account.
+    let (status, luis) = github("ok:luis@example.org:Luis", PAGE).await;
+    assert_eq!((status, luis["new_account"].as_bool()), (StatusCode::OK, Some(true)));
+    let (_, me) = app.call(Method::GET, "/v1/me", luis["token"].as_str(), None).await;
+    assert_eq!(me["guardian"]["name"], "Luis");
 }
 
 #[sqlx::test(migrator = "aule_platform::MIGRATOR")]

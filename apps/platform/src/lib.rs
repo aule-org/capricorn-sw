@@ -21,6 +21,7 @@ pub mod mail;
 pub mod memory;
 pub mod metrics;
 pub mod notices;
+pub mod oauth;
 pub mod practice;
 pub mod push;
 pub mod sessions;
