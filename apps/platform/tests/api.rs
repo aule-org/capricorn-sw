@@ -664,10 +664,10 @@ async fn a_family_says_what_to_reinforce_and_what_a_session_is_for(pool: PgPool)
     let chosen = json!({ "nickname": "Mateo", "subjects": ["matematica", "ciencia", "matematica"] });
     let (status, updated) = app.admin(Method::PUT, &path, Some(chosen)).await;
     assert_eq!(status, StatusCode::OK, "{updated}");
-    assert_eq!(updated["subjects"], json!(["ciencia", "matematica"]));
+    assert_eq!(updated["subjects"], json!(["matematica", "ciencia"]), "in the family's order, once each");
     app.admin(Method::PUT, &path, Some(json!({ "nickname": "Mateo" }))).await;
     let (_, read) = app.admin(Method::GET, &path, None).await;
-    assert_eq!(read["child"]["subjects"], json!(["ciencia", "matematica"]));
+    assert_eq!(read["child"]["subjects"], json!(["matematica", "ciencia"]));
 
     // The objective of a session is checked and kept.
     let start = |objective: Value| {
@@ -691,7 +691,9 @@ async fn a_family_says_what_to_reinforce_and_what_a_session_is_for(pool: PgPool)
     // The tutor is told what the family wants reinforced.
     let (_, token) = app.session(&child).await;
     let (_, begun) = app.call(Method::GET, "/v1/agent/session", Some(&token), None).await;
-    assert!(begun["instructions"].as_str().unwrap().contains("reinforce: ciencia, matematica"), "{begun}");
+    assert!(begun["instructions"].as_str().unwrap().contains("reinforce: matematica, ciencia"), "{begun}");
+    assert_eq!(begun["student_name"], "Mateo");
+    assert_eq!(begun["session_number"], 0, "no session of this student had started before");
 }
 
 #[sqlx::test(migrator = "aule_platform::MIGRATOR")]
