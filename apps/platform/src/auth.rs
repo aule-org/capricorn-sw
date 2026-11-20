@@ -134,8 +134,8 @@ pub struct Session {
     pub use_memory: bool,
     pub created_at: DateTime<Utc>,
     pub ended_at: Option<DateTime<Utc>>,
-    /// "engine" when the session engine runs the session; see `flow`.
-    pub flow: Option<String>,
+    /// Whether the session engine runs the session; see `engine`.
+    pub engine: bool,
 }
 
 impl From<crate::entity::session::Model> for Session {
@@ -151,7 +151,7 @@ impl From<crate::entity::session::Model> for Session {
             use_memory: row.use_memory,
             created_at: row.created_at,
             ended_at: row.ended_at,
-            flow: row.flow,
+            engine: row.engine,
         }
     }
 }

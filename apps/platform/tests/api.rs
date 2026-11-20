@@ -199,7 +199,7 @@ fn app_with(pool: PgPool, events_webhook: Option<EventsWebhook>) -> App {
         google: Some(Arc::new(PretendGoogle)),
         watching: Arc::new(Mutex::new(HashSet::new())),
         claim_attempts: Arc::new(Mutex::new(HashMap::new())),
-        flows: Default::default(),
+        engines: Default::default(),
     };
     App { phones, router: http::router(state.clone()), state, llm, mail }
 }
@@ -1914,7 +1914,7 @@ fn fractions(kind: &str) -> Value {
 
 /// A child's session that asks for the engine; returns what the API answered and the agent's token.
 async fn engine_session(app: &App, child: &str, objective: Value) -> (Value, String) {
-    let body = json!({ "child_id": child, "audience": "child", "objective": objective, "flow": "engine" });
+    let body = json!({ "child_id": child, "audience": "child", "objective": objective, "engine": true });
     let (status, session) = app.admin(Method::POST, "/v1/sessions", Some(body)).await;
     assert_eq!(status, StatusCode::CREATED, "{session}");
     let token = agent_token(&session);
@@ -2061,23 +2061,23 @@ async fn the_session_engine_runs_a_session_from_the_greeting_to_the_family_repor
 
     // Asked for and not possible: the session is created as always.
     for (body, why) in [
-        (json!({ "child_id": child, "audience": "child", "flow": "engine" }), "no objective"),
+        (json!({ "child_id": child, "audience": "child", "engine": true }), "no objective"),
         (
-            json!({ "child_id": child, "audience": "child", "flow": "engine",
+            json!({ "child_id": child, "audience": "child", "engine": true,
                     "objective": { "kind": "homework", "subject": "matematica", "topic": "decimales" } }),
             "a topic the bank does not have",
         ),
         (
-            json!({ "child_id": child, "audience": "child", "flow": "engine", "language": "en",
+            json!({ "child_id": child, "audience": "child", "engine": true, "language": "en",
                     "objective": fractions("homework") }),
             "the engine speaks Spanish only",
         ),
-        (json!({ "audience": "operator", "flow": "engine", "objective": fractions("homework") }), "no child"),
+        (json!({ "audience": "operator", "engine": true, "objective": fractions("homework") }), "no child"),
         (json!({ "child_id": child, "audience": "child", "objective": fractions("homework") }), "not asked"),
     ] {
         let (status, session) = app.admin(Method::POST, "/v1/sessions", Some(body)).await;
         assert_eq!(status, StatusCode::CREATED, "{why}: {session}");
-        assert_eq!(session["flow"], Value::Null, "{why}");
+        assert_eq!(session["engine"], false, "{why}");
         let token = agent_token(&session);
         let (status, start) = app.call(Method::GET, "/v1/agent/session", Some(&token), None).await;
         assert_eq!(status, StatusCode::OK);
@@ -2088,13 +2088,13 @@ async fn the_session_engine_runs_a_session_from_the_greeting_to_the_family_repor
         let step = format!("/v1/sessions/{}/step", session["session_id"].as_str().unwrap());
         assert_eq!(app.admin(Method::GET, &step, None).await.0, StatusCode::CONFLICT, "{why}");
     }
-    let unknown = json!({ "child_id": child, "audience": "child", "flow": "script" });
+    let unknown = json!({ "child_id": child, "audience": "child", "engine": "script" });
     assert_eq!(app.admin(Method::POST, "/v1/sessions", Some(unknown)).await.0, StatusCode::BAD_REQUEST);
-    assert_eq!(app.count("select count(*) from session_flow_inputs").await, 0);
+    assert_eq!(app.count("select count(*) from session_engine_inputs").await, 0);
 
     // The engine runs this one.
     let (session, token) = engine_session(&app, &child, fractions("homework")).await;
-    assert_eq!(session["flow"], "engine");
+    assert_eq!(session["engine"], true);
     let session = session["session_id"].as_str().unwrap().to_string();
     let agent = Some(token.as_str());
     let pupil = Pupil { app: &app, session: session.clone(), token: token.clone(), contract };
@@ -2122,7 +2122,7 @@ async fn the_session_engine_runs_a_session_from_the_greeting_to_the_family_repor
     // Asked again before anything was said: the same opening, started once.
     let (_, again) = app.call(Method::GET, "/v1/agent/session", agent, None).await;
     assert_eq!(again["script"], start["script"]);
-    assert_eq!(app.count("select count(*) from session_flow_inputs").await, 1);
+    assert_eq!(app.count("select count(*) from session_engine_inputs").await, 1);
 
     // The free mode's exercises stay out of a session the engine runs.
     let pose = json!({ "expression": "1/2 + 1/4" });
@@ -2187,12 +2187,16 @@ async fn the_session_engine_runs_a_session_from_the_greeting_to_the_family_repor
 
     // The engine is rebuilt from its stored inputs when the process loses it.
     let live = pupil.step().await;
-    let inputs = app.count("select count(*) from session_flow_inputs").await;
-    app.state.flows.lock().unwrap().clear();
+    let inputs = app.count("select count(*) from session_engine_inputs").await;
+    app.state.engines.lock().unwrap().clear();
     let mut rebuilt = pupil.step().await;
     rebuilt["elapsed_seconds"] = live["elapsed_seconds"].clone();
     assert_eq!(rebuilt, live);
-    assert_eq!(app.count("select count(*) from session_flow_inputs").await, inputs, "looking stores nothing");
+    assert_eq!(
+        app.count("select count(*) from session_engine_inputs").await,
+        inputs,
+        "looking stores nothing"
+    );
 
     // ...and goes on from there: the right answer moves to the next exercise.
     let right = pupil.answers(true).await;
@@ -2261,7 +2265,7 @@ async fn the_session_engine_runs_a_session_from_the_greeting_to_the_family_repor
 
     // Nothing the student said was logged or left the inputs: they are the only copy.
     let kinds: Vec<String> =
-        sqlx::query_scalar("select distinct input->>'kind' from session_flow_inputs order by 1")
+        sqlx::query_scalar("select distinct input->>'kind' from session_engine_inputs order by 1")
             .fetch_all(&app.state.pool)
             .await
             .unwrap();
@@ -2275,7 +2279,7 @@ async fn the_session_engine_runs_a_session_from_the_greeting_to_the_family_repor
         app.call(Method::POST, "/v1/agent/session/said", agent, Some(json!({ "said": "hola" }))).await;
     assert_eq!(status, StatusCode::CONFLICT);
     assert_eq!(app.admin(Method::GET, &step_path(&session), None).await.0, StatusCode::CONFLICT);
-    assert!(app.state.flows.lock().unwrap().is_empty(), "the engine is dropped with the session");
+    assert!(app.state.engines.lock().unwrap().is_empty(), "the engine is dropped with the session");
     assert!(jobs::work_once(&app.state).await.unwrap());
     let (summary, next_step): (String, Option<String>) =
         sqlx::query_as("select guardian_summary, next_step from session_reviews")
@@ -2291,7 +2295,7 @@ async fn the_session_engine_runs_a_session_from_the_greeting_to_the_family_repor
     assert_eq!(notices["notices"][0]["kind"], "session_summary");
     assert_eq!(notices["notices"][0]["body"], summary);
     // No consent to keep transcripts: what the student said went with the turns.
-    assert_eq!(app.count("select count(*) from session_flow_inputs").await, 0);
+    assert_eq!(app.count("select count(*) from session_engine_inputs").await, 0);
     assert_eq!(app.count("select count(*) from session_turns").await, 0);
 }
 
@@ -2306,7 +2310,7 @@ async fn what_a_student_said_to_the_engine_is_kept_and_deleted_like_the_transcri
     for purpose in ["voice", "transcripts"] {
         app.consent(&child, purpose, true).await;
     }
-    let inputs = "select count(*) from session_flow_inputs";
+    let inputs = "select count(*) from session_engine_inputs";
 
     // A short session: the screening, left half way.
     let short_session = || async {
@@ -2396,7 +2400,7 @@ async fn what_a_student_said_to_the_engine_is_kept_and_deleted_like_the_transcri
 /// Moves a session's engine back in time: its clock counts from its first input.
 async fn minutes_pass(app: &App, session: &str, minutes: i32) {
     sqlx::query(
-        "update session_flow_inputs set at = at - make_interval(mins => $2) where session_id = $1::uuid",
+        "update session_engine_inputs set at = at - make_interval(mins => $2) where session_id = $1::uuid",
     )
     .bind(session)
     .bind(minutes)
@@ -2404,7 +2408,7 @@ async fn minutes_pass(app: &App, session: &str, minutes: i32) {
     .await
     .unwrap();
     // The live engine keeps its own start; a rebuilt one reads it again.
-    app.state.flows.lock().unwrap().clear();
+    app.state.engines.lock().unwrap().clear();
 }
 
 #[sqlx::test(migrator = "aule_platform::MIGRATOR")]
@@ -2498,7 +2502,7 @@ async fn an_engine_session_leaves_the_level_and_its_evidence_and_the_next_one_st
         .execute(&app.state.pool)
         .await
         .unwrap();
-    app.state.flows.lock().unwrap().clear();
+    app.state.engines.lock().unwrap().clear();
     assert_eq!(second.step().await["progress"], "Nivel 3");
 
     // Silence: nothing said, nothing stored, nothing to say.
@@ -2509,10 +2513,10 @@ async fn an_engine_session_leaves_the_level_and_its_evidence_and_the_next_one_st
         second.answers(true).await;
     }
     let exercise = second.step().await["card"].clone();
-    let inputs = app.count("select count(*) from session_flow_inputs").await;
+    let inputs = app.count("select count(*) from session_engine_inputs").await;
     let quiet = second.says(json!({ "said": "" })).await;
     assert_eq!(quiet, json!({ "lines": [], "converse": null, "closed": false }));
-    assert_eq!(app.count("select count(*) from session_flow_inputs").await, inputs);
+    assert_eq!(app.count("select count(*) from session_engine_inputs").await, inputs);
 
     // Ten silent minutes on one exercise: the engine's hint arrives on its own, once.
     minutes_pass(&app, &id, 10).await;
@@ -2521,7 +2525,10 @@ async fn an_engine_session_leaves_the_level_and_its_evidence_and_the_next_one_st
     assert_eq!(late["converse"], Value::Null);
     assert_eq!(second.says(json!({ "said": " " })).await["lines"], json!([]));
     assert_eq!(second.step().await["card"], exercise, "time is not an answer");
-    assert_eq!(app.count("select count(*) from session_flow_inputs where input->>'kind' = 'tick'").await, 1);
+    assert_eq!(
+        app.count("select count(*) from session_engine_inputs where input->>'kind' = 'tick'").await,
+        1
+    );
 
     // A break is the engine's, and ends on its own; the platform offers none
     // of its own, though the supervisor still read that the student is tired.
@@ -2563,7 +2570,7 @@ async fn an_engine_session_leaves_the_level_and_its_evidence_and_the_next_one_st
 
     // The session length the engine was given is the platform's, inside the
     // engine's own limits (20 minutes here, so the engine's shortest: 30).
-    let start: Value = sqlx::query_scalar("select flow_start from sessions where id = $1::uuid")
+    let start: Value = sqlx::query_scalar("select engine_start from sessions where id = $1::uuid")
         .bind(&id)
         .fetch_one(&app.state.pool)
         .await
@@ -2571,7 +2578,7 @@ async fn an_engine_session_leaves_the_level_and_its_evidence_and_the_next_one_st
     assert_eq!(start["minutes"], 20);
     assert_eq!(start["kept"]["levels"], json!({ "Fracciones": 2 }));
     assert_eq!(
-        app.count("select count(*) from sessions where flow is null and flow_start is not null").await,
+        app.count("select count(*) from sessions where not engine and engine_start is not null").await,
         0
     );
 
@@ -2579,7 +2586,7 @@ async fn an_engine_session_leaves_the_level_and_its_evidence_and_the_next_one_st
     let (status, _) = app.admin(Method::DELETE, &format!("/v1/children/{child}"), None).await;
     assert_eq!(status, StatusCode::NO_CONTENT);
     assert_eq!(app.count("select count(*) from attempts").await, 0);
-    assert_eq!(app.count("select count(*) from session_flow_inputs").await, 0);
+    assert_eq!(app.count("select count(*) from session_engine_inputs").await, 0);
 }
 
 #[sqlx::test(migrator = "aule_platform::MIGRATOR")]

@@ -383,7 +383,7 @@ export async function startSession(
     language,
     child_id: id,
     ...(objective ? { objective } : {}),
-    ...(settings.flow ? { flow: settings.flow } : {}),
+    ...(settings.engine ? { engine: true } : {}),
   };
   return (await platform(settings, "/v1/sessions", body, token)) as Session;
 }
