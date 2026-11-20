@@ -124,7 +124,7 @@ Built:
   - the outbox, with delivery to the platform's own consumers and to a signed webhook;
   - notices to guardians, in the app, by email and with a push to their phone (Firebase Cloud Messaging) that says only that there is something to read;
   - a Postgres job queue and the housekeeping that deletes transcripts on time and closes abandoned sessions;
-  - a first integration of the session engine (`engine/`): when asked, a child's session on a topic its bank covers is run by the engine, stored as its ordered inputs and rebuilt from them, with its lines handed to the agent, a step for the student's screen, and its report sent to the family as the session's summary.
+  - a first integration of the session engine (`engine/`): when asked, a child's session on a topic its bank covers is run by the engine, stored as its ordered inputs and rebuilt from them, with its lines handed to the agent, a step for the student's screen, and its report sent to the family as the session's summary The level it finds is kept on the child for the next session, each exercise it grades is evidence for the learner model, and its session length and breaks are the only ones in such a session.
 - The agent: a first tutor on LiveKit Agents with the camera as an image on each turn, connected to the platform for the plan, the turn reports and the guidance.
 - Visuals: the tutor can show an exercise or a simple diagram on the student's screen. It sends a small description that follows a shared contract, and the screen draws it in black on white; no image is generated. What is written on the screen passes the same gate as what is spoken.
 - The two safety gates in the agent: content moderation on what is heard and on what is about to be spoken, and the physical-safety check on what is heard. Both fail closed, a child's session does not start unless both are configured, and what they stop is reported as fixed categories.
@@ -133,7 +133,6 @@ Built:
 
 Not built yet:
 
-- Around the session engine: what it learns about a child (their level per topic, an unfinished screening) is not kept for the next session and does not reach the learner model, and nothing ties its own session length and breaks to the platform's.
 - The inbox for incoming events, and with it entitlements from a store (`order.paid`).
 - Drawing visuals on the device's e-ink screen. Only the playground draws them today.
 - The device side of `/ota/session`: the firmware does not have its LiveKit transport yet.

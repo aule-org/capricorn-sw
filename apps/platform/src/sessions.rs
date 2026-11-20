@@ -157,6 +157,12 @@ pub async fn open_session(
         language.or(child.as_ref().map(|child| child.language.clone())).unwrap_or_else(|| "es".to_string());
     let flow = (engine && child.is_some() && flow::goal(objective.as_ref(), &language).is_some())
         .then_some(flow::ENGINE);
+    let flow_start = match (&child, flow) {
+        (Some(child), Some(_)) => {
+            Some(flow::start_for(&mut tx, child.id, state.config.session_minutes).await?)
+        }
+        _ => None,
+    };
 
     let session_id = Uuid::now_v7();
     let mut secret = [0u8; 32];
@@ -166,8 +172,8 @@ pub async fn open_session(
     sqlx::query(
         "insert into sessions
            (id, child_id, audience, room, language, agent_token_hash, keep_transcript, use_memory, device_id,
-            objective, flow)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
+            objective, flow, flow_start)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
     )
     .bind(session_id)
     .bind(child.as_ref().map(|child| child.id))
@@ -180,6 +186,7 @@ pub async fn open_session(
     .bind(device_id)
     .bind(&objective)
     .bind(flow)
+    .bind(flow_start)
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -537,7 +544,9 @@ pub async fn agent_turns(
         .fetch_one(&state.pool)
         .await?;
     // "offer" while a break is due; the agent says it once and reports it taken.
-    let pause = pause(&state, &session, body.breaks_taken).await?;
+    // The engine gives its own breaks, as lines of its script: a second offer
+    // from here would be a second system of breaks.
+    let pause = if flow::runs(&session) { None } else { pause(&state, &session, body.breaks_taken).await? };
     let mut answer = json!({ "guidance": guidance, "plan": plan, "stop": stop, "pause": pause });
     // What the engine answered to something typed on the page, for the tutor to say.
     if flow::runs(&session)
@@ -808,10 +817,11 @@ pub async fn review_session(state: &AppState, session_id: Uuid) -> ApiResult<()>
     .await?;
     let Some(session) = session else { return Ok(()) };
 
-    // A session the engine ran is told to the family in the engine's words.
-    // Stored first: it needs the session's inputs, which do not outlive a
-    // review that keeps failing.
-    let engine_report = flow::report(state, &session).await?;
+    // A session the engine ran is told to the family in the engine's words,
+    // and leaves the child's level and its graded exercises behind. Done
+    // first: it needs the session's inputs, which do not outlive a review
+    // that keeps failing.
+    let engine_report = flow::conclude(state, &session).await?;
     if let (Some(report), Some(child_id)) = (&engine_report, session.child_id) {
         sqlx::query(
             "insert into session_reviews (session_id, child_id, guardian_summary) values ($1, $2, $3)
@@ -858,7 +868,7 @@ pub async fn review_session(state: &AppState, session_id: Uuid) -> ApiResult<()>
         // Skills the tutor's exercises were checked on already have their
         // evidence, from the check; the review's reading of them is left out.
         let checked: Vec<String> = sqlx::query_scalar(
-            "select distinct skill_id from attempts where session_id = $1 and source = 'tutor'",
+            "select distinct skill_id from attempts where session_id = $1 and source in ('tutor', 'engine')",
         )
         .bind(session.id)
         .fetch_all(&state.pool)

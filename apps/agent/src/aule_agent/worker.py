@@ -24,6 +24,7 @@ from .platform import Platform, platform_session
 from .providers import build_llm, build_stt, build_tts
 from .replies import reply
 from .safety import audience_of, build_gates
+from .script import Reply
 from .tutor import Persona, Tutor, persona_from
 from .usage import Usage
 
@@ -199,7 +200,7 @@ async def entrypoint(ctx: JobContext) -> None:
         taken=break_taken,
     )
     tasks = [asyncio.create_task(pace.run())]
-    breaks: set[asyncio.Task[None]] = set()
+    asides: set[asyncio.Task[None]] = set()
 
     @session.on("conversation_item_added")
     def back_from_a_break(event) -> None:
@@ -234,23 +235,31 @@ async def entrypoint(ctx: JobContext) -> None:
             # leaves without a word instead of talking to nobody's account.
             session.shutdown()
 
+        def aside(saying) -> None:
+            # In its own task: the reports do not wait for the tutor to speak.
+            task = asyncio.create_task(saying)
+            asides.add(task)
+            task.add_done_callback(asides.discard)
+
         async def pause() -> None:
-            # In its own task: the reports do not wait for a quiet moment.
-            offer = asyncio.create_task(pace.take_a_break())
-            breaks.add(offer)
-            offer.add_done_callback(breaks.discard)
+            aside(pace.take_a_break())
+
+        async def written(lines: Reply) -> None:
+            aside(tutor.scripted_lines(lines))
 
         tasks.append(
             asyncio.create_task(
-                platform.run(tutor.advise, tutor.plan, stop, gone=gone, pause=pause)
+                platform.run(
+                    tutor.advise, tutor.plan, stop, gone=gone, pause=pause, written=written
+                )
             )
         )
 
     async def cleanup() -> None:
         pace.close()
-        for task in [*tasks, *breaks]:
+        for task in [*tasks, *asides]:
             task.cancel()
-        await asyncio.gather(*tasks, *breaks, return_exceptions=True)
+        await asyncio.gather(*tasks, *asides, return_exceptions=True)
         camera.stop()
         logger.info("session usage", extra=usage.summary())
         await gates.close()
@@ -284,6 +293,15 @@ async def entrypoint(ctx: JobContext) -> None:
         return "ok" if await tutor.show_work() else "no_frame"
 
     ctx.room.local_participant.register_rpc_method("show_work", show_work)
+
+    async def answered(_: rtc.RpcInvocationData) -> str:
+        # The page sent the engine an answer the student typed. What the engine
+        # wrote back comes with the next report, so the report is made now.
+        if platform:
+            platform.wake()
+        return "ok"
+
+    ctx.room.local_participant.register_rpc_method("answered", answered)
     # Tells the page that the button has somebody to answer it.
     await ctx.room.local_participant.set_attributes({"aule.show_work": "rpc"})
     if settings.push_to_talk:
