@@ -917,7 +917,10 @@ impl Flow {
                 (None, false, None) => said.to_string(),
             };
             let enough = correccion::explicacion_por_claves(&explanation, keys, least);
-            if !enough && held.is_none() {
+            // An explanation written in its own box is the explanation: it is
+            // graded as it is, and the student is not asked for it again.
+            let written = typed && !explanation.is_empty();
+            if !enough && held.is_none() && !written {
                 // Spoken, what was said so far is kept whole: it is the start of the explanation.
                 let said = if typed { answer } else { said.to_string() };
                 self.push(at_ms, Input::Hold { said }, out);
