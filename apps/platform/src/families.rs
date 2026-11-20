@@ -95,6 +95,12 @@ pub const TUTOR_NAME: &str = "Aule";
 /// The subjects a family can ask to reinforce.
 pub const SUBJECTS: [&str; 5] = ["matematica", "comunicacion", "ciencia", "personal_social", "ingles"];
 pub const TUTOR_PERSONAS: [&str; 4] = ["calido", "jugueton", "aventurero", "tranquilo"];
+/// What a guardian can be to a child: FHIR R4's `RelatedPerson.relationship`,
+/// codes of HL7 v3 RoleCode (mother, father, stepmother, stepfather,
+/// grandmother, grandfather, aunt, uncle, sibling, legal guardian, other family
+/// member).
+pub const RELATIONSHIPS: [&str; 11] =
+    ["MTH", "FTH", "STPMTH", "STPFTH", "GRMTH", "GRFTH", "AUNT", "UNCLE", "SIB", "GUARD", "FAMMEMB"];
 
 /// How the tutor presents itself, as the agent is told. The note is the
 /// guardian's own words: the agent treats it as a wish about tone, after its
@@ -188,6 +194,10 @@ pub struct ChildInput {
     /// An empty text removes the note.
     #[serde(default)]
     tutor_persona_note: Option<String>,
+    /// The calling guardian's own relationship to the child, from
+    /// `RELATIONSHIPS`. Keeps its value when left out; an empty text removes it.
+    #[serde(default)]
+    relationship: Option<String>,
 }
 
 struct CheckedChild {
@@ -202,6 +212,8 @@ struct CheckedChild {
     tutor_persona: Option<String>,
     /// `Some(None)` removes the note.
     tutor_persona_note: Option<Option<String>>,
+    /// `Some(None)` removes it.
+    relationship: Option<Option<String>>,
 }
 
 impl ChildInput {
@@ -241,6 +253,17 @@ impl ChildInput {
                 "tutor_persona must be calido, jugueton, aventurero or tranquilo",
             ));
         }
+        let relationship = match self.relationship {
+            None => None,
+            Some(code) if code.trim().is_empty() => Some(None),
+            Some(code) if RELATIONSHIPS.contains(&code.as_str()) => Some(Some(code)),
+            Some(_) => {
+                return Err(ApiError::bad_request(format!(
+                    "relationship must be one of: {}",
+                    RELATIONSHIPS.join(", ")
+                )));
+            }
+        };
         let tutor_persona_note = match self.tutor_persona_note {
             None => None,
             Some(note) if note.trim().is_empty() => Some(None),
@@ -261,8 +284,56 @@ impl ChildInput {
             tutor_name: self.tutor_name.as_deref().map(tutor_name).transpose()?,
             tutor_persona: self.tutor_persona,
             tutor_persona_note,
+            relationship,
         })
     }
+}
+
+/// Records or removes how the calling guardian is related to the child. Only a
+/// guardian has a relationship to state.
+async fn set_relationship(
+    conn: &mut sqlx::PgConnection,
+    caller: &Caller,
+    child_id: Uuid,
+    relationship: Option<Option<String>>,
+) -> ApiResult<()> {
+    let Some(relationship) = relationship else { return Ok(()) };
+    let Some(guardian_id) = caller.guardian_id() else {
+        return Err(ApiError::bad_request("relationship is stated by a guardian"));
+    };
+    match relationship {
+        Some(code) => {
+            sqlx::query(
+                "insert into guardian_children (guardian_id, child_id, relationship) values ($1, $2, $3)
+                 on conflict (guardian_id, child_id) do update set relationship = $3, updated_at = now()",
+            )
+            .bind(guardian_id)
+            .bind(child_id)
+            .bind(code)
+            .execute(conn)
+            .await?;
+        }
+        None => {
+            sqlx::query("delete from guardian_children where guardian_id = $1 and child_id = $2")
+                .bind(guardian_id)
+                .bind(child_id)
+                .execute(conn)
+                .await?;
+        }
+    }
+    Ok(())
+}
+
+/// The calling guardian's relationship to the child, if they stated one.
+async fn relationship_of(pool: &PgPool, caller: &Caller, child_id: Uuid) -> ApiResult<Option<String>> {
+    let Some(guardian_id) = caller.guardian_id() else { return Ok(None) };
+    Ok(sqlx::query_scalar(
+        "select relationship from guardian_children where guardian_id = $1 and child_id = $2",
+    )
+    .bind(guardian_id)
+    .bind(child_id)
+    .fetch_optional(pool)
+    .await?)
 }
 
 pub async fn create_child(
@@ -280,6 +351,7 @@ pub async fn create_child(
         .fetch_optional(&state.pool)
         .await?;
     family.ok_or(ApiError::NotFound("family"))?;
+    let mut tx = state.pool.begin().await?;
     let created: Child = sqlx::query_as(
         "insert into children (id, family_id, nickname, birth_year, grade, language, interests, notes,
                                tutor_name, tutor_persona, tutor_persona_note, subjects)
@@ -299,8 +371,10 @@ pub async fn create_child(
     .bind(child.tutor_persona)
     .bind(child.tutor_persona_note.flatten())
     .bind(child.subjects)
-    .fetch_one(&state.pool)
+    .fetch_one(&mut *tx)
     .await?;
+    set_relationship(&mut tx, &caller, created.id, child.relationship).await?;
+    tx.commit().await?;
     Ok((StatusCode::CREATED, Json(created)))
 }
 
@@ -312,6 +386,7 @@ pub async fn update_child(
 ) -> ApiResult<Json<Child>> {
     child_for(&state.pool, &caller, child_id).await?;
     let child = body.checked(Utc::now())?;
+    let mut tx = state.pool.begin().await?;
     let updated: Option<Child> = sqlx::query_as(
         "update children set nickname = $2, birth_year = $3, grade = $4, language = $5, interests = $6, notes = $7,
            tutor_name = coalesce($8, tutor_name), tutor_persona = coalesce($9, tutor_persona),
@@ -331,9 +406,12 @@ pub async fn update_child(
     .bind(child.tutor_persona_note.is_some())
     .bind(child.tutor_persona_note.flatten())
     .bind(child.subjects)
-    .fetch_optional(&state.pool)
+    .fetch_optional(&mut *tx)
     .await?;
-    updated.map(Json).ok_or(ApiError::NotFound("child"))
+    let updated = updated.ok_or(ApiError::NotFound("child"))?;
+    set_relationship(&mut tx, &caller, child_id, child.relationship).await?;
+    tx.commit().await?;
+    Ok(Json(updated))
 }
 
 pub async fn get_child(
@@ -343,7 +421,8 @@ pub async fn get_child(
 ) -> ApiResult<Json<Value>> {
     let child = child_for(&state.pool, &caller, child_id).await?;
     let consent = current_consent(&state.pool, child_id).await?;
-    Ok(Json(json!({ "child": child, "consent": consent })))
+    let relationship = relationship_of(&state.pool, &caller, child_id).await?;
+    Ok(Json(json!({ "child": child, "consent": consent, "relationship": relationship })))
 }
 
 /// Erases the child and everything derived from them: sessions, transcripts,

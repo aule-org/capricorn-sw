@@ -1023,11 +1023,31 @@ async fn a_guardian_signs_in_with_a_code_and_reaches_only_their_family(pool: PgP
             Method::POST,
             &format!("/v1/families/{family}/children"),
             Some(&ana),
-            Some(json!({ "nickname": "Mateo" })),
+            Some(json!({ "nickname": "Mateo", "relationship": "MTH" })),
         )
         .await;
     assert_eq!(status, StatusCode::CREATED, "{child}");
     let child = child["id"].as_str().unwrap();
+
+    // What Ana is to Mateo: hers to state, kept when left out, removed when emptied.
+    let path = format!("/v1/children/{child}");
+    let relationship =
+        || async { app.call(Method::GET, &path, Some(&ana), None).await.1["relationship"].clone() };
+    assert_eq!(relationship().await, "MTH");
+    let put = |body: Value| app.call(Method::PUT, &path, Some(&ana), Some(body));
+    assert_eq!(put(json!({ "nickname": "Mateo", "relationship": "MOM" })).await.0, StatusCode::BAD_REQUEST);
+    assert_eq!(put(json!({ "nickname": "Mateo" })).await.0, StatusCode::OK);
+    assert_eq!(relationship().await, "MTH");
+    assert_eq!(put(json!({ "nickname": "Mateo", "relationship": "" })).await.0, StatusCode::OK);
+    assert_eq!(relationship().await, Value::Null);
+    assert_eq!(put(json!({ "nickname": "Mateo", "relationship": "GRMTH" })).await.0, StatusCode::OK);
+    assert_eq!(relationship().await, "GRMTH");
+    // The team is no one's relative.
+    assert_eq!(app.admin(Method::GET, &path, None).await.1["relationship"], Value::Null);
+    assert_eq!(
+        app.admin(Method::PUT, &path, Some(json!({ "nickname": "Mateo", "relationship": "FTH" }))).await.0,
+        StatusCode::BAD_REQUEST
+    );
     let (status, _) = app
         .call(
             Method::POST,
@@ -1094,6 +1114,7 @@ async fn a_guardian_signs_in_with_a_code_and_reaches_only_their_family(pool: PgP
     assert_eq!(erase("ana@example.org").await.0, StatusCode::NO_CONTENT);
     assert_eq!(app.call(Method::GET, "/v1/me", Some(&ana), None).await.0, StatusCode::UNAUTHORIZED);
     assert_eq!(app.count("select count(*) from children").await, 0);
+    assert_eq!(app.count("select count(*) from guardian_children").await, 0);
     assert_eq!(app.count("select count(*) from consent_records").await, 1);
     assert_eq!(app.count("select count(*) from families").await, 1, "Luis is still there");
 }
