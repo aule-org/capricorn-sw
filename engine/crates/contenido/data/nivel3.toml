@@ -17,7 +17,7 @@ tiempo_s = 90
 
 [[tamizaje]]
 id = "n3-t2"
-enunciado = "Calcula 5/6 + 4/6 y escribe el resultado como número mixto. Luego explica cómo lo hiciste."
+enunciado = "Calcula 5/6 + 4/6 y da el resultado como número mixto. Luego explica cómo lo hiciste."
 respuesta = "1 1/2"
 forma = "mixto"
 verificar = "5/6 + 4/6"
@@ -58,15 +58,15 @@ respuesta = "1/3"
 verificar = "7/9 - 4/9"
 
 [[etapa1.no_asistidos]]
-enunciado = "Escribamos 11/4 como número mixto."
+enunciado = "Pasemos 11/4 a número mixto."
 grafico = { tipo = "circulos", partes = 4, sombreadas = 11 }
-pasos = ["Cada entero tiene 4 cuartos. ¿Cuántas veces cabe 4 en 11? Cabe 2 veces, porque 2 × 4 = 8.", "Con 8 cuartos formo 2 enteros. Me sobran 11 - 8 = 3 cuartos.", "Escribo el entero y lo que sobra: 11/4 = 2 3/4."]
+pasos = ["Cada entero tiene 4 cuartos. ¿Cuántas veces cabe 4 en 11? Cabe 2 veces, porque 2 × 4 = 8.", "Con 8 cuartos formo 2 enteros. Me sobran 11 - 8 = 3 cuartos.", "Junto el entero y lo que sobra: 11/4 = 2 3/4."]
 respuesta = "2 3/4"
 verificar = "11/4"
 
 [[etapa1.asistidos]]
 enunciado = "Ahora tú: 4/9 + 2/9."
-secuencia = ["Mirar los denominadores", "Sumar los numeradores", "Escribir el resultado"]
+secuencia = ["Mirar los denominadores", "Sumar los numeradores", "Dar el resultado"]
 respuesta = "6/9"
 verificar = "4/9 + 2/9"
 [[etapa1.asistidos.pasos]]
@@ -89,7 +89,7 @@ solucion = "El numerador es 6 y el denominador sigue siendo 9: el resultado es 6
 [[etapa1.asistidos]]
 enunciado = "Ahora tú: convierte 2 3/5 en fracción impropia."
 grafico = { tipo = "circulos", partes = 5, sombreadas = 13 }
-secuencia = ["Multiplicar el entero por el denominador", "Sumar el numerador", "Escribir la fracción impropia"]
+secuencia = ["Multiplicar el entero por el denominador", "Sumar el numerador", "Dar la fracción impropia"]
 respuesta = "13/5"
 verificar = "2 + 3/5"
 [[etapa1.asistidos.pasos]]
@@ -168,7 +168,7 @@ verificar = "5/3"
 [[ejercicios]]
 id = "n3-e03"
 angulo = "calculo"
-enunciado = "Calcula 9/10 - 3/10. Escribe el resultado simplificado."
+enunciado = "Calcula 9/10 - 3/10. Da el resultado simplificado."
 respuesta = "3/5"
 forma = "simplificada"
 verificar = "9/10 - 3/10"
@@ -176,7 +176,7 @@ tiempo_s = 120
 pistas = ["¿Los denominadores son iguales? ¿Qué haces entonces con los numeradores?", "Después de restar, ¿hay un número que divida al numerador y al denominador a la vez?"]
 pista_grafica = { texto = "Tienes 9 décimos y quitas 3.", grafico = { tipo = "barras", filas = [{ partes = 10, sombreadas = 9, etiqueta = "tienes" }, { partes = 10, sombreadas = 3, etiqueta = "quitas" }] } }
 [ejercicios.similar]
-enunciado = "Calcula 7/8 - 3/8. Escribe el resultado simplificado."
+enunciado = "Calcula 7/8 - 3/8. Da el resultado simplificado."
 pasos = ["Los dos son octavos: el denominador se queda en 8.", "Resto los numeradores: 7 - 3 = 4. Tengo 4/8.", "Simplifico: 4 y 8 se dividen entre 4. Me queda 1/2."]
 respuesta = "1/2"
 verificar = "7/8 - 3/8"
@@ -217,8 +217,8 @@ verificar = "1/6 + 4/6"
 [[ejercicios]]
 id = "n3-e06"
 angulo = "contexto"
-enunciado = "Una botella tiene 9/5 litros de agua. Se usan 2/5 litros para regar una planta. ¿Cuántos litros quedan? Escribe la respuesta como número mixto."
-contextos = { futbol = "El equipo de fútbol tiene 9/5 litros de agua para el partido. En el primer tiempo toman 2/5 litros. ¿Cuántos litros quedan? Escribe la respuesta como número mixto.", videojuegos = "Tu personaje del videojuego tiene 9/5 barras de energía. Un monstruo le quita 2/5 de barra. ¿Cuántas barras le quedan? Escribe la respuesta como número mixto.", dinosaurios = "Un dinosaurio bebé tiene 9/5 kilos de hojas para comer. Se come 2/5 kilos. ¿Cuántos kilos le quedan? Escribe la respuesta como número mixto.", cocina = "Una jarra tiene 9/5 litros de chicha morada. Sirves 2/5 litros en vasos. ¿Cuántos litros quedan en la jarra? Escribe la respuesta como número mixto.", musica = "El ensayo de la banda dura 9/5 horas. Ya pasaron 2/5 horas. ¿Cuántas horas faltan? Escribe la respuesta como número mixto." }
+enunciado = "Una botella tiene 9/5 litros de agua. Se usan 2/5 litros para regar una planta. ¿Cuántos litros quedan? Da la respuesta como número mixto."
+contextos = { futbol = "El equipo de fútbol tiene 9/5 litros de agua para el partido. En el primer tiempo toman 2/5 litros. ¿Cuántos litros quedan? Da la respuesta como número mixto.", videojuegos = "Tu personaje del videojuego tiene 9/5 barras de energía. Un monstruo le quita 2/5 de barra. ¿Cuántas barras le quedan? Da la respuesta como número mixto.", dinosaurios = "Un dinosaurio bebé tiene 9/5 kilos de hojas para comer. Se come 2/5 kilos. ¿Cuántos kilos le quedan? Da la respuesta como número mixto.", cocina = "Una jarra tiene 9/5 litros de chicha morada. Sirves 2/5 litros en vasos. ¿Cuántos litros quedan en la jarra? Da la respuesta como número mixto.", musica = "El ensayo de la banda dura 9/5 horas. Ya pasaron 2/5 horas. ¿Cuántas horas faltan? Da la respuesta como número mixto." }
 respuesta = "1 2/5"
 forma = "mixto"
 verificar = "9/5 - 2/5"
@@ -226,7 +226,7 @@ tiempo_s = 150
 pistas = ["Si a unos quintos les quitas quintos, ¿qué pasa con el denominador?", "Después de restar, ¿cuántos quintos necesitas para formar un entero?"]
 pista_grafica = { texto = "Hay 9 quintos. Tacha 2 y cuenta los que quedan.", grafico = { tipo = "circulos", partes = 5, sombreadas = 9 } }
 [ejercicios.similar]
-enunciado = "Tenías 11/4 kilos de papa y usaste 2/4 kilos. ¿Cuántos kilos te quedan? Escribe la respuesta como número mixto."
+enunciado = "Tenías 11/4 kilos de papa y usaste 2/4 kilos. ¿Cuántos kilos te quedan? Da la respuesta como número mixto."
 pasos = ["Los dos son cuartos: resto los numeradores, 11 - 2 = 9. Quedan 9/4.", "Con 8 cuartos formo 2 enteros (2 × 4 = 8).", "Sobra 9 - 8 = 1 cuarto.", "Quedan 2 1/4 kilos."]
 respuesta = "2 1/4"
 verificar = "11/4 - 2/4"
@@ -288,7 +288,7 @@ verificar = "8/9 - 2/9"
 [[ejercicios]]
 id = "n3-e10"
 angulo = "inverso"
-enunciado = "Pedro tenía una cinta. Usó 3/4 de metro y le quedan 2/4 de metro. ¿Cuánto medía la cinta al inicio? Escríbelo como número mixto."
+enunciado = "Pedro tenía una cinta. Usó 3/4 de metro y le quedan 2/4 de metro. ¿Cuánto medía la cinta al inicio? Dalo como número mixto."
 respuesta = "1 1/4"
 forma = "mixto"
 verificar = "3/4 + 2/4"
@@ -296,7 +296,7 @@ tiempo_s = 150
 pistas = ["Para saber cuánto había al inicio, ¿tienes que sumar o restar lo que usó y lo que quedó?", "¿Cuántos cuartos forman un metro entero?"]
 pista_grafica = { texto = "Empieza en 2/4 (lo que quedó) y avanza los 3 cuartos que usó.", grafico = { tipo = "recta", desde = 0, hasta = 2, divisiones = 4, marca = "2/4" } }
 [ejercicios.similar]
-enunciado = "Tito usó 4/6 de litro de pintura y le quedan 5/6 de litro. ¿Cuánta pintura tenía al inicio? Escríbelo como número mixto."
+enunciado = "Tito usó 4/6 de litro de pintura y le quedan 5/6 de litro. ¿Cuánta pintura tenía al inicio? Dalo como número mixto."
 pasos = ["Lo que tenía es lo que usó más lo que quedó: 4/6 + 5/6.", "Son sextos: 4 + 5 = 9. Tenía 9/6.", "Con 6 sextos formo 1 entero y sobran 3/6.", "Tenía 1 3/6 litros, que simplificado es 1 1/2."]
 respuesta = "1 1/2"
 verificar = "4/6 + 5/6"
@@ -312,7 +312,7 @@ tiempo_s = 90
 
 [[simulacion]]
 id = "n3-s2"
-enunciado = "Escribe 13/5 como número mixto."
+enunciado = "Pasa 13/5 a número mixto."
 respuesta = "2 3/5"
 forma = "mixto"
 verificar = "13/5"
@@ -320,7 +320,7 @@ tiempo_s = 120
 
 [[simulacion]]
 id = "n3-s3"
-enunciado = "Calcula 8/9 - 5/9 y escribe el resultado simplificado."
+enunciado = "Calcula 8/9 - 5/9 y da el resultado simplificado."
 respuesta = "1/3"
 forma = "simplificada"
 verificar = "8/9 - 5/9"

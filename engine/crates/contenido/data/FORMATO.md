@@ -62,7 +62,7 @@ verificar = "1/5 + 2/5"
 
 [[etapa1.asistidos]]
 enunciado = "Ahora tú: 4/9 + 2/9."
-secuencia = ["Mirar los denominadores", "Sumar los numeradores", "Escribir el resultado"]
+secuencia = ["Mirar los denominadores", "Sumar los numeradores", "Dar el resultado"]
 respuesta = "6/9"
 verificar = "4/9 + 2/9"
 [[etapa1.asistidos.pasos]]
