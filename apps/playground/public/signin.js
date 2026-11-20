@@ -168,6 +168,7 @@ function show(account, preferred) {
   const providers = account.providers ?? [];
   $("signed-out").hidden = signedIn || (!account.google_client_id && providers.length === 0);
   for (const provider of CODE_PROVIDERS) $(`signin-${provider}`).hidden = !providers.includes(provider);
+  $("email-way").hidden = !providers.includes("email");
   $("who").hidden = !signedIn;
   $("account").hidden = !signedIn;
   $("student-editor").hidden = true;
@@ -204,7 +205,91 @@ function loadGoogleScript() {
   });
 }
 
+// Creating an account and coming back are the same steps (the first sign-in
+// makes the account); the tabs only change what the page says.
+const MODES = {
+  new: { title: "Crea tu cuenta de familia", lead: "7 días gratis, sin tarjeta. Luego decides.", google: "signup_with" },
+  back: { title: "Qué bueno verte de nuevo", lead: "Entra con la misma cuenta con la que la creaste.", google: "signin_with" },
+};
+let mode = "new";
+let googleClient = null;
+
+function setMode(next) {
+  mode = next;
+  for (const [id, value] of [["tab-new", "new"], ["tab-back", "back"]]) {
+    $(id).setAttribute("aria-selected", String(value === mode));
+  }
+  $("signin-title").textContent = MODES[mode].title;
+  $("signin-lead").textContent = MODES[mode].lead;
+  for (const label of document.querySelectorAll("#signed-out [data-new]")) {
+    label.textContent = label.dataset[mode];
+  }
+  // Coming back, the name is already known; a new address asks for it.
+  $("email-name").hidden = mode === "back";
+  if (googleClient && window.google?.accounts) renderGoogle();
+}
+
+$("tab-new").addEventListener("click", () => setMode("new"));
+$("tab-back").addEventListener("click", () => setMode("back"));
+
+function renderGoogle() {
+  $("google").replaceChildren();
+  window.google.accounts.id.renderButton($("google"), {
+    theme: "outline",
+    size: "large",
+    text: MODES[mode].google,
+    shape: "pill",
+    locale: "es",
+  });
+}
+
+// The emailed code: the address, then the six digits (and a name, the first time).
+let emailAddress = "";
+
+$("email-start").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  say("");
+  emailAddress = $("email-address").value.trim();
+  try {
+    await call("api/signin/email/start", { email: emailAddress });
+  } catch {
+    say("Revisa el correo: no parece una dirección válida.");
+    return;
+  }
+  $("email-sent").textContent = `Te enviamos un código a ${emailAddress}. Si no llega en un minuto, revisa la carpeta de spam.`;
+  $("email-start").hidden = true;
+  $("email-verify").hidden = false;
+  $("email-code").focus();
+});
+
+$("email-verify").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  say("");
+  const body = { email: emailAddress, code: $("email-code").value.trim(), name: $("email-name").value.trim() };
+  try {
+    const account = await call("api/signin/email/verify", body);
+    show(account);
+    if (account.signed_in && !account.students?.length) edit(null);
+  } catch (error) {
+    if (error.message === "name_needed") {
+      $("email-name").hidden = false;
+      $("email-name").focus();
+      say("Ese correo todavía no tiene cuenta: escribe tu nombre para crearla.");
+    } else {
+      say("Ese código no es correcto o ya venció. Pide uno nuevo si hace falta.");
+    }
+  }
+});
+
+$("email-back").addEventListener("click", () => {
+  $("email-verify").hidden = true;
+  $("email-start").hidden = false;
+  $("email-code").value = "";
+  $("email-address").focus();
+});
+
 function drawGoogle(clientId) {
+  googleClient = clientId;
   window.google.accounts.id.initialize({
     client_id: clientId,
     ux_mode: "popup",
@@ -220,13 +305,7 @@ function drawGoogle(clientId) {
       }
     },
   });
-  window.google.accounts.id.renderButton($("google"), {
-    theme: "outline",
-    size: "large",
-    text: "signin_with",
-    shape: "pill",
-    locale: "es",
-  });
+  renderGoogle();
 }
 
 $("kind").replaceChildren(

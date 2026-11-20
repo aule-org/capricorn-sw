@@ -288,7 +288,7 @@ async fn entered(
 }
 
 /// The public ids the page needs to send someone to each provider; a provider
-/// that is not set up here is null.
+/// that is not set up here is null. `email` says whether a code can be emailed.
 pub async fn providers(State(state): State<AppState>) -> Json<Value> {
     let id = |provider: &Option<std::sync::Arc<dyn CodeProvider>>| {
         provider.as_ref().map(|provider| provider.client_id().to_string())
@@ -298,6 +298,7 @@ pub async fn providers(State(state): State<AppState>) -> Json<Value> {
         "github": id(&state.github),
         "meta": id(&state.meta),
         "apple": id(&state.apple),
+        "email": state.mailer.is_some(),
     }))
 }
 
