@@ -35,7 +35,9 @@ def build_stt(settings: Settings, language: str) -> stt.STT:
     if settings.stt == "deepgram":
         from livekit.plugins import deepgram
 
-        return deepgram.STT(language=language)
+        # Children's voices: not kept to train Deepgram's models (no change in
+        # price for pay-as-you-go, per Deepgram's changelog of 2026-03-05).
+        return deepgram.STT(language=language, mip_opt_out=True)
     from livekit.plugins import openai
 
     return openai.STT(language=language)
