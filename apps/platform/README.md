@@ -156,6 +156,31 @@ DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres cargo test
 
 The tests in `tests/api.rs` run the API against a real Postgres with pgvector, each in its own temporary database, with scripted stand-ins for the language model and the embedding model.
 
+### Changing the schema
+
+The code reads and writes the database through SeaORM entities in `src/entity/`.
+To add a table or a column, change its entity, then write the migration from it:
+
+```bash
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres cargo run --example migration -- add_something
+```
+
+It runs the migrations in a throwaway database, lets SeaORM add what the
+entities have and the migrations do not, and writes those statements as the
+next file in `migrations/`. `tests/schema.rs` fails while an entity has
+something no migration creates, and prints the statements.
+
+Read the file before committing it. It only adds tables, columns, unique keys
+and foreign keys; a changed type, a rename, a removal or a check constraint is
+written by hand, and a required column on a table that has rows needs a default.
+When an entity leaves out a unique key the table has, the sync would drop it:
+the command then writes nothing and the test fails, both naming it, and the fix
+is `#[sea_orm(unique)]` on the entity.
+The server only runs the files in `migrations/` (never a schema sync), and a
+file already applied is never edited.
+
+Not every table has an entity yet: the modules move to SeaORM one at a time.
+
 To refit the learner model's parameters from a log of answers:
 
 ```bash

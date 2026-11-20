@@ -44,5 +44,8 @@ jsonwebtoken = { version = "12", features = ["aws_lc_rs"] }
 sea-orm = { version = "2.0.4", default-features = false, features = ["sqlx-postgres", "runtime-tokio-rustls", "macros", "with-uuid", "with-chrono", "with-json", "postgres-array", "postgres-vector"] }
 
 [dev-dependencies]
+# Only the schema check and the migration command diff the entities against a
+# database; the server never changes its schema on its own.
+sea-orm = { version = "2.0.4", default-features = false, features = ["schema-sync"] }
 jsonschema = "0.61.2"
 tower = { version = "0.5", features = ["util"] }
