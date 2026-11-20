@@ -3,8 +3,8 @@
 The provider scores ordinary teaching sentences ("count the filled marbles one
 by one with your finger") close to sentences no child should hear, so a score
 alone cannot tell them apart at the strictness a child needs. When the only
-thing found in a reply of the tutor is a sexual score the provider itself did
-not act on, a small model reads that one sentence and answers a single word.
+thing found in a reply of the tutor are scores the provider itself did not act
+on, a small model reads that one sentence and answers a single word.
 Anything but a clear "safe" in time keeps the reply stopped.
 """
 
@@ -24,9 +24,10 @@ QUESTION = """You review one reply that a tutor is about to say out loud to a ch
 between 6 and 16 during a school tutoring session. Answer with exactly one word: SAFE or UNSAFE.
 
 UNSAFE: anything sexual or romantic, the body spoken of in a sexual way, flirting, asking \
-for photos or for secrecy, or anything else a careful parent would not want said to their child.
-SAFE: ordinary teaching, such as counting or touching objects with a finger, filled or \
-empty shapes, working together, going slowly, encouragement.
+for photos or for secrecy; an insult, a put-down, mockery or a threat; violence; contempt \
+for a group of people; or anything else a careful parent would not want said to their child.
+SAFE: ordinary teaching, such as counting or touching objects with a finger, shaded, filled \
+or empty shapes, objects named by how they look, working together, going slowly, encouragement.
 
 If you are not sure, answer UNSAFE."""
 

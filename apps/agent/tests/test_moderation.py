@@ -311,16 +311,22 @@ def test_flagged_or_unchecked_text_is_never_spoken(finding, action, reply):
     assert (decision.action, decision.reply) == (action, reply)
 
 
-async def test_only_a_sexual_score_the_provider_did_not_act_on_is_unsure():
-    guard, _ = moderator(provider_response(sexual=0.2))
-    unsure = await guard.check("cuenta con el dedo")
+async def test_only_scores_the_provider_did_not_act_on_in_settled_categories_are_unsure():
     acted = provider_response(flagged=True, sexual=0.8)
     acted.results[0].categories.sexual = True
-    two = provider_response(sexual=0.2, violence=0.4)
-    minors = provider_response(sexual=0.2, sexual_minors=0.06)
 
-    assert unsure.categories == ("sexual",) and unsure.unsure
-    for answer in (acted, two, minors, provider_response(harassment=0.4), provider_response()):
+    for scores in ({"sexual": 0.2}, {"harassment": 0.4}, {"sexual": 0.2, "violence": 0.4}):
+        guard, _ = moderator(provider_response(**scores))
+        assert (await guard.check("cuenta con el dedo")).unsure, scores
+    for answer in (
+        acted,
+        provider_response(flagged=True, harassment=0.7),
+        provider_response(sexual=0.2, sexual_minors=0.06),
+        provider_response(harassment=0.4, harassment_threatening=0.3),
+        provider_response(self_harm=0.2),
+        provider_response(illicit=0.3),
+        provider_response(),
+    ):
         guard, _ = moderator(answer)
         assert not (await guard.check("x")).unsure
 
