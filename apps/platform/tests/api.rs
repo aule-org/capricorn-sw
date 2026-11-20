@@ -189,6 +189,7 @@ fn app_with(pool: PgPool, events_webhook: Option<EventsWebhook>) -> App {
     let phones = Arc::new(Phones::default());
     let llm = Arc::new(ScriptedLlm { asked: Mutex::new(Vec::new()) });
     let state = AppState {
+        db: sea_orm::SqlxPostgresConnector::from_sqlx_postgres_pool(pool.clone()),
         pool,
         config: Arc::new(config),
         llm: Some(llm.clone()),
@@ -341,6 +342,24 @@ where
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     }
     panic!("never happened: {what}");
+}
+
+#[sqlx::test(migrator = "aule_platform::MIGRATOR")]
+async fn a_guardian_address_belongs_to_one_family(pool: PgPool) {
+    let app = app(pool);
+    let family = |name: &str, email: &str| {
+        app.admin(
+            Method::POST,
+            "/v1/families",
+            Some(json!({ "name": name, "guardian": { "email": email, "name": "Ana" } })),
+        )
+    };
+
+    assert_eq!(family("Quispe", "ana@example.org").await.0, StatusCode::CREATED);
+    // The address is compared without case, and the second family is not left half made.
+    assert_eq!(family("Mamani", " ANA@example.org ").await.0, StatusCode::CONFLICT);
+    assert_eq!(app.count("select count(*) from families").await, 1);
+    assert_eq!(family("Mamani", "ana@").await.0, StatusCode::BAD_REQUEST);
 }
 
 #[sqlx::test(migrator = "aule_platform::MIGRATOR")]
