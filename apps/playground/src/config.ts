@@ -26,6 +26,11 @@ export type Settings = {
   engine: boolean;
   /** With a platform, sessions are created there and the supervisor takes part. */
   platform: { url: string; adminToken: string; childId: string | null } | null;
+  /**
+   * Where people reach this page, like https://playground.example.org: GitHub,
+   * Meta and Apple send them back to it. Without it those sign-ins are off.
+   */
+  publicUrl: string | null;
 };
 
 export class ConfigError extends Error {}
@@ -91,6 +96,11 @@ export function readSettings(env: Record<string, string | undefined>): Settings 
     problems.push("PLAYGROUND_CHILD_ID must be a child's id");
   }
 
+  const publicUrl = get("PLAYGROUND_PUBLIC_URL").replace(/\/+$/, "");
+  if (publicUrl && !/^(https:\/\/[^\s/]+|http:\/\/127\.0\.0\.1(:\d+)?)$/.test(publicUrl)) {
+    problems.push("PLAYGROUND_PUBLIC_URL must be an https:// origin, like https://playground.example.org");
+  }
+
   if (problems.length > 0) throw new ConfigError(problems.join("; "));
 
   return {
@@ -106,5 +116,6 @@ export function readSettings(env: Record<string, string | undefined>): Settings 
     dailySessions,
     engine: engine === "1",
     platform: platformUrl ? { url: platformUrl, adminToken, childId: childId || null } : null,
+    publicUrl: publicUrl || null,
   };
 }

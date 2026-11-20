@@ -25,7 +25,9 @@ const platform = createServer(async (request, response) => {
     response.writeHead(status, { "Content-Type": "application/json" });
     response.end(JSON.stringify(value));
   };
-  if (path === "/v1/auth/google" && request.method === "GET") return answer(200, { client_id: "client-1" });
+  if (path === "/v1/auth/providers") {
+    return answer(200, { google: "client-1", github: "gh-1", meta: null, apple: null });
+  }
   if (path === "/v1/auth/google") {
     if (body.credential !== "good") return answer(403, { error: { message: "refused" } });
     return answer(200, { token: TOKEN, expires_in_days: 30, new_account: true });
@@ -80,7 +82,7 @@ const COOKIE = `aule_guardian=${TOKEN}`;
 test("the page learns the Google client and that nobody is signed in", async () => {
   const response = await fetch(`${base}/api/account`);
 
-  assert.deepEqual(await response.json(), { google_client_id: "client-1", signed_in: false });
+  assert.deepEqual(await response.json(), { google_client_id: "client-1", providers: [], signed_in: false });
 });
 
 test("a Google credential the platform accepts signs the person in with a cookie only the server reads", async () => {
@@ -91,7 +93,14 @@ test("a Google credential the platform accepts signs the person in with a cookie
   assert.match(cookie, new RegExp(`^aule_guardian=${TOKEN}; Max-Age=2592000; Path=/playground/; HttpOnly; Secure; SameSite=Strict$`));
   // The page is told who it is and never sees the session.
   const body = await response.json();
-  assert.deepEqual(body, { google_client_id: "client-1", signed_in: true, name: "Ana", students: [], subjects: null });
+  assert.deepEqual(body, {
+    google_client_id: "client-1",
+    providers: [],
+    signed_in: true,
+    name: "Ana",
+    students: [],
+    subjects: null,
+  });
   assert.ok(!JSON.stringify(body).includes(TOKEN));
 });
 

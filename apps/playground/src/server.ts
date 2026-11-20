@@ -14,9 +14,10 @@ import {
   answer,
   createSession,
   eraseAccount,
-  googleClient,
   PlatformError,
   signIn,
+  signInProviders,
+  signInWithCode,
   signOut,
   step,
   supervisorView,
@@ -33,6 +34,16 @@ import {
   saveStudent,
   startSession,
 } from "./students.ts";
+import {
+  appleName,
+  authorizeUrl,
+  clearedStateCookie,
+  CODE_PROVIDERS,
+  type CodeProvider,
+  newState,
+  stateCookie,
+  stateMatches,
+} from "./providers.ts";
 import { DailyLimit, guardianToken, signedInCookie, signedOutCookie } from "./signin.ts";
 
 const publicDir = new URL("../public/", import.meta.url);
@@ -70,6 +81,9 @@ const MAX_BODY_BYTES = 2_000;
 const MAX_SIGN_IN_BYTES = 8_000;
 // A student's profile: a name, up to ten interests and a line from the family.
 const MAX_PROFILE_BYTES = 4_000;
+// Apple's form: a code, the state, a signed token and, the first time, a name.
+const MAX_FORM_BYTES = 8_000;
+const SIGN_IN_PATH = /^\/api\/signin\/(github|meta|apple)\/(start|callback)$/;
 const ID = /^[0-9a-f-]{36}$/i;
 // What a student writes in the two boxes of an exercise.
 const MAX_ANSWER_CHARS = 200;
@@ -105,6 +119,17 @@ function securityHeaders(settings: Settings): Record<string, string> {
     "X-Robots-Tag": "noindex, nofollow",
     "Cache-Control": "no-store",
   };
+}
+
+async function readText(request: IncomingMessage, limit: number): Promise<string> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of request) {
+    size += (chunk as Buffer).length;
+    if (size > limit) throw new Error("body too large");
+    chunks.push(chunk as Buffer);
+  }
+  return Buffer.concat(chunks).toString("utf8");
 }
 
 async function readJson(request: IncomingMessage, limit = MAX_BODY_BYTES): Promise<Record<string, unknown>> {
@@ -145,15 +170,19 @@ export function createPlayground(settings: Settings): Server {
       response.writeHead(200, { ...headers, ...extra, ...more, "Content-Type": "application/json; charset=utf-8" });
       response.end(JSON.stringify(body));
     };
-    if (!settings.platform) return reply({ google_client_id: null, signed_in: false });
+    if (!settings.platform) return reply({ google_client_id: null, providers: [], signed_in: false });
     const token = entered?.token ?? guardianToken(request);
-    const clientId = await googleClient(settings);
-    if (!token) return reply({ google_client_id: clientId, signed_in: false });
+    const ids = await signInProviders(settings);
+    const clientId = ids.google;
+    // The others come back to this page, so they need its public address.
+    const providers = settings.publicUrl ? CODE_PROVIDERS.filter((provider) => ids[provider]) : [];
+    if (!token) return reply({ google_client_id: clientId, providers, signed_in: false });
     try {
       const who = await account(settings, token);
       const students = await readStudents(settings, token, who.students);
       return reply({
         google_client_id: clientId,
+        providers,
         signed_in: true,
         name: who.name,
         students,
@@ -163,7 +192,7 @@ export function createPlayground(settings: Settings): Server {
       if (!(error instanceof PlatformError)) throw error;
       // A session the platform no longer knows: the page starts over signed out.
       return reply(
-        { google_client_id: clientId, signed_in: false },
+        { google_client_id: clientId, providers, signed_in: false },
         { "Set-Cookie": signedOutCookie(settings.basePath) },
       );
     }
@@ -325,6 +354,58 @@ export function createPlayground(settings: Settings): Server {
     return json(response, 200, await createSession(settings, language));
   }
 
+  // GitHub, Meta and Apple: "start" sends the person there, "callback" is where
+  // they come back with a code. Whatever goes wrong, they land on the page,
+  // which says so; the code itself is never logged.
+  async function codeSignIn(provider: CodeProvider, step: string, request: IncomingMessage, response: ServerResponse) {
+    if (!settings.platform || !settings.publicUrl) return json(response, 404, { error: "not_found" });
+    const redirectUri = `${settings.publicUrl}${settings.basePath}/api/signin/${provider}/callback`;
+    if (step === "start") {
+      if (request.method !== "GET") return json(response, 405, { error: "method_not_allowed" });
+      const clientId = (await signInProviders(settings))[provider];
+      if (!clientId) return json(response, 404, { error: "not_found" });
+      const state = newState();
+      response.writeHead(303, {
+        ...headers,
+        "Set-Cookie": stateCookie(provider, state, settings.basePath),
+        Location: authorizeUrl(provider, clientId, redirectUri, state),
+      });
+      return response.end();
+    }
+    let answer: URLSearchParams;
+    if (request.method === "GET") {
+      answer = new URL(request.url ?? "/", "http://playground").searchParams;
+    } else if (request.method === "POST" && provider === "apple") {
+      try {
+        answer = new URLSearchParams(await readText(request, MAX_FORM_BYTES));
+      } catch {
+        return json(response, 400, { error: "bad_request" });
+      }
+    } else {
+      return json(response, 405, { error: "method_not_allowed" });
+    }
+    const back = (cookies: string[], outcome?: string) => {
+      response.writeHead(303, {
+        ...headers,
+        "Set-Cookie": [...cookies, clearedStateCookie(settings.basePath)],
+        Location: `${settings.basePath}/${outcome ? `?signin=${outcome}` : ""}`,
+      });
+      response.end();
+    };
+    const code = answer.get("code");
+    if (!stateMatches(request, provider, answer.get("state") ?? "")) return back([], "failed");
+    // Without a code the person said no at the provider, or it failed there.
+    if (!code) return back([], answer.get("error") ? "cancelled" : "failed");
+    try {
+      const entered = await signInWithCode(settings, provider, code, redirectUri, appleName(answer.get("user")));
+      return back([signedInCookie(entered.token, settings.basePath, entered.days)]);
+    } catch (error) {
+      if (!(error instanceof PlatformError)) throw error;
+      console.error(`sign-in with ${provider} failed: ${error.message}`);
+      return back([], "failed");
+    }
+  }
+
   return createServer((request, response) => {
     // Doubled slashes are folded, so "/" as the base path and a probe of
     // "//healthz" mean the same thing.
@@ -341,6 +422,8 @@ export function createPlayground(settings: Settings): Server {
     const handle = async () => {
       if (path === "/healthz" && request.method === "GET") return json(response, 200, { ok: true });
       if (path === "/api/account" && request.method === "GET") return whoIsHere(request, response);
+      const signingIn = SIGN_IN_PATH.exec(path);
+      if (signingIn) return codeSignIn(signingIn[1] as CodeProvider, signingIn[2]!, request, response);
       if (
         path === "/api/signin" ||
         path === "/api/signout" ||

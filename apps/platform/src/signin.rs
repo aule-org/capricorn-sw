@@ -354,7 +354,11 @@ async fn by_code(
             ApiError::Unavailable("the sign-in provider could not be reached; try again later")
         }
     })?;
-    entered(state, identity, body.name.as_deref(), body.language.as_deref()).await
+    // Apple gives the name only the first time, and a person may not share it:
+    // a new family is then named after the address, and can rename itself.
+    let local = identity.email.split('@').next().unwrap_or_default().to_string();
+    let name = body.name.filter(|name| !name.trim().is_empty()).or_else(|| identity.name.is_none().then_some(local));
+    entered(state, identity, name.as_deref(), body.language.as_deref()).await
 }
 
 /// Ends the session this request was made with.
