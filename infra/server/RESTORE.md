@@ -23,6 +23,12 @@ A backup can be older than the code, and restoring it over newer tables fails (t
 5. Start them again; the platform applies the migrations newer than the backup:
    `ssh aule-prod 'sudo -u aule-admin /etc/aule/aule-compose.sh up -d platform worker agent'`
 
+### Backups from before the baseline
+
+On 2026-11-20 migrations 0001 to 0016 were collapsed into `0017_baseline.sql`. A backup taken before that records migrations 1 to 16. Restored as above, the platform sees all sixteen, marks the backup as having run the baseline instead (its schema is the same, nothing in it changes), and migrates on from there.
+
+A backup older than migration 16 (some of 1 to 16 missing) is refused at start with an error that says so. Restore it in two steps: run the platform image tagged `pre-baseline` (git tag `pre-baseline`) once against it, which brings it to 16, take a backup of that, and restore that backup with the current image. Such backups stop existing once the oldest backup kept (180 days at home) is from after the cutover.
+
 ## Test
 
 `infra/server/backup-tests.sh`, run from the Mac, makes a backup the way cron does, checks every file's checksum, restores the newest backup into a throwaway database on an internal network (row counts compared table by table with production, restored twice, migrations a no-op) and the oldest one into an empty schema followed by the platform's `migrate`, then removes the throwaway database. Nothing decrypted is written to a disk; only counts are printed.
