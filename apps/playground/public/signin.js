@@ -180,6 +180,84 @@ function loadGoogle(clientId) {
   document.head.append(script);
 }
 
+// Signing in with the code that was mailed: the address first, then the code.
+// An address seen for the first time is also asked for a name.
+const MAIL_ERRORS = {
+  mail_unavailable: "Ahora no podemos enviar códigos por correo. Prueba con Google.",
+  bad_request: "Revisa tu correo e inténtalo otra vez.",
+};
+
+function mailStep(step) {
+  $("by-mail").hidden = step !== "none";
+  $("mail-email").hidden = step !== "email";
+  $("mail-code").hidden = step !== "code";
+  if (step === "email") $("mail-address").focus();
+  if (step === "code") $("mail-digits").focus();
+}
+
+$("by-mail").addEventListener("click", () => {
+  say("");
+  mailStep("email");
+});
+
+$("mail-email").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  say("");
+  $("mail-send").disabled = true;
+  try {
+    await call("api/signin/start", { email: $("mail-address").value.trim(), language: "es" });
+    $("mail-digits").value = "";
+    $("mail-name-line").hidden = true;
+    mailStep("code");
+  } catch (error) {
+    say(MAIL_ERRORS[error?.message] ?? "No se pudo enviar el código. Inténtalo otra vez.");
+  } finally {
+    $("mail-send").disabled = false;
+  }
+});
+
+$("mail-code").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  say("");
+  $("mail-enter").disabled = true;
+  try {
+    const name = $("mail-name").value.trim();
+    const account = await call("api/signin/verify", {
+      email: $("mail-address").value.trim(),
+      code: $("mail-digits").value,
+      language: "es",
+      ...(name ? { name } : {}),
+    });
+    $("mail-digits").value = "";
+    $("mail-name").value = "";
+    mailStep("none");
+    show(account);
+    // A family with no student yet starts by adding one.
+    if (account.signed_in && !account.students?.length) edit(null);
+  } catch (error) {
+    if (error?.message === "name_needed") {
+      // The code is still good: the name is the one thing missing.
+      $("mail-name-line").hidden = false;
+      $("mail-name").focus();
+      say("Es tu primera vez. Dinos cómo te llamamos y vuelve a pulsar Entrar.");
+    } else {
+      say(
+        error?.message === "code_refused"
+          ? "Ese código no es válido o ya venció. Pide uno nuevo."
+          : "No se pudo entrar con ese código. Inténtalo otra vez.",
+      );
+    }
+  } finally {
+    $("mail-enter").disabled = false;
+  }
+});
+
+$("mail-again").addEventListener("click", () => {
+  say("");
+  $("mail-digits").value = "";
+  mailStep("email");
+});
+
 $("kind").replaceChildren(
   ...Object.entries(KINDS).map(([value, text]) => chip("radio", "kind", value, text, value === "")),
 );

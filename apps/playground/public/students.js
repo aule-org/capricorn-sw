@@ -187,6 +187,8 @@ async function showKnown(student) {
 function fill(student, subjects) {
   $("editor-title").textContent = student ? `Configurar a ${student.name}` : "Nuevo alumno";
   $("student-name").value = student?.name ?? "";
+  // A new student is a username and the guardian's yes; the rest is for "Configurar".
+  for (const part of document.querySelectorAll("#student-editor .edit-only")) part.hidden = !student;
   $("student-grade").replaceChildren(
     new Option("Prefiero no decirlo", ""),
     ...Object.entries(GRADES).map(([value, text]) => new Option(text, value)),
@@ -198,7 +200,7 @@ function fill(student, subjects) {
     ...Object.entries(RELATIONSHIPS).map(([value, text]) => new Option(text, value)),
   );
   $("student-relationship").value = student?.relationship ?? "";
-  $("subjects-field").hidden = !subjects;
+  $("subjects-field").hidden = !student || !subjects;
   $("student-subjects").replaceChildren(
     ...(subjects ?? []).map((value) =>
       chip("checkbox", "subjects", value, SUBJECTS[value], student?.subjects?.includes(value) ?? false),
@@ -225,7 +227,8 @@ function fill(student, subjects) {
   );
   $("student-note").value = student?.note ?? "";
   $("student-language").value = student?.language ?? "es";
-  $("student-remembers").checked = student?.remembers ?? true;
+  // Remembering between sessions is off until the guardian turns it on.
+  $("student-remembers").checked = student?.remembers ?? false;
   $("student-transcripts").checked = student?.keepsTranscripts ?? false;
   $("consent").checked = false;
   $("consent-line").hidden = Boolean(student);
@@ -281,19 +284,22 @@ $("student-editor").addEventListener("submit", async (event) => {
   const interests = checked("interests");
   if (interests.length > MAX_INTERESTS) return say("Elige hasta diez cosas que le gusten.");
   if (!editing && !$("consent").checked) return say("Para crear al alumno hace falta tu aceptación.");
-  const profile = {
-    name: $("student-name").value.trim(),
-    grade: $("student-grade").value || null,
-    language: $("student-language").value,
-    interests,
-    tone: checked("tone")[0] ?? "calido",
-    note: $("student-note").value.trim(),
-    ...($("subjects-field").hidden ? {} : { subjects: checked("subjects") }),
-    remembers: $("student-remembers").checked,
-    keeps_transcripts: $("student-transcripts").checked,
-    relationship: $("student-relationship").value || null,
-  };
-  if (!profile.name) return say("Escribe cómo quieres que llamemos al alumno.");
+  const name = $("student-name").value.trim();
+  const profile = editing
+    ? {
+        name,
+        grade: $("student-grade").value || null,
+        language: $("student-language").value,
+        interests,
+        tone: checked("tone")[0] ?? "calido",
+        note: $("student-note").value.trim(),
+        ...($("subjects-field").hidden ? {} : { subjects: checked("subjects") }),
+        remembers: $("student-remembers").checked,
+        keeps_transcripts: $("student-transcripts").checked,
+        relationship: $("student-relationship").value || null,
+      }
+    : { name, language: "es", remembers: false, keeps_transcripts: false };
+  if (!profile.name) return say("Escribe el nombre de usuario del alumno.");
   $("save-student").disabled = true;
   try {
     const saved = editing

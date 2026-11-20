@@ -28,9 +28,29 @@
         <div id="signed-out" hidden>
           <h2>Entra a tu sesión</h2>
           <div id="google"></div>
-          <p class="note">
-            Entra con tu cuenta de Google. La primera vez se crea tu cuenta de padre de familia.
-          </p>
+          <button type="button" id="by-mail">Continuar con tu correo</button>
+
+          <!-- A code sent to the address, one step after the other. -->
+          <form id="mail-email" hidden autocomplete="on">
+            <label>
+              Tu correo
+              <input id="mail-address" type="email" required autocomplete="email" maxlength="254" />
+            </label>
+            <button type="submit" id="mail-send">Enviarme un código</button>
+          </form>
+          <form id="mail-code" hidden autocomplete="off">
+            <label>
+              <span>Código de 6 dígitos <span class="optional">te lo enviamos por correo</span></span>
+              <input id="mail-digits" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="12" required />
+            </label>
+            <label id="mail-name-line" hidden>
+              ¿Cómo te llamamos?
+              <input id="mail-name" type="text" maxlength="120" autocomplete="name" />
+            </label>
+            <button type="submit" id="mail-enter">Entrar</button>
+            <button type="button" id="mail-again" class="quiet">Usar otro correo</button>
+          </form>
+          <p class="note">La primera vez se crea tu cuenta de padre de familia.</p>
         </div>
 
         <form id="who" hidden autocomplete="off">
@@ -76,22 +96,24 @@
         <form id="student-editor" hidden autocomplete="off">
           <h2 id="editor-title"></h2>
           <label>
-            ¿Cómo quieres que lo llamemos?
+            Nombre de usuario del alumno
             <input id="student-name" type="text" maxlength="40" required autocomplete="off" />
           </label>
-          <label>
+          <p class="note">Un apodo inventado. No uses su nombre real.</p>
+          <!-- The rest of the profile is set later, from "Configurar". -->
+          <label class="edit-only">
             <span>Grado <span class="optional">opcional</span></span>
             <select id="student-grade"></select>
           </label>
-          <label>
+          <label class="edit-only">
             <span><span id="relationship-label"></span> <span class="optional">opcional</span></span>
             <select id="student-relationship"></select>
           </label>
-          <fieldset id="subjects-field" hidden>
+          <fieldset id="subjects-field" class="edit-only" hidden>
             <legend>Asignaturas que quieres reforzar</legend>
             <div id="student-subjects" class="chips"></div>
           </fieldset>
-          <fieldset>
+          <fieldset class="edit-only">
             <legend>Lo que le gusta</legend>
             <div id="student-interests" class="chips"></div>
             <div class="add-row">
@@ -100,7 +122,7 @@
             </div>
             <p class="note">Aule usa hasta diez para ambientar los ejemplos y los ejercicios.</p>
           </fieldset>
-          <fieldset>
+          <fieldset class="edit-only">
             <legend>Cómo le habla Aule</legend>
             <div id="student-tone" class="tones" role="radiogroup" aria-label="Tono de Aule"></div>
             <label>
@@ -108,7 +130,7 @@
               <input id="student-note" type="text" maxlength="200" placeholder="Por ejemplo: se frustra rápido, ve despacio" />
             </label>
           </fieldset>
-          <label>
+          <label class="edit-only">
             Idioma de las sesiones
             <select id="student-language">
               <option value="es">Español</option>
@@ -117,11 +139,11 @@
           </label>
           <fieldset>
             <legend>Lo que guardamos</legend>
-            <label class="check">
-              <input id="student-remembers" type="checkbox" checked />
+            <label class="check edit-only">
+              <input id="student-remembers" type="checkbox" />
               Recordar entre sesiones lo que aprende y lo que le gusta
             </label>
-            <label class="check">
+            <label class="check edit-only">
               <input id="student-transcripts" type="checkbox" />
               Guardar por escrito la conversación de cada sesión
             </label>

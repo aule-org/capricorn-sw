@@ -621,6 +621,15 @@ button.quiet {
   box-shadow: 6px 6px 0 var(--bg-2);
 }
 
+/* The mailed-code steps sit inside the sheet, not as a sheet of their own. */
+#signed-out form {
+  margin: 0;
+  padding: 0;
+  gap: 12px;
+  border: 0;
+  box-shadow: none;
+}
+
 #signed-out h2,
 #who h2 {
   margin: 0;
@@ -764,6 +773,7 @@ main.in-session header p {
   font-weight: 600;
 }
 
+#welcome input[type="email"],
 #welcome input[type="text"],
 #welcome input[type="date"],
 #welcome select {
