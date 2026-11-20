@@ -765,6 +765,9 @@ async fn a_day_of_sessions_is_read_as_numbers_and_nothing_else(pool: PgPool) {
         )
     };
     assert_eq!(pose("el perímetro del hexágono").await.0, StatusCode::BAD_REQUEST);
+    // A number alone is an answer, not an exercise.
+    assert_eq!(pose("100").await.0, StatusCode::BAD_REQUEST);
+    assert_eq!(pose("0,75").await.0, StatusCode::BAD_REQUEST);
     assert_eq!(pose("3 cm + 4 cm = ?").await.0, StatusCode::CREATED);
     // The tutor gives the answer away before the student has it.
     let slip = json!({ "turns": [{ "seq": 2, "role": "tutor", "content": "Mira, la respuesta es 7 cm." }] });
