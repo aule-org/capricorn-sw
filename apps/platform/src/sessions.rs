@@ -49,6 +49,8 @@ pub struct NewSession {
     flow: Option<String>,
 }
 
+const TOKEN_GRACE_SECONDS: i64 = 5 * 60;
+
 pub const OBJECTIVE_KINDS: [&str; 4] = ["homework", "exam_prep", "exam_review", "explore"];
 
 #[derive(Deserialize)]
@@ -193,7 +195,10 @@ pub async fn open_session(
         });
     }
 
-    let ttl_seconds = i64::from(state.config.session_minutes) * 60;
+    // The session lasts `session_minutes`; the room's token outlives it by a
+    // few minutes so the goodbye is never cut by an expired token.
+    let session_seconds = i64::from(state.config.session_minutes) * 60;
+    let ttl_seconds = session_seconds + TOKEN_GRACE_SECONDS;
     let dispatch_metadata = json!({
         "audience": audience,
         "language": language,
@@ -221,7 +226,8 @@ pub async fn open_session(
         "token": token,
         "room": room,
         "agentName": state.config.agent_name,
-        "expiresInSeconds": ttl_seconds,
+        // What a clock on the page counts down: the session, not the token.
+        "expiresInSeconds": session_seconds,
         "flow": flow,
     }))
 }
@@ -353,11 +359,23 @@ pub async fn agent_start(Agent(session): Agent, State(state): State<AppState>) -
         Some(brief) => format!("{}\n\n{}", student_line(&child), brief.as_instructions()),
         None => student_line(&child),
     };
+    // How many sessions this student has started before this one: lets a
+    // written greeting vary without the agent keeping anything.
+    let session_number: i64 = sqlx::query_scalar(
+        "select count(*) from sessions where child_id = $1 and id <> $2 and started_at is not null",
+    )
+    .bind(child_id)
+    .bind(session.id)
+    .fetch_one(&state.pool)
+    .await?;
     let mut start = json!({
         "session_id": session.id,
         "instructions": instructions,
         "brief": brief,
         "tutor": crate::families::tutor(Some(&child)),
+        // For lines that are written, not generated. Never logged.
+        "student_name": child.nickname,
+        "session_number": session_number,
     });
     // The engine opens its sessions itself: these are the tutor's first lines.
     if flow::runs(&session) {
