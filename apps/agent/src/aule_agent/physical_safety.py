@@ -31,10 +31,14 @@ logger = logging.getLogger("aule.agent.physical_safety")
 # evals/physical-safety). Changing any of them needs a new evaluation.
 MODEL = "jev-1.14.0"
 ENDPOINT = "https://api.typesafe.ai/v1/systemone"
-# The provider usually answers in about 150 ms, but one answer in a hundred
-# takes close to half a second. A deadline just above that turned harmless
-# turns into "unavailable"; this one leaves room and still bounds the wait.
-TIMEOUT_SECONDS = 1.2
+# The provider answers in about 80 ms, hazards included, and one answer in a
+# hundred takes close to half a second. An answer that has not come by then is
+# almost always a connection that went dead while idle, so the wait is cut
+# short and the question asked once more on a new connection. Together the two
+# tries bound the wait.
+FIRST_TRY_SECONDS = 0.6
+SECOND_TRY_SECONDS = 1.0
+TIMEOUT_SECONDS = FIRST_TRY_SECONDS + SECOND_TRY_SECONDS
 ALLOW_MAX_RISK = 0.10
 HELP_MIN_RISK = 0.25
 MAX_BYTES = 24_000
@@ -187,6 +191,20 @@ class PhysicalSafetyGuard:
                     raise ValueError("response too large")
             return bytes(raw)
 
+    async def _ask(self, body: bytes) -> bytes:
+        """The provider's answer, asked a second time on a new connection when
+        the first try got none. A refusal or a malformed answer is not retried."""
+        try:
+            async with asyncio.timeout(FIRST_TRY_SECONDS):
+                return await self._send(body)
+        except (TimeoutError, aiohttp.ClientConnectionError):
+            logger.info("physical safety asked again on a new connection")
+        client, self._client = self._client, None
+        if client is not None:
+            await client.close()
+        async with asyncio.timeout(SECOND_TRY_SECONDS):
+            return await self._send(body)
+
     def _request(self, context: llm.ChatContext, message: llm.ChatMessage) -> bytes:
         text = message.raw_text_content or ""
         if len(text.encode("utf-8")) > MAX_BYTES:
@@ -244,8 +262,7 @@ class PhysicalSafetyGuard:
             if self._closed:
                 return verdict
             body = self._request(context, message)
-            async with asyncio.timeout(TIMEOUT_SECONDS):
-                raw = await self._send(body)
+            raw = await self._ask(body)
             verdict = parse_response(raw)
             if verdict is Verdict.ALLOW:
                 self._protected.clear()
