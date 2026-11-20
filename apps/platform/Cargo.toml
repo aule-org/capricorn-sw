@@ -17,6 +17,9 @@ name = "aule-platform"
 path = "src/main.rs"
 
 [dependencies]
+# The session engine and its bank of exercises, from this repository.
+aule-core = { path = "../../engine/crates/aule-core" }
+contenido = { path = "../../engine/crates/contenido" }
 async-trait = "0.1"
 axum = { version = "0.8", features = ["json", "macros"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std", "serde"] }
