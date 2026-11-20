@@ -44,25 +44,19 @@ const LOST = new Set([
   DisconnectReason.MEDIA_FAILURE,
 ]);
 
-const SUPERVISOR_POLL_MS = 3000;
 // How often the page asks where an engine-run session stands. The tutor's own
 // words arrive by voice; this only keeps the strip and the card in step.
 const STEP_POLL_MS = 3000;
-// The review is written after the session ends; it usually takes under a
-// minute. After this long the page stops asking.
-const REPORT_WAIT_MS = 120_000;
 // Typed messages go to the tutor on the topic LiveKit agents read.
 const CHAT_TOPIC = "lk.chat";
 
 const ERRORS = {
-  wrong_code: "Ese código de acceso no es correcto.",
-  too_many_attempts: "Demasiados códigos equivocados. Espera un minuto e inténtalo otra vez.",
   daily_limit: "Ya usaste las sesiones de hoy. Vuelve mañana.",
-  not_signed_in: "Tu sesión se cerró. Vuelve a entrar con Google.",
+  not_signed_in: "Tu sesión se cerró. Vuelve a entrar.",
 };
 
 const $ = (id) => document.getElementById(id);
-// Everything shown before a session: signing in, and the team's access code.
+// Everything shown before a session: signing in and choosing the student.
 const entry = $("welcome");
 const lobby = $("lobby");
 const stage = $("stage");
@@ -88,12 +82,10 @@ let talking = false;
 let room = null;
 let clock = null;
 let tutorTimer = null;
-let supervisorTimer = null;
 let stepTimer = null;
 // What the card last showed, so a poll that changes nothing leaves a
 // half-written answer alone.
 let cardShown = "";
-let reportTimer = null;
 // The platform's id for the session being shown, when there is one.
 let sessionId = null;
 
@@ -244,8 +236,8 @@ async function engineCall(path, id, more = {}) {
   const response = await fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    // The code only matters for the team's sessions; a family is known by its sign-in.
-    body: JSON.stringify({ code: $("code").value, session_id: id, ...more }),
+    // A family is known by its sign-in.
+    body: JSON.stringify({ session_id: id, ...more }),
   });
   if (response.status === 409) return null;
   if (!response.ok) throw new Error("step");
@@ -337,81 +329,6 @@ function item(text) {
   const element = document.createElement("li");
   element.textContent = text;
   return element;
-}
-
-// Shows the supervisor's plan and the guidance it gives the tutor, when the
-// session was created by a platform.
-async function supervisorView(id) {
-  const response = await fetch("api/supervisor", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code: $("code").value, session_id: id }),
-  });
-  return response.ok ? response.json() : null;
-}
-
-async function showSupervisor(id) {
-  try {
-    const view = await supervisorView(id);
-    if (!view) return;
-    $("supervisor").hidden = false;
-    $("plan").textContent = view.brief?.goal ?? "No hay plan para esta sesión.";
-    $("plan-skills").replaceChildren(
-      ...(view.brief?.skills ?? []).map((skill) => item(`${skill.skill_id}: ${skill.start_with}`)),
-    );
-    $("notes").replaceChildren(...(view.guidance ?? []).map((note) => item(note.text)));
-    // What the platform worked out and checked. The answers are for the team.
-    const checked = view.exercises ?? [];
-    $("checked-title").hidden = checked.length === 0;
-    $("checked").replaceChildren(
-      ...checked.map((exercise) =>
-        item(
-          [
-            `${exercise.probe ? "Diagnóstico" : "Práctica"}: ${exercise.expression} = ${exercise.answer}`,
-            exercise.status,
-            `${exercise.attempts} ${exercise.attempts === 1 ? "try" : "tries"}, ${exercise.hints} ${exercise.hints === 1 ? "hint" : "hints"}`,
-            exercise.misconception ? `mistake: ${exercise.misconception.replaceAll("_", " ")}` : "",
-          ]
-            .filter(Boolean)
-            .join(" · "),
-        ),
-      ),
-    );
-  } catch {
-    // The panel is a view of the session, not part of it.
-  }
-}
-
-// After a session, shows what the review wrote for the family. The review
-// runs once the session has ended, so the page asks until it is there.
-function awaitReport(id) {
-  const started = Date.now();
-  $("report").hidden = false;
-  $("report-summary").textContent = "";
-  $("report-next").hidden = true;
-  $("report-note").textContent = "Se está revisando la sesión…";
-  const ask = async () => {
-    let view = null;
-    try {
-      view = await supervisorView(id);
-    } catch {
-      // Asked again on the next round.
-    }
-    if (view?.review) {
-      $("report-summary").textContent = view.review.guardian_summary;
-      // The next step is a note for whoever plans the next session, not for the family.
-      $("report-next").textContent = view.review.next_step
-        ? `Note for the next session's plan (not sent to the family): ${view.review.next_step}`
-        : "";
-      $("report-next").hidden = !view.review.next_step;
-      $("report-note").textContent = "El resumen de arriba es lo que lee la familia. El plan y la conversación no se envían.";
-    } else if (Date.now() - started < REPORT_WAIT_MS) {
-      reportTimer = setTimeout(ask, SUPERVISOR_POLL_MS);
-    } else {
-      $("report-note").textContent = "No se escribió un informe para esta sesión.";
-    }
-  };
-  ask();
 }
 
 // The tutor describes what to show; the page draws it.
@@ -632,16 +549,8 @@ async function join(session) {
   setTutorState("waiting");
   tutorTimer = setTimeout(() => setTutorState("missing"), TUTOR_WAIT_MS);
   startClock(session.expiresInSeconds);
-  // The supervisor's plan is for the team. It stays off the screen unless the
-  // person asked for it, so a child never reads what the tutor is aiming at.
   sessionId = session.session_id ?? null;
   if (session.session_id && session.engine === true) followSteps(session.session_id);
-  clearTimeout(reportTimer);
-  $("report").hidden = true;
-  if (session.session_id && $("operator").checked) {
-    showSupervisor(session.session_id);
-    supervisorTimer = setInterval(() => showSupervisor(session.session_id), SUPERVISOR_POLL_MS);
-  }
   lobby.hidden = true;
   stage.hidden = false;
   // The layout of a session hangs on this class, not on :has(), which older
@@ -751,9 +660,7 @@ function leave(reason) {
   room = null;
   clearInterval(clock);
   clearTimeout(tutorTimer);
-  clearInterval(supervisorTimer);
   stopSteps();
-  $("supervisor").hidden = true;
   tutorIdentity = null;
   photos = false;
   showing = false;
@@ -770,17 +677,10 @@ function leave(reason) {
   lobby.hidden = true;
   entry.hidden = false;
   showMessage(reason ?? "");
-  if (sessionId && $("operator").checked) awaitReport(sessionId);
   sessionId = null;
 }
 
-$("entry").addEventListener("submit", (event) => {
-  event.preventDefault();
-  showMessage("");
-  openLobby();
-});
-
-// A signed-in person who has chosen a student goes to the same lobby.
+// A signed-in person who has chosen a student goes to the lobby.
 onEnter(() => {
   showMessage("");
   openLobby();
@@ -808,7 +708,7 @@ $("join").addEventListener("click", async () => {
     const response = await fetch("api/session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(sessionRequest({ code: $("code").value, language: $("language").value })),
+      body: JSON.stringify(sessionRequest()),
     });
     const body = await response.json();
     if (!response.ok) {

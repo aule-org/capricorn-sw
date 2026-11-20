@@ -1,5 +1,6 @@
 //! Sign-in for guardians, without passwords: a code sent to their email, or
-//! their Google account where the installation has set that up.
+//! their Google, GitHub, Meta or Apple account where the installation has set
+//! that up.
 //!
 //! Asking for a code answers the same way whether or not the address has an
 //! account, a code works once and for ten minutes, a few wrong guesses burn
@@ -26,7 +27,8 @@ use uuid::Uuid;
 use crate::auth::{Guardian, Input, bearer, token_hash};
 use crate::entity::{child, device, family, guardian, guardian_session, login_code, notice};
 use crate::error::{ApiError, ApiResult};
-use crate::google::IdentityError;
+use crate::google::{Identity, IdentityError};
+use crate::oauth::CodeProvider;
 use crate::state::AppState;
 
 const CODE_MINUTES: i32 = 10;
@@ -266,14 +268,99 @@ pub async fn google(
             ApiError::Unavailable("Google could not be reached; try again later")
         }
     })?;
+    entered(&state, identity, body.name.as_deref(), body.language.as_deref()).await
+}
+
+/// A session for someone a provider has vouched for.
+async fn entered(
+    state: &AppState,
+    identity: Identity,
+    name: Option<&str>,
+    language: Option<&str>,
+) -> ApiResult<Json<Value>> {
     let email = normalized_email(&identity.email)?;
-    let name =
-        body.name.as_deref().map(str::trim).filter(|name| !name.is_empty()).or(identity.name.as_deref());
+    let name = name.map(str::trim).filter(|name| !name.is_empty()).or(identity.name.as_deref());
 
     let txn = state.db.begin().await?;
-    let account = enter(&txn, &email, name, body.language.as_deref()).await?;
+    let account = enter(&txn, &email, name, language).await?;
     txn.commit().await?;
     Ok(Json(account))
+}
+
+/// The public ids the page needs to send someone to each provider; a provider
+/// that is not set up here is null.
+pub async fn providers(State(state): State<AppState>) -> Json<Value> {
+    let id = |provider: &Option<std::sync::Arc<dyn CodeProvider>>| {
+        provider.as_ref().map(|provider| provider.client_id().to_string())
+    };
+    Json(json!({
+        "google": state.config.google_client_id,
+        "github": id(&state.github),
+        "meta": id(&state.meta),
+        "apple": id(&state.apple),
+    }))
+}
+
+#[derive(Deserialize)]
+pub struct CodeInput {
+    /// The one-time code the provider sent back to the page.
+    code: String,
+    /// Where the page asked the provider to send it; the provider checks it.
+    redirect_uri: String,
+    /// Used instead of the name in the account, for a new address. Apple gives
+    /// the name only to the page, and only the first time.
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    language: Option<String>,
+}
+
+pub async fn github(State(state): State<AppState>, Input(body): Input<CodeInput>) -> ApiResult<Json<Value>> {
+    let provider = state.github.clone();
+    by_code(&state, provider.as_deref(), "github", body).await
+}
+
+pub async fn meta(State(state): State<AppState>, Input(body): Input<CodeInput>) -> ApiResult<Json<Value>> {
+    let provider = state.meta.clone();
+    by_code(&state, provider.as_deref(), "meta", body).await
+}
+
+pub async fn apple(State(state): State<AppState>, Input(body): Input<CodeInput>) -> ApiResult<Json<Value>> {
+    let provider = state.apple.clone();
+    by_code(&state, provider.as_deref(), "apple", body).await
+}
+
+async fn by_code(
+    state: &AppState,
+    provider: Option<&dyn CodeProvider>,
+    label: &'static str,
+    body: CodeInput,
+) -> ApiResult<Json<Value>> {
+    let provider = provider.ok_or(ApiError::Unavailable("sign-in with that provider is not set up here"))?;
+    if body.code.is_empty() || body.code.len() > 2048 {
+        return Err(ApiError::bad_request("code is not a sign-in code"));
+    }
+    let redirect = &body.redirect_uri;
+    if redirect.len() > 512 || !(redirect.starts_with("https://") || redirect.starts_with("http://127.0.0.1"))
+    {
+        return Err(ApiError::bad_request("redirect_uri must be an https:// URL"));
+    }
+    let identity = provider.identify(&body.code, redirect).await.map_err(|error| match error {
+        IdentityError::Refused(reason) => {
+            tracing::info!(provider = label, %reason, "a sign-in was refused");
+            ApiError::Forbidden("that sign-in could not be confirmed")
+        }
+        IdentityError::Unreachable(reason) => {
+            tracing::error!(provider = label, %reason, "a sign-in provider could not be asked");
+            ApiError::Unavailable("the sign-in provider could not be reached; try again later")
+        }
+    })?;
+    // Apple gives the name only the first time, and a person may not share it:
+    // a new family is then named after the address, and can rename itself.
+    let local = identity.email.split('@').next().unwrap_or_default().to_string();
+    let name =
+        body.name.filter(|name| !name.trim().is_empty()).or_else(|| identity.name.is_none().then_some(local));
+    entered(state, identity, name.as_deref(), body.language.as_deref()).await
 }
 
 /// Ends the session this request was made with.

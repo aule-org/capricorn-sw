@@ -1,10 +1,13 @@
-// Signing in with Google, choosing the student a session is for and saying
+// Signing in with Google, GitHub, Facebook or Apple, choosing the student a
+// session is for and saying
 // what the session is for. The page never holds the session itself: the server
 // keeps it in a cookie it alone reads.
 
 import { $, SUBJECTS, call, chip, describe, openEditor, say } from "./students.js";
 
 const GOOGLE_SCRIPT = "https://accounts.google.com/gsi/client";
+// Sign-ins that leave the page for the provider's and come back with a code.
+const CODE_PROVIDERS = ["github", "meta", "apple"];
 
 // What a family can say a session is for. The first leaves the choice to Aule.
 const KINDS = {
@@ -19,7 +22,7 @@ const DATED = ["homework", "exam_prep"];
 // The one subject Aule has its own exercises for today.
 const OWN_SUBJECT = "matematica";
 
-// What the next session is asked with; null on the team's access-code path.
+// What the next session is asked with; null until a student is chosen.
 let request = null;
 let students = [];
 // The subjects the platform keeps for a student; null when it keeps none, and
@@ -38,9 +41,9 @@ export function onEnter(callback) {
   if (waiting) callback();
 }
 
-/** The body of the request for a session: the student's, or the team's code. */
-export function sessionRequest(team) {
-  return request ?? team;
+/** The body of the request for a session: the chosen student's. */
+export function sessionRequest() {
+  return request;
 }
 
 const chosen = (name) => document.querySelector(`input[name="${name}"]:checked`)?.value ?? "";
@@ -130,12 +133,12 @@ function showStudents(preferred) {
 
 function show(account, preferred) {
   const signedIn = account.signed_in === true;
-  $("signed-out").hidden = signedIn || !account.google_client_id;
+  const providers = account.providers ?? [];
+  $("signed-out").hidden = signedIn || (!account.google_client_id && providers.length === 0);
+  for (const provider of CODE_PROVIDERS) $(`signin-${provider}`).hidden = !providers.includes(provider);
   $("who").hidden = !signedIn;
   $("account").hidden = !signedIn;
   $("student-editor").hidden = true;
-  // Without Google the access code is the only way in, so it is shown open.
-  $("team").open = !account.google_client_id;
   if (!signedIn) return;
   students = account.students ?? [];
   subjects = Array.isArray(account.subjects)
@@ -238,10 +241,13 @@ $("erase").addEventListener("submit", async (event) => {
   }
 });
 
-// The team's form goes its own way: no student, the access code instead.
-$("entry").addEventListener("submit", () => {
-  request = null;
-});
+// Back from GitHub, Facebook or Apple without having signed in. The address
+// is cleaned so that reloading the page does not say it again.
+const outcome = new URLSearchParams(location.search).get("signin");
+if (outcome) {
+  history.replaceState(null, "", location.pathname);
+  if (outcome === "failed") say("No se pudo entrar con esa cuenta. Inténtalo otra vez o usa otra.");
+}
 
 const googleScript = loadGoogleScript();
 call("api/account")

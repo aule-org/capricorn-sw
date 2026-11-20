@@ -49,15 +49,36 @@ export async function platform(
   return answer;
 }
 
-/** The Google client people sign in with, or null when the platform has none. */
-export async function googleClient(settings: Settings): Promise<string | null> {
+/** The public id of each provider people can sign in with; null where it is not set up. */
+export type Providers = { google: string | null; github: string | null; meta: string | null; apple: string | null };
+
+export async function signInProviders(settings: Settings): Promise<Providers> {
+  const none = { google: null, github: null, meta: null, apple: null };
   try {
-    const answer = (await platform(settings, "/v1/auth/google")) as { client_id?: unknown };
-    return typeof answer.client_id === "string" ? answer.client_id : null;
+    const answer = (await platform(settings, "/v1/auth/providers")) as Record<string, unknown>;
+    const id = (value: unknown) => (typeof value === "string" && value ? value : null);
+    return { google: id(answer.google), github: id(answer.github), meta: id(answer.meta), apple: id(answer.apple) };
   } catch (error) {
-    if (error instanceof PlatformError) return null;
+    if (error instanceof PlatformError) return none;
     throw error;
   }
+}
+
+/** Trades the code a provider sent back for a session of the person it names. */
+export async function signInWithCode(
+  settings: Settings,
+  provider: "github" | "meta" | "apple",
+  code: string,
+  redirectUri: string,
+  name: string | null,
+): Promise<SignedIn> {
+  const answer = (await platform(settings, `/v1/auth/${provider}`, {
+    code,
+    redirect_uri: redirectUri,
+    ...(name ? { name } : {}),
+  })) as { token?: unknown; expires_in_days?: unknown };
+  if (typeof answer.token !== "string") throw new PlatformError("the platform sent no session");
+  return { token: answer.token, days: typeof answer.expires_in_days === "number" ? answer.expires_in_days : 1 };
 }
 
 export type SignedIn = { token: string; days: number };

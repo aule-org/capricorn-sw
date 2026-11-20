@@ -1260,3 +1260,39 @@ button[aria-pressed="true"]:not(.talk) {
     background: var(--copper);
   }
 }
+
+/* The other ways in, drawn like Google's button above them. */
+.providers {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.provider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid #dadce0;
+  border-radius: 20px;
+  background: #fff;
+  color: #3c4043;
+  font: 500 14px/1.2 system-ui, sans-serif;
+  text-decoration: none;
+}
+
+.provider:hover {
+  background: #f8f9fa;
+}
+
+.provider svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+.provider[hidden] {
+  display: none;
+}
