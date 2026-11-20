@@ -150,6 +150,13 @@ class Finding:
     # sentences land as often as bad ones, so a score cannot settle it (see
     # ``opinion``).
     unsure: bool = False
+    # True when all that was found is a faint score for self-harm in a
+    # sentence the provider itself did not act on. That is where a student who
+    # is only tired lands ("I don't want to go on, let's finish"), so it is
+    # read once more before the line for a child in distress is said (see
+    # ``opinion``). Anything stronger, or found with anything else, is never
+    # in doubt.
+    faint_self_harm: bool = False
 
     @property
     def flagged(self) -> bool:
@@ -178,7 +185,8 @@ def local_category(text: str) -> str | None:
 # Where our threshold for children is far below the provider's own and ordinary
 # teaching sentences cross it. A finding made only of these, which the provider
 # itself did not act on, is not a verdict (see ``opinion``). Threats, anything
-# about minors, self-harm and illicit acts are never in doubt.
+# about minors and illicit acts are never in doubt, and neither is self-harm,
+# except for the faint scores described in ``Finding``.
 SECOND_READING = frozenset({"sexual", "harassment", "hate", "violence"})
 
 
@@ -189,6 +197,27 @@ def provider_is_unsure(response: Any) -> bool:
     result = response.results[0]
     found = provider_categories(response)
     return bool(found) and set(found) <= SECOND_READING and result.flagged is False
+
+
+# Below this, a self-harm score in a sentence the provider did not flag may be
+# a student talking about the work. From here up it is never in doubt.
+SELF_HARM_FAINT_BELOW = 0.2
+_SELF_HARM_SCORES = ("self_harm", "self_harm_intent", "self_harm_instructions")
+
+
+def provider_finds_faint_self_harm(response: Any) -> bool:
+    """Whether everything found is self-harm, over our threshold only and
+    faintly, and the provider's own verdict is that nothing is wrong. Call
+    after ``provider_categories`` accepted the response."""
+    result = response.results[0]
+    found = provider_categories(response)
+    if not found or result.flagged is not False:
+        return False
+    if not all(category.startswith("self-harm") for category in found):
+        return False
+    return max(getattr(result.category_scores, name) for name in _SELF_HARM_SCORES) < (
+        SELF_HARM_FAINT_BELOW
+    )
 
 
 def provider_categories(response: Any) -> tuple[str, ...]:
@@ -232,6 +261,7 @@ class Moderator:
         categories: tuple[str, ...] = ()
         available = False
         unsure = False
+        faint = False
         # A local match never skips the provider: swearing must not hide a
         # graver category in the same sentence.
         if len(text) <= MAX_CHARS:
@@ -242,6 +272,7 @@ class Moderator:
                     response = await self._client.moderations.create(model=MODEL, input=text)
                 categories = provider_categories(response)
                 unsure = provider_is_unsure(response)
+                faint = provider_finds_faint_self_harm(response)
                 available = True
             except asyncio.CancelledError:
                 raise
@@ -255,6 +286,7 @@ class Moderator:
             profanity=local == "profanity",
             # A word of our own list is a finding of its own: nothing to be unsure about.
             unsure=unsure and local is None,
+            faint_self_harm=faint and local is None,
         )
         if finding.flagged or not finding.available:
             logger.info(

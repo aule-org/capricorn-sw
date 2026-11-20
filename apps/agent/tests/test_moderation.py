@@ -8,6 +8,7 @@ import pytest
 
 from aule_agent.moderation import (
     MAX_CHARS,
+    SELF_HARM_FAINT_BELOW,
     THRESHOLDS,
     Action,
     Finding,
@@ -329,6 +330,45 @@ async def test_only_scores_the_provider_did_not_act_on_in_settled_categories_are
     ):
         guard, _ = moderator(answer)
         assert not (await guard.check("x")).unsure
+
+
+async def test_self_harm_is_faint_only_when_low_alone_and_not_acted_on_by_the_provider():
+    for scores in (
+        {"self_harm": 0.16},
+        {"self_harm_intent": 0.12},
+        {"self_harm": 0.16, "self_harm_intent": 0.16},
+    ):
+        guard, _ = moderator(provider_response(**scores))
+        finding = await guard.check("ya no quiero seguir, terminemos")
+        assert finding.faint_self_harm and finding.flagged and not finding.unsure, scores
+
+    named = provider_response(flagged=True, self_harm=0.18)
+    named.results[0].categories.self_harm = True
+    for answer in (
+        # The provider acted on the sentence, for self-harm or for anything else.
+        named,
+        provider_response(flagged=True, self_harm_intent=0.12, violence=0.36),
+        provider_response(flagged=True, self_harm=0.16),
+        # From the top of the band up it is never in doubt.
+        provider_response(self_harm=SELF_HARM_FAINT_BELOW),
+        provider_response(self_harm=0.16, self_harm_intent=0.4),
+        # Something else was found with it.
+        provider_response(self_harm=0.16, harassment=0.4),
+        provider_response(self_harm_intent=0.12, sexual=0.2),
+        # Under our own thresholds nothing was found at all.
+        provider_response(self_harm=0.05),
+        provider_response(),
+    ):
+        guard, _ = moderator(answer)
+        assert not (await guard.check("x")).faint_self_harm
+
+
+async def test_words_of_our_own_list_about_self_harm_are_never_faint():
+    guard, _ = moderator(provider_response(self_harm=0.16))
+
+    finding = await guard.check("me quiero morir")
+
+    assert finding.flagged and not finding.faint_self_harm
 
 
 async def test_a_word_of_our_own_list_is_never_unsure():

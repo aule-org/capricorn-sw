@@ -28,7 +28,7 @@ use uuid::Uuid;
 
 use crate::auth::{Agent, Input, Session};
 use crate::error::{ApiError, ApiResult};
-use crate::exercise::{Exercise, Form, Misconception, Reading, Verdict, check};
+use crate::exercise::{Exercise, Form, Misconception, Reading, Verdict, check, is_about_something_else};
 use crate::learning::{self, NewAttempt};
 use crate::state::AppState;
 
@@ -181,6 +181,15 @@ pub fn judge(current: Current<'_>, past: &[Past], reading: &Reading) -> Outcome 
         return keep(
             Next::AskAgain,
             "No number was understood. Ask them to say just their answer again.",
+            now,
+        );
+    }
+    if reading.verdict == Verdict::NotAnAnswer {
+        return keep(
+            Next::AskAgain,
+            "That was not an answer to this exercise: the student stated another calculation or asked \
+             something of their own. It was not counted. Respond to what they actually said first, without \
+             handing out its answer, then bring them back to this exercise.",
             now,
         );
     }
@@ -484,7 +493,11 @@ pub async fn answer(
     let exercise =
         Exercise::parse(&row.expression).ok_or(ApiError::Conflict("the open exercise cannot be checked"))?;
     let form = form_of(&row.form);
-    let reading = check(&exercise, form, &body.said);
+    let mut reading = check(&exercise, form, &body.said);
+    // A wrong number is a try only when it was said about this exercise.
+    if reading.verdict == Verdict::Incorrect && is_about_something_else(&row.expression, &body.said) {
+        reading = Reading { read: None, verdict: Verdict::NotAnAnswer, misconception: None };
+    }
     let history = past(&state.pool, session.id, row.skill_id.as_deref(), row.id).await?;
     let current =
         Current { probe: row.probe, attempts: row.attempts, hints: row.hints, answer: &row.answer, form };

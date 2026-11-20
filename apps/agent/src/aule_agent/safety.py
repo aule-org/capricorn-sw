@@ -95,6 +95,18 @@ def moderation_categories(finding: Finding) -> list[str]:
     return flag_categories(*found)
 
 
+# How much of the tutor's last line the second reader is given: enough to tell
+# what the child was answering.
+MAX_TUTOR_LINE_CHARS = 400
+
+
+def _last_said_by_the_tutor(context: llm.ChatContext) -> str:
+    for item in reversed(context.items):
+        if item.type == "message" and item.role == "assistant":
+            return (item.text_content or "")[-MAX_TUTOR_LINE_CHARS:]
+    return ""
+
+
 class Gates:
     """The two gates of a session. Either may be missing in an operator's session."""
 
@@ -145,6 +157,8 @@ class Gates:
         finding = moderating.result() if moderating else None
         verdict = judging.result() if judging else None
 
+        if finding is not None and await self._is_about_the_work(finding, context, text, verdict):
+            finding = Finding()
         existing = classify_heard(finding) if finding else Decision(Action.ALLOW)
         decision = combine_input_decisions(existing, verdict) if verdict else existing
         if decision.allowed:
@@ -162,6 +176,28 @@ class Gates:
         else:
             self._flag("physical_safety", "unavailable", [*found, "gate_unavailable"])
         return decision
+
+    async def _is_about_the_work(
+        self, finding: Finding, context: llm.ChatContext, text: str, verdict: Verdict | None
+    ) -> bool:
+        """Whether a faint score for self-harm is a student talking about the
+        work, so that the line for a child in distress is not said to one who
+        is only tired.
+
+        It is when a second reader says so in so many words, and only then.
+        A reader that is missing, late or unsure leaves the finding as it was;
+        so does a physical-safety gate that stopped the turn or gave no clear
+        verdict, because a sentence that worries either gate is not read again.
+        """
+        if not finding.faint_self_harm or self._second_opinion is None:
+            return False
+        if verdict not in (None, Verdict.ALLOW):
+            return False
+        if not await self._second_opinion.only_schoolwork(_last_said_by_the_tutor(context), text):
+            return False
+        # Counts only: what was said is never logged.
+        logger.info("faint self-harm read as about the work")
+        return True
 
     async def spoken(self, text: str) -> Decision:
         """Judges what the tutor is about to say, before any of it is spoken."""
