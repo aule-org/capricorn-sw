@@ -20,7 +20,7 @@ use crate::families::{Child, child_for, current_consent, find_child};
 use crate::livekit::{RoomToken, room_token};
 use crate::state::AppState;
 use crate::supervisor::{self, Brief, PlanInputs, Turn};
-use crate::{events, flow, jobs, learning, memory};
+use crate::{events, flow, jobs, learning, llm, memory};
 
 pub const AUDIENCES: [&str; 2] = ["child", "operator"];
 /// How long the agent waits for the supervisor's plan before starting with
@@ -275,10 +275,12 @@ async fn prepare_brief(state: &AppState, session_id: Uuid, child: &Child, use_me
                 objective: objective.as_ref(),
                 minutes: state.config.session_minutes,
             };
-            supervisor::plan(llm.as_ref(), &inputs).await.unwrap_or_else(|error| {
-                tracing::warn!(%session_id, %error, "planning fell back to the learner model");
-                supervisor::fallback_brief(&candidates)
-            })
+            llm::SESSION.scope(session_id, supervisor::plan(llm.as_ref(), &inputs)).await.unwrap_or_else(
+                |error| {
+                    tracing::warn!(%session_id, %error, "planning fell back to the learner model");
+                    supervisor::fallback_brief(&candidates)
+                },
+            )
         }
         None => supervisor::fallback_brief(&candidates),
     };
@@ -587,7 +589,9 @@ async fn watch(state: &AppState, session: &Session) -> ApiResult<()> {
         _ => Vec::new(),
     };
     let open_exercise = crate::practice::open_exercise(&state.pool, session.id).await?;
-    let guidance = supervisor::watch(llm.as_ref(), &brief, &turns, &memories, open_exercise.as_ref())
+    let reading = supervisor::watch(llm.as_ref(), &brief, &turns, &memories, open_exercise.as_ref());
+    let guidance = llm::SESSION
+        .scope(session.id, reading)
         .await
         .map_err(|error| ApiError::Internal(error.to_string()))?;
     count_not_trying(state, session, guidance.signals.not_trying).await?;
@@ -857,7 +861,10 @@ pub async fn review_session(state: &AppState, session_id: Uuid) -> ApiResult<()>
         known.dedup();
         known.truncate(300);
 
-        let review = supervisor::review(llm.as_ref(), &child.context(now), &brief, &turns, &known)
+        let context = child.context(now);
+        let reviewing = supervisor::review(llm.as_ref(), &context, &brief, &turns, &known);
+        let review = llm::SESSION
+            .scope(session_id, reviewing)
             .await
             .map_err(|error| ApiError::Internal(error.to_string()))?;
 
