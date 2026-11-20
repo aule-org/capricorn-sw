@@ -21,6 +21,7 @@ from aule_agent.tutor import (
     for_the_student,
     persona_from,
     persona_notes,
+    shows_something,
     with_frame,
 )
 from aule_agent.worker import GOODBYE, language_of, persona_of
@@ -598,3 +599,37 @@ async def test_without_an_engine_the_turn_is_the_models_as_before():
     to_the_model, updates = await scripted_turn(tutor, session)
 
     assert to_the_model and updates == {"instructions": [], "context": []}
+
+
+def conversation(*turns):
+    chat = llm.ChatContext.empty()
+    for role, text in turns:
+        chat.add_message(role=role, content=text)
+    return chat
+
+
+@pytest.mark.parametrize(
+    "turns",
+    [
+        [("assistant", "¿Cuánto te salió?"), ("user", "Mira, aquí está mi cuaderno.")],
+        [("assistant", "Muéstrame cómo lo hiciste."), ("user", "Ya.")],
+        [("assistant", "Acércalo un poco a la cámara."), ("user", "¿Así?")],
+        [("assistant", "How did it go?"), ("user", "Look, I wrote it here.")],
+        [("user", "Te muestro mi tarea.")],
+    ],
+)
+def test_the_camera_is_looked_at_when_work_is_shown_or_asked_for(turns):
+    assert shows_something(conversation(*turns))
+
+
+@pytest.mark.parametrize(
+    "turns",
+    [
+        [("assistant", "¿Cómo te fue hoy?"), ("user", "Bien, jugué fútbol.")],
+        [("assistant", "¿Cuántas canicas sombreadas hay?"), ("user", "Creo que tres.")],
+        [("user", "Mira mi cuaderno."), ("assistant", "Muy bien."), ("user", "¿Y ahora?")],
+        [],
+    ],
+)
+def test_the_camera_is_left_alone_in_ordinary_talk(turns):
+    assert not shows_something(conversation(*turns))
