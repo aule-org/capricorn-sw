@@ -16,6 +16,7 @@ import asyncio
 import json
 import logging
 from collections.abc import Callable
+from dataclasses import replace
 from typing import Literal
 
 from livekit.agents import llm
@@ -157,8 +158,8 @@ class Gates:
         finding = moderating.result() if moderating else None
         verdict = judging.result() if judging else None
 
-        if finding is not None and await self._is_about_the_work(finding, context, text, verdict):
-            finding = Finding()
+        if finding is not None:
+            finding = await self._read_again(finding, context, text, verdict)
         existing = classify_heard(finding) if finding else Decision(Action.ALLOW)
         decision = combine_input_decisions(existing, verdict) if verdict else existing
         if decision.allowed:
@@ -177,27 +178,44 @@ class Gates:
             self._flag("physical_safety", "unavailable", [*found, "gate_unavailable"])
         return decision
 
-    async def _is_about_the_work(
+    async def _read_again(
         self, finding: Finding, context: llm.ChatContext, text: str, verdict: Verdict | None
-    ) -> bool:
-        """Whether a faint score for self-harm is a student talking about the
-        work, so that the line for a child in distress is not said to one who
-        is only tired.
+    ) -> Finding:
+        """What moderation found, once a second reader has settled what a
+        score could not.
 
-        It is when a second reader says so in so many words, and only then.
-        A reader that is missing, late or unsure leaves the finding as it was;
-        so does a physical-safety gate that stopped the turn or gave no clear
-        verdict, because a sentence that worries either gate is not read again.
+        A sentence is read again when the provider did not act on it and all
+        it found is either a faint self-harm score or one of the categories
+        where ordinary words score high (see ``Finding``). Over our thresholds,
+        only a clear "ordinary" lets it through. Under them, two clear
+        "concern"s stop it with the line for a child in distress. Otherwise the
+        finding stays as it was. When the physical-safety gate could not judge
+        the turn at all, it is stopped anyway and is not read again.
         """
-        if not finding.faint_self_harm or self._second_opinion is None:
-            return False
-        if verdict not in (None, Verdict.ALLOW):
-            return False
-        if not await self._second_opinion.only_schoolwork(_last_said_by_the_tutor(context), text):
-            return False
+        if not (finding.faint_self_harm or finding.unsure) or self._second_opinion is None:
+            return finding
+        if verdict in (Verdict.UNAVAILABLE, Verdict.CONTEXT_LIMIT):
+            return finding
+        tutor = _last_said_by_the_tutor(context)
+        if finding.categories:
+            # Stopped unless the reader is clear that it is ordinary.
+            ordinary = await self._second_opinion.ordinary(tutor, text)
+        else:
+            # Nothing over our thresholds: let through unless two readers, at
+            # once, are both clear that it is a concern. One reader alone
+            # hears worry in "ñañaña, no me importa" two times in five.
+            readings = await asyncio.gather(
+                self._second_opinion.ordinary(tutor, text),
+                self._second_opinion.ordinary(tutor, text),
+            )
+            ordinary = False if all(reading is False for reading in readings) else None
         # Counts only: what was said is never logged.
-        logger.info("faint self-harm read as about the work")
-        return True
+        logger.info("read again", extra={"ordinary": ordinary, "found": list(finding.categories)})
+        if ordinary is True:
+            return Finding()
+        if ordinary is False and not finding.categories:
+            return replace(finding, categories=("self-harm",))
+        return finding
 
     async def spoken(self, text: str) -> Decision:
         """Judges what the tutor is about to say, before any of it is spoken."""
