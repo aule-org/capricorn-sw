@@ -330,7 +330,12 @@ export function forget(settings: Settings, token: string, id: string, memoryId: 
   return platform(settings, `${pathOf(id)}/memories/${encodeURIComponent(memoryId)}`, undefined, token, "DELETE");
 }
 
-/** A session for one of the signed-in guardian's students, for what the family said it is for. */
+/**
+ * A session for one of the signed-in guardian's students, for what the family
+ * said it is for. Where this page is set to, the session engine is asked for;
+ * the platform uses it when it covers what the session is for, and the tutor
+ * runs the session otherwise.
+ */
 export async function startSession(
   settings: Settings,
   token: string,
@@ -338,6 +343,12 @@ export async function startSession(
   language: Language,
   objective?: Objective,
 ): Promise<Session> {
-  const body = { audience: "child", language, child_id: id, ...(objective ? { objective } : {}) };
+  const body = {
+    audience: "child",
+    language,
+    child_id: id,
+    ...(objective ? { objective } : {}),
+    ...(settings.flow ? { flow: settings.flow } : {}),
+  };
   return (await platform(settings, "/v1/sessions", body, token)) as Session;
 }
