@@ -177,6 +177,9 @@ importers:
 
   apps/playground:
     dependencies:
+      '@fontsource-variable/source-serif-4':
+        specifier: 5.3.1
+        version: 5.3.1
       livekit-client:
         specifier: 2.24.1
         version: 2.24.1(@types/dom-mediacapture-record@1.0.22)
@@ -200,10 +203,15 @@ importers:
         specifier: ^3.0.1
         version: 3.0.1(ajv@8.20.0)
 
+  curriculum: {}
+
 packages:
 
   '@bufbuild/protobuf@1.10.1':
     resolution: {integrity: sha512-wJ8ReQbHxsAfXhrf9ixl0aYbZorRuOWpBNzm8pL8ftmSxQx/wnJD5Eg861NwJU/czy2VXFIebCeZnZrI9rktIQ==}
+
+  '@fontsource-variable/source-serif-4@5.3.1':
+    resolution: {integrity: sha512-4Rtay22SC4lMvw11r/+9kxANB6P3M0X8s1NudBC2v0J1KU2y3DcMoNcT3lBoZ/CqLirzf+StlO6UlJilyrvaUg==}
 
   '@livekit/mutex@1.1.1':
     resolution: {integrity: sha512-EsshAucklmpuUAfkABPxJNhzj9v2sG7JuzFDL4ML1oJQSV14sqrpTYnsaOudMAw9yOaW53NU3QQTlUQoRs4czw==}
@@ -302,6 +310,8 @@ packages:
 snapshots:
 
   '@bufbuild/protobuf@1.10.1': {}
+
+  '@fontsource-variable/source-serif-4@5.3.1': {}
 
   '@livekit/mutex@1.1.1': {}
 

@@ -27,7 +27,16 @@ const start = (body: unknown) =>
   });
 
 test("serves the page and its scripts with a strict policy", async () => {
-  for (const path of ["/", "/app.js", "/visuals.js", "/style.css", "/livekit-client.js"]) {
+  for (const path of [
+    "/",
+    "/app.js",
+    "/signin.js",
+    "/visuals.js",
+    "/style.css",
+    "/livekit-client.js",
+    "/fonts/serif.woff2",
+    "/fonts/serif-italic.woff2",
+  ]) {
     const response = await fetch(base + path);
     assert.equal(response.status, 200, path);
     assert.match(response.headers.get("content-security-policy") ?? "", /default-src 'none'/);
