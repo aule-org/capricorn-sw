@@ -45,3 +45,64 @@ test("using another address forgets the name that was typed", () => {
   assert.equal(form.nameLine.hidden, true);
   assert.ok(!("name" in verifyBody(form, "es")));
 });
+
+import { createAttempts, enterWithCode } from "../public/mail.js";
+
+test("an answer belongs to the attempt that asked: changing the address drops the earlier ones", () => {
+  const attempts = createAttempts();
+  const first = attempts.begin();
+  assert.equal(attempts.isCurrent(first), true);
+
+  attempts.change();
+
+  assert.equal(attempts.isCurrent(first), false);
+  const second = attempts.begin();
+  assert.equal(attempts.isCurrent(second), true);
+  assert.equal(attempts.isCurrent(first), false);
+});
+
+// A call that answers when the test says so, as a slow network would.
+function later() {
+  const slot = {};
+  slot.promise = new Promise((resolve, reject) => Object.assign(slot, { resolve, reject }));
+  return slot;
+}
+
+test("a slow answer for the address that was left does not open the name field for the new one", async () => {
+  const form = fields();
+  const attempts = createAttempts();
+  const slow = later();
+  const calls = [];
+  const call = (path, body) => {
+    calls.push(body.email);
+    return slow.promise;
+  };
+
+  // Address A: the person presses Enter and the check is still going.
+  const pending = enterWithCode({ fields: form, language: "es", attempts, call });
+  // Then "use another address" and a code for B.
+  attempts.change();
+  clearName(form);
+  form.address.value = "beto@example.org";
+  // The platform now says A's account is new and needs a name.
+  slow.reject(new Error("name_needed"));
+
+  assert.deepEqual(await pending, { kind: "stale" });
+  assert.equal(form.nameLine.hidden, true, "A's answer must not ask for a name on B's form");
+  assert.deepEqual(calls, ["ana@example.org"]);
+  // B's own attempt is sent with B and no name.
+  const next = await enterWithCode({ fields: form, language: "es", attempts, call: async (path, body) => ({ sent: body }) });
+  assert.equal(next.kind, "account");
+  assert.deepEqual(next.account.sent, { email: "beto@example.org", code: "123456", language: "es" });
+});
+
+test("a code answered in time is told apart: signed in, name needed, refused or failed", async () => {
+  const run = (call, form = fields()) => enterWithCode({ fields: form, language: "es", attempts: createAttempts(), call });
+  const fails = (message) => async () => { throw new Error(message); };
+
+  assert.deepEqual(await run(async () => ({ signed_in: true })), { kind: "account", account: { signed_in: true } });
+  const form = fields();
+  assert.deepEqual(await run(fails("name_needed"), form), { kind: "name_needed" });
+  assert.deepEqual(await run(fails("code_refused")), { kind: "refused" });
+  assert.deepEqual(await run(fails("boom")), { kind: "failed" });
+});

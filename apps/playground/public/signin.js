@@ -2,7 +2,7 @@
 // what the session is for. The page never holds the session itself: the server
 // keeps it in a cookie it alone reads.
 
-import { clearName, methods, startBody, verifyBody } from "./mail.js";
+import { clearName, createAttempts, enterWithCode, methods, startBody } from "./mail.js";
 import { $, SUBJECTS, call, chip, describe, openEditor, say } from "./students.js";
 import { applyTexts, pageLanguage, text } from "./texts.js";
 
@@ -192,10 +192,8 @@ function loadGoogle(clientId) {
 // An address seen for the first time is also asked for a name.
 const language = pageLanguage();
 applyTexts(document, language);
-const MAIL_ERRORS = {
-  mail_unavailable: text(language, "mail.unavailable"),
-  bad_request: text(language, "mail.bad"),
-};
+// Each try to enter is numbered; changing the address ends the ones before it.
+const attempts = createAttempts();
 
 // The fields of the mailed-code forms, as mail.js reads them.
 const mailFields = {
@@ -224,11 +222,20 @@ $("mail-email").addEventListener("submit", async (event) => {
   $("mail-send").disabled = true;
   try {
     await call("api/signin/start", startBody($("mail-address"), language));
+    // A new code is a new address's turn: an answer still on its way for the last one is dropped.
+    attempts.change();
+    $("mail-enter").disabled = false;
     $("mail-digits").value = "";
     clearName(mailFields);
     mailStep("code");
   } catch (error) {
-    say(MAIL_ERRORS[error?.message] ?? text(language, "mail.failed"));
+    say(
+      error?.message === "mail_unavailable"
+        ? text(language, "mail.unavailable")
+        : error?.message === "bad_request"
+          ? text(language, "mail.bad")
+          : text(language, "mail.failed"),
+    );
   } finally {
     $("mail-send").disabled = false;
   }
@@ -238,34 +245,33 @@ $("mail-code").addEventListener("submit", async (event) => {
   event.preventDefault();
   say("");
   $("mail-enter").disabled = true;
-  try {
-    const account = await call("api/signin/verify", verifyBody(mailFields, language));
+  const result = await enterWithCode({ fields: mailFields, language, attempts, call });
+  // The address was changed while this was out: nothing of it is shown.
+  if (result.kind === "stale") return;
+  $("mail-enter").disabled = false;
+  if (result.kind === "account") {
+    const { account } = result;
     $("mail-digits").value = "";
     clearName(mailFields);
     mailStep("none");
     show(account);
     // A family with no student yet starts by adding one.
     if (account.signed_in && !account.students?.length) edit(null);
-  } catch (error) {
-    if (error?.message === "name_needed") {
-      // The code is still good: the name is the one thing missing.
-      $("mail-name-line").hidden = false;
-      $("mail-name").focus();
-      say(text(language, "mail.nameNeeded"));
-    } else {
-      say(
-        error?.message === "code_refused"
-          ? text(language, "mail.refused")
-          : text(language, "mail.enterFailed"),
-      );
-    }
-  } finally {
-    $("mail-enter").disabled = false;
+  } else if (result.kind === "name_needed") {
+    // The code is still good: the name is the one thing missing.
+    $("mail-name-line").hidden = false;
+    $("mail-name").focus();
+    say(text(language, "mail.nameNeeded"));
+  } else {
+    say(text(language, result.kind === "refused" ? "mail.refused" : "mail.enterFailed"));
   }
 });
 
 $("mail-again").addEventListener("click", () => {
   say("");
+  // Whatever is still being checked for the address that is left no longer counts.
+  attempts.change();
+  $("mail-enter").disabled = false;
   $("mail-digits").value = "";
   clearName(mailFields);
   mailStep("email");
