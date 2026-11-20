@@ -28,3 +28,8 @@ export function clearName(fields) {
   fields.name.value = "";
   fields.nameLine.hidden = true;
 }
+
+/** What is sent to ask for a code: the address and the language the page is in. */
+export function startBody(address, language) {
+  return { email: address.value.trim(), language };
+}

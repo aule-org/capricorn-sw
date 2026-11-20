@@ -2,6 +2,8 @@
 // and the editor where a guardian says who a student is for Aule and what is
 // kept about them. Nothing is saved until the guardian presses the button.
 
+import { pageLanguage, text } from "./texts.js";
+
 export const $ = (id) => document.getElementById(id);
 
 export const GRADES = {
@@ -299,7 +301,7 @@ $("student-editor").addEventListener("submit", async (event) => {
         relationship: $("student-relationship").value || null,
       }
     : { name, language: "es", remembers: false, keeps_transcripts: false };
-  if (!profile.name) return say("Escribe el nombre de usuario del alumno.");
+  if (!profile.name) return say(text(pageLanguage(), "student.userNameMissing"));
   $("save-student").disabled = true;
   try {
     const saved = editing

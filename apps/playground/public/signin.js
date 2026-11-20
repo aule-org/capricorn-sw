@@ -2,8 +2,9 @@
 // what the session is for. The page never holds the session itself: the server
 // keeps it in a cookie it alone reads.
 
-import { clearName, methods, verifyBody } from "./mail.js";
+import { clearName, methods, startBody, verifyBody } from "./mail.js";
 import { $, SUBJECTS, call, chip, describe, openEditor, say } from "./students.js";
+import { applyTexts, pageLanguage, text } from "./texts.js";
 
 const GOOGLE_SCRIPT = "https://accounts.google.com/gsi/client";
 
@@ -189,9 +190,11 @@ function loadGoogle(clientId) {
 
 // Signing in with the code that was mailed: the address first, then the code.
 // An address seen for the first time is also asked for a name.
+const language = pageLanguage();
+applyTexts(document, language);
 const MAIL_ERRORS = {
-  mail_unavailable: "Ahora no podemos enviar códigos por correo. Prueba con Google.",
-  bad_request: "Revisa tu correo e inténtalo otra vez.",
+  mail_unavailable: text(language, "mail.unavailable"),
+  bad_request: text(language, "mail.bad"),
 };
 
 // The fields of the mailed-code forms, as mail.js reads them.
@@ -220,12 +223,12 @@ $("mail-email").addEventListener("submit", async (event) => {
   say("");
   $("mail-send").disabled = true;
   try {
-    await call("api/signin/start", { email: $("mail-address").value.trim(), language: "es" });
+    await call("api/signin/start", startBody($("mail-address"), language));
     $("mail-digits").value = "";
     clearName(mailFields);
     mailStep("code");
   } catch (error) {
-    say(MAIL_ERRORS[error?.message] ?? "No se pudo enviar el código. Inténtalo otra vez.");
+    say(MAIL_ERRORS[error?.message] ?? text(language, "mail.failed"));
   } finally {
     $("mail-send").disabled = false;
   }
@@ -236,7 +239,7 @@ $("mail-code").addEventListener("submit", async (event) => {
   say("");
   $("mail-enter").disabled = true;
   try {
-    const account = await call("api/signin/verify", verifyBody(mailFields, "es"));
+    const account = await call("api/signin/verify", verifyBody(mailFields, language));
     $("mail-digits").value = "";
     clearName(mailFields);
     mailStep("none");
@@ -248,12 +251,12 @@ $("mail-code").addEventListener("submit", async (event) => {
       // The code is still good: the name is the one thing missing.
       $("mail-name-line").hidden = false;
       $("mail-name").focus();
-      say("Es tu primera vez. Dinos cómo te llamamos y vuelve a pulsar Entrar.");
+      say(text(language, "mail.nameNeeded"));
     } else {
       say(
         error?.message === "code_refused"
-          ? "Ese código no es válido o ya venció. Pide uno nuevo."
-          : "No se pudo entrar con ese código. Inténtalo otra vez.",
+          ? text(language, "mail.refused")
+          : text(language, "mail.enterFailed"),
       );
     }
   } finally {
