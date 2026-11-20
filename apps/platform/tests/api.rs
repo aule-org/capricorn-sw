@@ -918,6 +918,7 @@ impl Embedder for BlockedEmbedder {
 #[sqlx::test(migrator = "aule_platform::MIGRATOR")]
 async fn revoking_memory_while_embedding_prevents_the_late_write(pool: PgPool) {
     let app = app(pool.clone());
+    let db = sea_orm::SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
     let child = app.child().await;
     for purpose in ["voice", "memory"] {
         app.consent(&child, purpose, true).await;
@@ -930,7 +931,7 @@ async fn revoking_memory_while_embedding_prevents_the_late_write(pool: PgPool) {
     let session_id = session.parse().unwrap();
     let writing = tokio::spawn(async move {
         aule_platform::memory::remember(
-            &pool,
+            &db,
             Some(&embedder),
             child_id,
             Some(session_id),

@@ -170,7 +170,7 @@ async fn child_memories(
     child_for(&state.db, &caller, child_id).await?;
     let limit = params.limit.unwrap_or(20).clamp(1, 100);
     let memories =
-        memory::recall(&state.pool, state.embedder.as_deref(), child_id, &params.query, limit).await?;
+        memory::recall(&state.db, state.embedder.as_deref(), child_id, &params.query, limit).await?;
     Ok(Json(json!({ "memories": memories })))
 }
 
@@ -180,7 +180,7 @@ async fn forget_memory(
     Path((child_id, memory_id)): Path<(Uuid, Uuid)>,
 ) -> ApiResult<StatusCode> {
     child_for(&state.db, &caller, child_id).await?;
-    if memory::forget(&state.pool, child_id, memory_id).await? {
+    if memory::forget(&state.db, child_id, memory_id).await? {
         Ok(StatusCode::NO_CONTENT)
     } else {
         Err(ApiError::NotFound("memory"))

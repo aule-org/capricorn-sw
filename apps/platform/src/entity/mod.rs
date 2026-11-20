@@ -5,11 +5,22 @@
 
 pub mod attempt;
 pub mod child;
+pub mod consent_record;
 pub mod correction;
 pub mod family;
 pub mod guardian;
 pub mod guardian_child;
 pub mod item_difficulty;
+pub mod job;
+pub mod memory;
+pub mod outbox;
+pub mod session;
+pub mod session_brief;
+pub mod session_exercise;
+pub mod session_flag;
+pub mod session_guidance;
+pub mod session_review;
+pub mod session_turn;
 pub mod skill;
 
 /// Every entity, in one schema: what the migrations must create.
@@ -24,4 +35,15 @@ pub fn schema() -> sea_orm::SchemaBuilder {
         .register(item_difficulty::Entity)
         .register(attempt::Entity)
         .register(correction::Entity)
+        .register(consent_record::Entity)
+        .register(session::Entity)
+        .register(session_turn::Entity)
+        .register(session_brief::Entity)
+        .register(session_guidance::Entity)
+        .register(session_review::Entity)
+        .register(session_flag::Entity)
+        .register(session_exercise::Entity)
+        .register(memory::Entity)
+        .register(outbox::Entity)
+        .register(job::Entity)
 }

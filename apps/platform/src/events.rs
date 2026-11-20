@@ -9,11 +9,14 @@
 
 use chrono::{DateTime, SecondsFormat, Utc};
 use hmac::{Hmac, KeyInit, Mac};
+use sea_orm::ActiveValue::Set;
+use sea_orm::{ConnectionTrait, DbBackend, DbErr, EntityTrait, Statement, TransactionTrait};
 use serde_json::{Value, json};
 use sha2::Sha256;
 use sqlx::PgExecutor;
 use uuid::Uuid;
 
+use crate::entity::outbox;
 use crate::notices;
 use crate::state::AppState;
 
@@ -25,7 +28,28 @@ pub const SAFETY_FLAGGED: &str = "safety.flagged.v1";
 pub const DEVICE_CLAIMED: &str = "device.claimed.v1";
 const MAX_ATTEMPTS: i32 = 10;
 
-pub async fn publish<'a>(
+/// Writes the event to the outbox, in the caller's transaction.
+pub async fn publish(
+    db: &impl ConnectionTrait,
+    event_type: &str,
+    subject: Uuid,
+    data: Value,
+) -> Result<(), sea_orm::DbErr> {
+    outbox::Entity::insert(outbox::ActiveModel {
+        id: Set(Uuid::now_v7()),
+        event_type: Set(event_type.to_string()),
+        subject: Set(Some(subject.to_string())),
+        data: Set(data),
+        ..Default::default()
+    })
+    .exec_without_returning(db)
+    .await?;
+    Ok(())
+}
+
+/// `publish` for a transaction still on SQLx: the device claim, until the
+/// devices module moves to SeaORM.
+pub async fn publish_sqlx<'a>(
     executor: impl PgExecutor<'a>,
     event_type: &str,
     subject: Uuid,
@@ -91,41 +115,49 @@ async fn deliver(state: &AppState, event: &Value) -> Result<(), String> {
     Ok(())
 }
 
-type Pending = (Uuid, String, Option<String>, Value, DateTime<Utc>, i32);
-
 /// Delivers one pending event, oldest first. Returns whether there was one.
 /// A consumer may see an event twice, so every consumer must be safe to repeat.
-pub async fn deliver_once(state: &AppState) -> Result<bool, sqlx::Error> {
-    let mut tx = state.pool.begin().await?;
-    let pending: Option<Pending> = sqlx::query_as(
-        "select id, type, subject, data, time, attempts from outbox
-         where delivered_at is null and attempts < $1
-           and time + make_interval(mins => attempts * attempts) <= now()
-         order by time for update skip locked limit 1",
-    )
-    .bind(MAX_ATTEMPTS)
-    .fetch_optional(&mut *tx)
-    .await?;
-    let Some((id, event_type, subject, data, time, attempts)) = pending else { return Ok(false) };
+pub async fn deliver_once(state: &AppState) -> Result<bool, DbErr> {
+    let txn = state.db.begin().await?;
+    let pending = txn
+        .query_one_raw(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "select id, type, subject, data, time, attempts from outbox
+             where delivered_at is null and attempts < $1
+               and time + make_interval(mins => attempts * attempts) <= now()
+             order by time for update skip locked limit 1",
+            [MAX_ATTEMPTS.into()],
+        ))
+        .await?;
+    let Some(pending) = pending else { return Ok(false) };
+    let id: Uuid = pending.try_get("", "id")?;
+    let event_type: String = pending.try_get("", "type")?;
+    let subject: Option<String> = pending.try_get("", "subject")?;
+    let data: Value = pending.try_get("", "data")?;
+    let time: DateTime<Utc> = pending.try_get("", "time")?;
+    let attempts: i32 = pending.try_get("", "attempts")?;
 
     let event = envelope(id, &event_type, subject.as_deref(), time, &data);
     match deliver(state, &event).await {
         Ok(()) => {
-            sqlx::query("update outbox set delivered_at = now(), last_error = null where id = $1")
-                .bind(id)
-                .execute(&mut *tx)
-                .await?;
+            txn.execute_raw(Statement::from_sql_and_values(
+                DbBackend::Postgres,
+                "update outbox set delivered_at = now(), last_error = null where id = $1",
+                [id.into()],
+            ))
+            .await?;
         }
         Err(error) => {
             tracing::warn!(event = %id, %event_type, attempts, %error, "event not delivered");
-            sqlx::query("update outbox set attempts = attempts + 1, last_error = $2 where id = $1")
-                .bind(id)
-                .bind(error.chars().take(500).collect::<String>())
-                .execute(&mut *tx)
-                .await?;
+            txn.execute_raw(Statement::from_sql_and_values(
+                DbBackend::Postgres,
+                "update outbox set attempts = attempts + 1, last_error = $2 where id = $1",
+                [id.into(), error.chars().take(500).collect::<String>().into()],
+            ))
+            .await?;
         }
     }
-    tx.commit().await?;
+    txn.commit().await?;
     Ok(true)
 }
 

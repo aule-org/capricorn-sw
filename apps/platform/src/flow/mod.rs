@@ -1280,17 +1280,20 @@ pub async fn queued(pool: &PgPool, session_id: Uuid) -> Result<Option<Value>, sq
 /// What a child's next engine session starts from, as it is now, for a
 /// session being created. Read inside the transaction that creates it.
 pub async fn start_for(
-    tx: &mut sqlx::PgConnection,
+    db: &impl sea_orm::ConnectionTrait,
     child_id: Uuid,
     minutes: u32,
-) -> Result<sqlx::types::Json<Start>, sqlx::Error> {
-    let kept: Option<sqlx::types::Json<Kept>> =
-        sqlx::query_scalar("select engine_profile from children where id = $1")
-            .bind(child_id)
-            .fetch_optional(tx)
-            .await?
-            .flatten();
-    Ok(sqlx::types::Json(Start { minutes, kept: kept.map(|kept| kept.0).unwrap_or_default() }))
+) -> Result<Value, sea_orm::DbErr> {
+    let row = db
+        .query_one_raw(sea_orm::Statement::from_sql_and_values(
+            sea_orm::DbBackend::Postgres,
+            "select engine_profile from children where id = $1",
+            [child_id.into()],
+        ))
+        .await?;
+    let kept: Option<Value> = row.map(|row| row.try_get("", "engine_profile")).transpose()?.flatten();
+    let kept: Kept = kept.and_then(|kept| serde_json::from_value(kept).ok()).unwrap_or_default();
+    serde_json::to_value(Start { minutes, kept }).map_err(|error| sea_orm::DbErr::Custom(error.to_string()))
 }
 
 /// What is done with a session the engine ran once it is over, from its

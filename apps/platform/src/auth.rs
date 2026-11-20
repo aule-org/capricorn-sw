@@ -134,6 +134,24 @@ pub struct Session {
     pub flow: Option<String>,
 }
 
+impl From<crate::entity::session::Model> for Session {
+    fn from(row: crate::entity::session::Model) -> Self {
+        Self {
+            id: row.id,
+            child_id: row.child_id,
+            audience: row.audience,
+            room: row.room,
+            language: row.language,
+            status: row.status,
+            keep_transcript: row.keep_transcript,
+            use_memory: row.use_memory,
+            created_at: row.created_at,
+            ended_at: row.ended_at,
+            flow: row.flow,
+        }
+    }
+}
+
 /// How long after it was created a session's token still works.
 pub const SESSION_TOKEN_HOURS: i32 = 3;
 
