@@ -103,7 +103,9 @@ def test_the_words_on_the_screen_are_all_collected():
 async def test_a_good_visual_is_shown_and_the_tutor_is_asked_to_say_what_it_is():
     gate, screen = Gate(), Screen()
 
-    assert await present(example("fraction_bars"), gate, screen) == SHOWN
+    told = await present(example("fraction_bars"), gate, screen)
+    # What the model reads next is an instruction, not words of the student.
+    assert told == SHOWN and isinstance(told, str) and "on the screen" in told
 
     assert screen.shown == [example("fraction_bars")]
     assert gate.asked == ["¿Cuál es mayor? 2/4"]

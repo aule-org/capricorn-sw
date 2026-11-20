@@ -317,7 +317,7 @@ _ASKS_TO_SEE = re.compile(
     re.IGNORECASE,
 )
 # What the button that shows the work stands for, as the student's own turn.
-SHOWN = {"es": "Mira mi trabajo.", "en": "Look at my work."}
+SHOWN_WORK = {"es": "Mira mi trabajo.", "en": "Look at my work."}
 # How long the button waits for the camera to send what it sees now. It has to
 # end well before the page stops waiting for the answer: of the time a caller
 # allows, the transport keeps seven seconds for itself.
@@ -499,7 +499,9 @@ class Tutor(Agent):
 
             @function_tool(raw_schema=visuals.tool_schema())
             async def show_tool(raw_arguments: dict[str, object]) -> str:
-                return await present(raw_arguments, gates, show)
+                told = await present(raw_arguments, gates, show)
+                self._drew = self._drew or told == SHOWN
+                return told
 
             tools.append(show_tool)
         if breaks:
@@ -566,6 +568,8 @@ class Tutor(Agent):
         # in the same turn works in silence, or the lines would pile up.
         self._meanwhiles = itertools.cycle(MEANWHILE)
         self._meanwhile_due = True
+        # Whether this turn of the student put something on the screen.
+        self._drew = False
         # The frame taken when the student pressed the button, until it is used.
         self._shown: rtc.VideoFrame | None = None
         self._hazards_in_a_row = 0
@@ -703,6 +707,7 @@ class Tutor(Agent):
         self, turn_ctx: llm.ChatContext, new_message: llm.ChatMessage
     ) -> None:
         self._meanwhile_due = True
+        self._drew = False
         # A spoken turn during a drill is the student's try (a typed one never comes here).
         self._drill.took()
         if not await self._may_answer(turn_ctx, new_message):
@@ -747,6 +752,7 @@ class Tutor(Agent):
         if not text:
             return
         self._meanwhile_due = True
+        self._drew = False
         await self.session.interrupt()
         message = llm.ChatMessage(role="user", content=[text])
         if not await self._may_answer(self.chat_ctx.copy(), message):
@@ -775,8 +781,9 @@ class Tutor(Agent):
             return False
         self._shown = frame
         self._meanwhile_due = True
+        self._drew = False
         await self.session.interrupt()
-        self.session.generate_reply(user_input=SHOWN[self._language])
+        self.session.generate_reply(user_input=SHOWN_WORK[self._language])
         return True
 
     def _frame_for(self, chat_ctx: llm.ChatContext) -> rtc.VideoFrame | None:
@@ -847,6 +854,13 @@ class Tutor(Agent):
             delta = getattr(chunk, "delta", None)
             called += [call.name for call in (delta.tool_calls if delta else None) or []]
             yield chunk
+        if not chars and not called and self._drew:
+            # The model put its words in the steps that drew, which are not
+            # said, and had nothing left for the last one: the student would
+            # hear only "a ver" and see a drawing.
+            line = reply("look_at_screen", self._language)
+            chars = len(line)
+            yield line
         self._model_done_at = time.monotonic()
         # Counts only: what was said is never logged.
         logger.info(
