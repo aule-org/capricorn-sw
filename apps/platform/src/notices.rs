@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use crate::auth::Guardian;
 use crate::error::{ApiError, ApiResult};
-use crate::events::{SAFETY_FLAGGED, SESSION_REVIEWED};
+use crate::events::{SAFETY_FLAGGED, SESSION_REVIEWED, SESSION_STOPPED};
 use crate::state::AppState;
 
 /// The gates that listen to the child, and the outcomes a guardian is told about.
@@ -50,6 +50,25 @@ fn attention_text(action: &str, language: &str, nickname: &str) -> Option<(Strin
         _ => return None,
     };
     Some((title, body))
+}
+
+/// What the family reads when a session was closed early because the student
+/// was not working. It says what happened, never what the student said.
+fn stopped_text(language: &str, nickname: &str) -> (String, String) {
+    match language {
+        "en" => (
+            format!("{nickname}'s session ended early"),
+            format!(
+                "Aule closed today's session before its time: {nickname} was not working on the activity, and kept going after a reminder. Nothing is wrong. Another session can start whenever {nickname} is ready to work."
+            ),
+        ),
+        _ => (
+            format!("La sesión de {nickname} terminó antes de tiempo"),
+            format!(
+                "Aule cerró la sesión de hoy antes de tiempo: {nickname} no estaba trabajando en la actividad y siguió así después de un aviso. No pasó nada malo. Pueden empezar otra sesión cuando {nickname} tenga ganas de trabajar."
+            ),
+        ),
+    }
 }
 
 fn summary_title(language: &str, nickname: &str) -> String {
@@ -96,6 +115,10 @@ pub async fn on_event(state: &AppState, event: &Value) -> Result<(), sqlx::Error
                 (true, Some((title, body))) => ("attention", title, body),
                 _ => return Ok(()),
             }
+        }
+        Some(SESSION_STOPPED) => {
+            let (title, body) = stopped_text(&language, &nickname);
+            ("session_stopped", title, body)
         }
         _ => return Ok(()),
     };
@@ -201,6 +224,14 @@ mod tests {
         }
         for action in ["redirect", "clarify", "unavailable", "cooldown", ""] {
             assert!(attention_text(action, "es", "Mateo").is_none(), "{action}");
+        }
+    }
+
+    #[test]
+    fn a_stopped_session_is_told_in_both_languages() {
+        for language in ["es", "en"] {
+            let (title, body) = stopped_text(language, "Mateo");
+            assert!(title.contains("Mateo") && body.contains("Mateo"));
         }
     }
 }

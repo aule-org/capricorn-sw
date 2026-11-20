@@ -41,7 +41,15 @@ impl Llm for ScriptedLlm {
                 "remember": ["Likes football."]
             }),
             "guidance" => {
-                json!({ "text": "Give a smaller hint and wait.", "signals": { "frustrated": true } })
+                // A student who says "jajaja" is the one fooling around.
+                let asked: Value = serde_json::from_str(request.user).unwrap();
+                let last = asked["latest_turns"].as_array().and_then(|turns| turns.last());
+                let not_trying =
+                    last.is_some_and(|turn| turn["said"].as_str().unwrap_or_default().contains("jajaja"));
+                json!({
+                    "text": "Give a smaller hint and wait.",
+                    "signals": { "frustrated": true, "not_trying": not_trying }
+                })
             }
             "session_review" => json!({
                 "guardian_summary": "Practicó sumas de fracciones y mejoró con una pista.",
@@ -553,6 +561,52 @@ async fn a_session_is_planned_watched_and_reviewed(pool: PgPool) {
     assert!(jobs::work_once(&app.state).await.unwrap());
     assert_eq!(app.count("select count(*) from memories").await, 2);
     assert_eq!(app.count("select count(*) from attempts").await, 4);
+}
+
+#[sqlx::test(migrator = "aule_platform::MIGRATOR")]
+async fn a_student_who_keeps_fooling_around_is_warned_and_then_the_session_closes(pool: PgPool) {
+    let app = app(pool);
+    let child = app.child().await;
+    app.consent(&child, "voice", true).await;
+    let (_, token) = app.session(&child).await;
+    let agent = Some(token.as_str());
+    app.call(Method::GET, "/v1/agent/session", agent, None).await;
+
+    // One child turn at a time, each read by the supervisor before the next.
+    let mut seq = 0;
+    let mut say = async |content: &str| {
+        let turns = json!({ "turns": [{ "seq": seq, "role": "child", "content": content }] });
+        seq += 1;
+        app.call(Method::POST, "/v1/agent/session/turns", agent, Some(turns)).await;
+        eventually("guidance settled", || async { app.state.watching.lock().unwrap().is_empty() }).await;
+        let (_, answer) =
+            app.call(Method::POST, "/v1/agent/session/turns", agent, Some(json!({ "turns": [] }))).await;
+        answer["stop"].clone()
+    };
+    assert_eq!(say("jajaja pedo").await, Value::Null, "once is not a pattern");
+    assert_eq!(say("jajaja caca").await, "warn");
+    assert_eq!(say("Ya, son tres cuartos.").await, Value::Null, "working again starts the count over");
+    assert_eq!(say("jajaja").await, Value::Null);
+    assert_eq!(say("jajaja no quiero").await, "warn");
+    assert_eq!(say("jajaja").await, "warn");
+    assert_eq!(app.count("select count(*) from outbox where type = 'session.stopped.v1'").await, 0);
+    assert_eq!(say("jajaja").await, "end");
+    assert_eq!(say("Ya, perdón.").await, "end", "once asked for, the close stands");
+
+    // The family is told when the close is asked for, once.
+    assert_eq!(app.count("select count(*) from outbox where type = 'session.stopped.v1'").await, 1);
+    app.deliver_events().await;
+    assert_eq!(app.count("select count(*) from notices where kind = 'session_stopped'").await, 1);
+    let body: String = sqlx::query_scalar("select body from notices where kind = 'session_stopped'")
+        .fetch_one(&app.state.pool)
+        .await
+        .unwrap();
+    assert!(body.contains("Mateo") && !body.contains("jajaja"), "{body}");
+
+    let (status, _) = app
+        .call(Method::POST, "/v1/agent/session/end", agent, Some(json!({ "end_reason": "not_working" })))
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
 }
 
 #[sqlx::test(migrator = "aule_platform::MIGRATOR")]

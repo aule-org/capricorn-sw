@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/meet-aule/aule-sw/contracts/events/session.stopped.v1.schema.json",
+  "title": "session.stopped.v1",
+  "description": "The platform told the tutor to close a session before its time. Produced by the platform when it decides, so the family hears about it even if the session's end is never reported. Carries the reason only: never the student's words.",
+  "type": "object",
+  "required": [
+    "session_id",
+    "child_id",
+    "reason"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "session_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "child_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "reason": {
+      "enum": [
+        "not_working"
+      ]
+    }
+  }
+}

@@ -52,6 +52,8 @@ pub fn text(kind: &str, language: &str) -> (&'static str, &'static str) {
     match (kind, language) {
         ("attention", "en") => ("Aule", "There is a note that needs your attention."),
         ("attention", _) => ("Aule", "Hay un aviso que necesita tu atención."),
+        ("session_stopped", "en") => ("Aule", "A session ended early. There is a note for you."),
+        ("session_stopped", _) => ("Aule", "Una sesión terminó antes de tiempo. Hay un aviso para ti."),
         (_, "en") => ("Aule", "A session has finished. The summary is ready."),
         _ => ("Aule", "Terminó una sesión. El resumen ya está listo."),
     }

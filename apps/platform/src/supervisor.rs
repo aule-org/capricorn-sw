@@ -190,9 +190,10 @@ pub async fn plan(llm: &dyn Llm, inputs: &PlanInputs<'_>) -> Result<Brief, LlmEr
 minutes. The tutor asks before it explains and does not hand out answers. Choose at most three skills from \
 the candidates: prefer a review that is due, then one skill in progress, and something new only if there is \
 room. A probability near 0.8 means the difficulty is right; lower means start easier. The student's screen \
-shows only black, grey and white, so never plan an activity that depends on telling colours apart: tell \
-things apart by kind, pattern or shade (black ones and grey ones, plain and striped), also when you build on \
-a past activity that used colours. Write for the tutor, in English, briefly and concretely. {UNTRUSTED}",
+has no colours, so never plan an activity that depends on telling colours apart and name no colour at all, \
+black, grey and white included: tell things apart as shaded and unshaded, plain and striped, or by kind, \
+also when you build on a past activity that used colours. Write for the tutor, in English, briefly and \
+concretely. {UNTRUSTED}",
         inputs.minutes
     );
     let user = json!({
@@ -237,6 +238,9 @@ pub struct Signals {
     /// The student is finding this too easy.
     #[serde(default)]
     pub ready_for_more: bool,
+    /// The student is plainly fooling around instead of working, in this turn.
+    #[serde(default)]
+    pub not_trying: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -273,12 +277,13 @@ fn guidance_schema() -> Value {
             "signals": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["frustrated", "off_task", "answer_given", "ready_for_more"],
+                "required": ["frustrated", "off_task", "answer_given", "ready_for_more", "not_trying"],
                 "properties": {
                     "frustrated": { "type": "boolean" },
                     "off_task": { "type": "boolean" },
                     "answer_given": { "type": "boolean" },
-                    "ready_for_more": { "type": "boolean" }
+                    "ready_for_more": { "type": "boolean" },
+                    "not_trying": { "type": "boolean", "description": "The student's latest turn is deliberate fooling around instead of working: silly or random talk, provoking the tutor, refusing to do anything. False for confusion, frustration, shyness, a short or wrong answer, a question about something else for school, and words that look garbled, which are usually a mistake of the speech recognition." }
                 }
             }
         }

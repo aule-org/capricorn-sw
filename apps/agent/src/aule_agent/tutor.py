@@ -11,8 +11,10 @@ from livekit import rtc
 from livekit.agents import Agent, ModelSettings, StopResponse, function_tool, llm
 
 from . import visuals
+from .greetings import greeting as written_greeting
 from .replies import ADULT_HELP_SEQUENCE, OFFERS, reply
 from .safety import Gates
+from .script import Flow, Line
 
 logger = logging.getLogger("aule.agent.tutor")
 
@@ -256,13 +258,6 @@ that computation is open, for everything they reply, an "I don't know" or a doub
 check_answer with their words and do what it tells you. With none open, do not use them.""",
 }
 
-GREETING = {
-    "es": "Saluda con calidez en una frase como Aule y hazle una sola pregunta corta para \
-romper el hielo, sobre cómo le fue hoy o esta semana. Todavía no empieces la actividad.",
-    "en": "Greet warmly in one sentence as Aule and ask one short question to break the ice, \
-about how today or this week went. Do not start the activity yet.",
-}
-
 
 def with_frame(chat_ctx: llm.ChatContext, frame: rtc.VideoFrame | None) -> llm.ChatContext:
     """A copy of the context whose last user message also carries the camera frame.
@@ -362,12 +357,18 @@ class Tutor(Agent):
         show: Show | None = None,
         persona: Persona | None = None,
         checker: Checker | None = None,
+        student_name: str | None = None,
+        session_number: int | None = None,
+        flow: Flow | None = None,
     ) -> None:
         # `context` is what the platform knows about this student and the
         # supervisor's plan for the session; empty when there is no platform.
         # `show` is given when the student has a screen to draw on.
         # `checker` judges answers to computations, so the model neither has to
         # work them out nor holds the answer of an exercise that is still open.
+        # `student_name` and `session_number` only choose and fill the greeting.
+        # `flow` is the session engine: what it wrote is said as written, and
+        # the model speaks only when the student leaves the script.
         # `persona` is the tutor's name, tone preset and (already-moderated)
         # family note; the default leaves the prompt exactly as written.
         persona = persona or Persona()
@@ -422,12 +423,14 @@ class Tutor(Agent):
         self._gates = gates
         self._camera = camera
         self._hazards_in_a_row = 0
+        self._flow = flow
+        self._show = show
+        self._rules_for_talk = ""
         self._model_done_at = 0.0
         self._watches: set[asyncio.Task[None]] = set()
-        greeting = GREETING[language]
-        if persona.name != DEFAULT_TUTOR_NAME:
-            greeting = greeting.replace(DEFAULT_TUTOR_NAME, persona.name)
-        self._greeting = greeting
+        self._tutor_name = persona.name
+        self._student_name = student_name
+        self._session_number = session_number
 
     async def advise(self, guidance: str) -> None:
         """Applies the supervisor's latest guidance to the turns that follow.
@@ -435,7 +438,7 @@ class Tutor(Agent):
         It replaces the previous guidance instead of piling up.
         """
         self._guidance = guidance
-        await self.update_instructions(with_notes(self._base, guidance))
+        await self.update_instructions(self._instructions_now())
 
     async def plan(self, plan: str) -> None:
         """Takes the supervisor's plan when it arrives after the session began.
@@ -446,16 +449,76 @@ class Tutor(Agent):
         """
         self._context = with_notes(self._context, plan)
         self._base = with_notes(with_notes(self._rules, self._context), self._tone)
-        await self.update_instructions(with_notes(self._base, self._guidance))
+        await self.update_instructions(self._instructions_now())
 
     async def on_enter(self) -> None:
-        self.session.generate_reply(instructions=self._greeting)
+        # The engine's own opening when it runs the session; otherwise a
+        # written greeting. Either way no model writes the first words.
+        opening = self._flow.opening() if self._flow is not None else ()
+        if opening:
+            await self._say(opening)
+            return
+        # A written greeting, said at once. The name is a family's own text, so
+        # the greeting with it is judged like anything else that is spoken, and
+        # the one without it is said if that does not pass.
+        named = written_greeting(
+            self._language, self._tutor_name, self._student_name, self._session_number
+        )
+        allowed = self._student_name is None or (await self._gates.spoken(named)).allowed
+        text = (
+            named
+            if allowed
+            else written_greeting(self._language, self._tutor_name, None, self._session_number)
+        )
+        await self.session.say(text, add_to_chat_ctx=True, allow_interruptions=True)
+
+    async def _say(self, lines: tuple[Line, ...]) -> None:
+        """Says lines of the script as they are written, each with its drawing.
+
+        No model writes them and none judges them: they are the engine's own,
+        read by people before a student hears them. They join the conversation
+        so that what the student says next has something to refer to.
+        """
+        for line in lines:
+            if line.show is not None and self._show is not None:
+                await self._show(line.show)
+            # One after the other: a drawing goes up with the line it belongs to.
+            await self.session.say(line.say, add_to_chat_ctx=True, allow_interruptions=True)
+        # Counts only: what is said is never logged.
+        logger.info("said from the script", extra={"lines": len(lines)})
+
+    async def _scripted(self, text: str) -> bool:
+        """Lets the engine answer what the student said. True when the turn is
+        over and the model must not be called."""
+        if self._flow is None:
+            return False
+        reply = await self._flow.said(text)
+        rules = reply.converse if reply is not None else None
+        if (rules or "") != self._rules_for_talk:
+            # What the model may do while the student talks changes with the
+            # moment of the session (no hints in a measurement, for one).
+            self._rules_for_talk = rules or ""
+            await self.update_instructions(self._instructions_now())
+        if reply is None:
+            return False
+        if reply.lines:
+            await self._say(reply.lines)
+        return reply.converse is None
+
+    def _instructions_now(self) -> str:
+        return with_notes(with_notes(self._base, self._guidance), self._rules_for_talk)
 
     async def on_user_turn_completed(
         self, turn_ctx: llm.ChatContext, new_message: llm.ChatMessage
     ) -> None:
         if not await self._may_answer(turn_ctx, new_message):
             # The stopped turn never reaches the model: StopResponse discards it.
+            raise StopResponse()
+        if await self._scripted(new_message.text_content or ""):
+            # The engine answered. The student's words stay in the conversation;
+            # the model is not asked.
+            turn_ctx.items.append(new_message)
+            await self.update_chat_ctx(turn_ctx)
             raise StopResponse()
         watch = asyncio.create_task(self._report_a_missing_reply(time.monotonic()))
         self._watches.add(watch)
@@ -491,8 +554,14 @@ class Tutor(Agent):
             return
         await self.session.interrupt()
         message = llm.ChatMessage(role="user", content=[text])
-        if await self._may_answer(self.chat_ctx.copy(), message):
-            self.session.generate_reply(user_input=text)
+        if not await self._may_answer(self.chat_ctx.copy(), message):
+            return
+        if await self._scripted(text):
+            context = self.chat_ctx.copy()
+            context.items.append(message)
+            await self.update_chat_ctx(context)
+            return
+        self.session.generate_reply(user_input=text)
 
     async def _may_answer(self, turn_ctx: llm.ChatContext, new_message: llm.ChatMessage) -> bool:
         """Judges what the person said or typed. When it must not reach the

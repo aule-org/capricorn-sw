@@ -7,8 +7,10 @@ import pytest
 from livekit import rtc
 from livekit.agents import StopResponse, llm
 
+from aule_agent.greetings import GREETINGS, greeting
 from aule_agent.moderation import Action, Decision
 from aule_agent.replies import ADULT_HELP_SEQUENCE, REPLIES, reply
+from aule_agent.script import Line, Reply
 from aule_agent.tutor import (
     INSTRUCTIONS,
     MAX_TYPED_CHARS,
@@ -251,13 +253,13 @@ def test_persona_notes_add_nothing_by_default_and_a_bounded_wish_with_a_note():
 def test_a_named_persona_renames_the_tutor_and_the_default_leaves_the_prompt_as_written():
     default = Tutor(language="es", gates=ScriptedGates(ALLOW))
     assert default._base == INSTRUCTIONS["es"]
-    assert "Aule" in default._greeting
+    assert default._tutor_name == "Aule"
 
     named = Tutor(
         language="es", gates=ScriptedGates(ALLOW), persona=Persona(name="Luna", preset="jugueton")
     )
     assert "Eres Luna" in named._base and "Aule" not in named._base
-    assert "Luna" in named._greeting and "Aule" not in named._greeting
+    assert named._tutor_name == "Luna"
     # The tone line sits last, after the teaching, safety and context.
     assert named._base.rstrip().endswith("divertido.")
 
@@ -455,3 +457,144 @@ async def test_only_the_paragraph_for_the_student_is_spoken_and_judged():
 def test_a_reply_of_one_paragraph_is_left_as_written():
     assert for_the_student("Muy bien.\nSigamos.") == "Muy bien.\nSigamos."
     assert for_the_student("Pienso.\n\n\n  Hola.  ") == "Hola."
+
+
+async def enter(tutor, session):
+    with patch.object(Tutor, "session", new_callable=PropertyMock, return_value=session):
+        await tutor.on_enter()
+
+
+async def test_the_session_opens_with_a_written_greeting_and_no_model():
+    tutor = Tutor(language="es", gates=ScriptedGates(ALLOW), student_name="Liam", session_number=0)
+    session = Session()
+
+    await enter(tutor, session)
+
+    assert session.said == [
+        ("¡Hola, Liam! Soy Aule, qué gusto verte. Cuéntame, ¿cómo te fue hoy?", True, True)
+    ]
+    assert not hasattr(session, "replies_to")
+
+
+async def test_a_name_the_gate_stops_is_left_out_of_the_greeting():
+    stopped = ScriptedGates(Decision(Action.REDIRECT, "redirect"))
+    tutor = Tutor(language="en", gates=stopped, student_name="x", session_number=1)
+    session = Session()
+
+    await enter(tutor, session)
+
+    assert session.said == [("Hi! Aule here. What was the best part of your day?", True, True)]
+
+
+def test_greetings_are_taken_in_turn_carry_the_tutors_name_and_exist_in_every_language():
+    for language in ("es", "en"):
+        said = [
+            greeting(language, "Luna", "Liam", number) for number in range(len(GREETINGS[language]))
+        ]
+        assert len(set(said)) == len(GREETINGS[language])
+        assert all("Luna" in text and "Liam" in text and "{" not in text for text in said)
+        assert greeting(language, "Luna", None, 0) != said[0]
+        assert greeting(language, "Luna", "Liam", len(said)) == said[0]
+        assert greeting(language, "Luna") in [
+            greeting(language, "Luna", None, number) for number in range(len(said))
+        ]
+    assert len(GREETINGS["es"]) == len(GREETINGS["en"]) >= 10
+
+
+class ScriptedFlow:
+    """Stands in for the session engine."""
+
+    def __init__(self, opening=(), *replies):
+        self._opening, self.replies, self.heard = tuple(opening), list(replies), []
+
+    def opening(self):
+        return self._opening
+
+    async def said(self, text):
+        self.heard.append(text)
+        return self.replies.pop(0) if self.replies else None
+
+
+async def scripted_turn(tutor, session, text="tres cuartos"):
+    """One turn with the engine. True when the model is left to answer."""
+    updates = {"instructions": [], "context": []}
+
+    async def instructions(value):
+        updates["instructions"].append(value)
+
+    async def context(value):
+        updates["context"].append(value)
+
+    message = llm.ChatMessage(role="user", content=[text])
+    with (
+        patch.object(Tutor, "session", new_callable=PropertyMock, return_value=session),
+        patch.object(Tutor, "update_instructions", side_effect=instructions),
+        patch.object(Tutor, "update_chat_ctx", side_effect=context),
+    ):
+        try:
+            await tutor.on_user_turn_completed(llm.ChatContext.empty(), message)
+        except StopResponse:
+            return False, updates
+    return True, updates
+
+
+async def test_the_session_opens_with_the_engines_words_and_no_model():
+    shown = []
+
+    async def show(visual):
+        shown.append(visual)
+
+    drawing = {"kind": "dot_array", "rows": 2, "columns": 3}
+    flow = ScriptedFlow([Line("¡Hola, Liam!"), Line("Mira el círculo.", show=drawing)])
+    tutor, session = Tutor(language="es", gates=ScriptedGates(), flow=flow, show=show), Session()
+
+    with patch.object(Tutor, "session", new_callable=PropertyMock, return_value=session):
+        await tutor.on_enter()
+
+    assert session.said == [("¡Hola, Liam!", True, True), ("Mira el círculo.", True, True)]
+    assert shown == [drawing]
+    assert not hasattr(session, "replies_to")
+
+
+async def test_a_hint_from_the_engine_is_said_as_written_and_the_model_is_not_called():
+    hint = Reply(lines=(Line("¿Un medio y un tercio son pedazos del mismo tamaño?"),))
+    flow = ScriptedFlow([Line("hola")], hint)
+    tutor, session = Tutor(language="es", gates=ScriptedGates(ALLOW), flow=flow), Session()
+
+    to_the_model, updates = await scripted_turn(tutor, session, "cinco sextos")
+
+    assert not to_the_model
+    assert flow.heard == ["cinco sextos"]
+    assert session.said == [("¿Un medio y un tercio son pedazos del mismo tamaño?", True, True)]
+    # What the student said stays in the conversation.
+    assert updates["context"][0].items[-1].text_content == "cinco sextos"
+
+
+async def test_when_the_student_leaves_the_script_the_model_answers_within_the_rules():
+    flow = ScriptedFlow([Line("hola")], Reply(converse="No hints: this is a measurement."), None)
+    tutor, session = Tutor(language="es", gates=ScriptedGates(ALLOW, ALLOW), flow=flow), Session()
+
+    asked, first = await scripted_turn(tutor, session, "¿qué es un denominador?")
+    off_script, second = await scripted_turn(tutor, session, "tengo hambre")
+
+    assert asked and off_script and session.said == []
+    assert first["instructions"][-1].endswith("No hints: this is a measurement.")
+    # The rules of one moment do not outlive it.
+    assert "No hints" not in second["instructions"][-1]
+
+
+async def test_a_turn_the_gates_stop_never_reaches_the_engine():
+    flow = ScriptedFlow([Line("hola")], Reply(lines=(Line("x"),)))
+    tutor, session = Tutor(language="es", gates=ScriptedGates(HAZARD), flow=flow), Session()
+
+    to_the_model, _ = await scripted_turn(tutor, session)
+
+    assert not to_the_model and flow.heard == []
+
+
+async def test_without_an_engine_the_turn_is_the_models_as_before():
+    tutor, session = Tutor(language="es", gates=ScriptedGates(ALLOW)), Session()
+
+    to_the_model, updates = await scripted_turn(tutor, session)
+
+    assert to_the_model and updates == {"instructions": [], "context": []}

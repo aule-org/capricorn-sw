@@ -162,7 +162,12 @@ async def entrypoint(ctx: JobContext) -> None:
         context=context,
         show=show,
         persona=persona,
-        checker=platform,
+        student_name=platform.student_name if platform else None,
+        session_number=platform.session_number if platform else None,
+        # With the session engine the answers are its own to check, and the
+        # model gets no tools to pose or check an exercise by itself.
+        checker=platform if platform and not platform.scripted else None,
+        flow=platform if platform and platform.scripted else None,
     )
     usage = Usage()
     model = build_llm(settings)
