@@ -699,10 +699,11 @@ function closeLobby() {
   entry.hidden = false;
 }
 
-// Joining and leaving have their sound, as in a video call: a little tune made
-// here with the browser's own audio, from a few instruments drawn in code, so
-// there is no file to fetch. The audio is unlocked when the person joins,
-// since browsers only play after a click.
+// Joining and leaving have their sound, as in a video call, and it is a
+// video game's: synths through resonant filters, a sub bass, an echo and a
+// glitch or two, drawn in code with the browser's own audio, so there is no
+// file to fetch. The audio is unlocked when the person joins, since browsers
+// only play after a click.
 let sounds = null;
 let mix = null;
 
@@ -710,11 +711,25 @@ function readySounds() {
   try {
     if (!sounds) {
       sounds = new AudioContext();
-      // Everything goes through a gentle limiter, so the tunes stay soft.
-      mix = sounds.createDynamicsCompressor();
+      // A gentle limiter at the end, and an echo with its highs taken off.
+      const limiter = sounds.createDynamicsCompressor();
       const level = sounds.createGain();
-      level.gain.value = 0.6;
-      mix.connect(level).connect(sounds.destination);
+      level.gain.value = 0.55;
+      limiter.connect(level).connect(sounds.destination);
+      mix = sounds.createGain();
+      mix.connect(limiter);
+      const echo = sounds.createDelay(1);
+      const dark = sounds.createBiquadFilter();
+      const again = sounds.createGain();
+      const wet = sounds.createGain();
+      echo.delayTime.value = 0.13;
+      dark.type = "lowpass";
+      dark.frequency.value = 2500;
+      again.gain.value = 0.32;
+      wet.gain.value = 0.35;
+      mix.connect(echo);
+      echo.connect(dark).connect(again).connect(echo);
+      dark.connect(wet).connect(limiter);
     }
     sounds.resume();
   } catch {
@@ -722,109 +737,83 @@ function readySounds() {
   }
 }
 
-function voice(pan) {
-  const panner = sounds.createStereoPanner();
-  panner.pan.value = pan;
-  panner.connect(mix);
-  return panner;
-}
-
-// A wooden bar: the note, its ringing overtones dying fast, and the knock.
-function marimba(when, hz, loud, pan = 0) {
-  const out = voice(pan);
-  for (const [ratio, share, decay] of [
-    [1, 1, 0.5],
-    [3.93, 0.3, 0.1],
-    [9.2, 0.1, 0.03],
-  ]) {
-    const tone = sounds.createOscillator();
-    const gain = sounds.createGain();
-    tone.frequency.value = hz * ratio;
-    gain.gain.setValueAtTime(loud * share, when);
-    gain.gain.exponentialRampToValueAtTime(0.0001, when + decay);
-    tone.connect(gain).connect(out);
-    tone.start(when);
-    tone.stop(when + decay + 0.05);
-  }
-}
-
-// A bell, by frequency modulation: the ring fades with the sound.
-function bell(when, hz, loud, length, pan = 0) {
-  const carrier = sounds.createOscillator();
-  const modulator = sounds.createOscillator();
-  const depth = sounds.createGain();
+// One synth note: two detuned oscillators through a resonant low-pass filter
+// that snaps open and closes again. It can slide to another pitch.
+function synth(when, hz, length, options = {}) {
+  const { wave = "sawtooth", loud = 0.08, spread = 8, open = 3000, close = 600, q = 6, pan = 0, slide } = options;
+  const filter = sounds.createBiquadFilter();
   const level = sounds.createGain();
-  carrier.frequency.value = hz;
-  modulator.frequency.value = hz * 3.5;
-  depth.gain.setValueAtTime(hz * 1.5, when);
-  depth.gain.exponentialRampToValueAtTime(1, when + length);
-  modulator.connect(depth).connect(carrier.frequency);
+  const panner = sounds.createStereoPanner();
+  filter.type = "lowpass";
+  filter.Q.value = q;
+  filter.frequency.setValueAtTime(close, when);
+  filter.frequency.exponentialRampToValueAtTime(open, when + 0.03);
+  filter.frequency.exponentialRampToValueAtTime(close, when + length);
   level.gain.setValueAtTime(0.0001, when);
-  level.gain.exponentialRampToValueAtTime(loud, when + 0.01);
+  level.gain.exponentialRampToValueAtTime(loud, when + 0.008);
   level.gain.exponentialRampToValueAtTime(0.0001, when + length);
-  carrier.connect(level).connect(voice(pan));
-  for (const node of [carrier, modulator]) {
-    node.start(when);
-    node.stop(when + length + 0.05);
+  panner.pan.value = pan;
+  filter.connect(level).connect(panner).connect(mix);
+  for (const cents of [-spread, spread]) {
+    const tone = sounds.createOscillator();
+    tone.type = wave;
+    tone.detune.value = cents;
+    tone.frequency.setValueAtTime(hz, when);
+    if (slide) tone.frequency.exponentialRampToValueAtTime(slide, when + length);
+    tone.connect(filter);
+    tone.start(when);
+    tone.stop(when + length + 0.05);
   }
 }
 
-// A shaker: a breath of noise with only its top left.
-function shaker(when, loud) {
-  const buffer = sounds.createBuffer(1, Math.round(sounds.sampleRate * 0.06), sounds.sampleRate);
+// A rush of noise through a narrow filter that climbs: the sound of powering up.
+function sweep(when, length, from, to, loud) {
+  const buffer = sounds.createBuffer(1, Math.round(sounds.sampleRate * length), sounds.sampleRate);
   const data = buffer.getChannelData(0);
-  for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
   const noise = sounds.createBufferSource();
   const filter = sounds.createBiquadFilter();
   const level = sounds.createGain();
   noise.buffer = buffer;
-  filter.type = "highpass";
-  filter.frequency.value = 6000;
-  level.gain.value = loud;
+  filter.type = "bandpass";
+  filter.Q.value = 3;
+  filter.frequency.setValueAtTime(from, when);
+  filter.frequency.exponentialRampToValueAtTime(to, when + length);
+  level.gain.setValueAtTime(0.0001, when);
+  level.gain.exponentialRampToValueAtTime(loud, when + length * 0.9);
+  level.gain.exponentialRampToValueAtTime(0.0001, when + length);
   noise.connect(filter).connect(level).connect(mix);
   noise.start(when);
 }
 
-// A bubble going down: a pure tone that slides.
-function bloop(when, from, to, loud, length) {
-  const tone = sounds.createOscillator();
-  const level = sounds.createGain();
-  tone.frequency.setValueAtTime(from, when);
-  tone.frequency.exponentialRampToValueAtTime(to, when + length);
-  level.gain.setValueAtTime(0.0001, when);
-  level.gain.exponentialRampToValueAtTime(loud, when + 0.02);
-  level.gain.exponentialRampToValueAtTime(0.0001, when + length);
-  tone.connect(level).connect(mix);
-  tone.start(when);
-  tone.stop(when + length + 0.05);
-}
+// A minor, up the keyboard.
+const A2 = 110, A3 = 220, E4 = 329.63, A4 = 440, C5 = 523.25, E5 = 659.25, A5 = 880, B5 = 987.77, E6 = 1318.51;
 
-// Joining: do, mi, sol on the marimba over a low do and a shaker, a little
-// skip, and a landing on a bell with the whole chord and three sparkles: ta-da.
+// Joining, a boot-up: noise rushing up, a fast arpeggio bouncing left and
+// right, and a landing on a wide chord over a sub bass, with a glitch and a
+// last glint.
 function hello(t) {
-  marimba(t, 130.81, 0.35);
-  marimba(t, 523.25, 0.45, -0.3);
-  shaker(t, 0.08);
-  marimba(t + 0.11, 659.25, 0.45);
-  marimba(t + 0.22, 783.99, 0.45, 0.3);
-  shaker(t + 0.22, 0.06);
-  marimba(t + 0.33, 880, 0.25, 0.2);
-  marimba(t + 0.4, 783.99, 0.3, 0.1);
-  for (const hz of [130.81, 523.25, 659.25, 783.99]) marimba(t + 0.55, hz, 0.22);
-  bell(t + 0.55, 1046.5, 0.16, 1.1);
-  shaker(t + 0.55, 0.1);
-  [2093, 2637.02, 3135.96].forEach((hz, i) => bell(t + 0.6 + i * 0.06, hz, 0.035, 0.3, i % 2 ? -0.5 : 0.5));
+  sweep(t, 0.4, 300, 5000, 0.08);
+  [A4, C5, E5, A5, B5, E6].forEach((hz, i) =>
+    synth(t + i * 0.065, hz, 0.12, { wave: "square", loud: 0.06, open: 4000, close: 900, pan: i % 2 ? 0.4 : -0.4 }),
+  );
+  for (const hz of [A3, E4, A4, C5]) synth(t + 0.45, hz, 0.7, { loud: 0.05, spread: 12, open: 3500, close: 500, q: 4 });
+  synth(t + 0.45, A2, 0.6, { wave: "sine", loud: 0.18, spread: 0, open: 600, close: 400, q: 0.7 });
+  synth(t + 0.5, E6, 0.03, { wave: "square", loud: 0.05, open: 6000, close: 3000 });
+  synth(t + 0.56, E6, 0.03, { wave: "square", loud: 0.05, open: 6000, close: 3000 });
+  synth(t + 0.62, A5 * 2, 0.15, { wave: "square", loud: 0.03, open: 7000, close: 2000, pan: 0.5 });
 }
 
-// Leaving: sol, mi, do going down, then a bubble that lets go, over a soft
-// low bell: Aule waving and slipping away.
+// Leaving, a power-down: the arpeggio comes back down, then the machine winds
+// off in one deep falling note with a thump under it, and two last blips.
 function goodbye(t) {
-  marimba(t, 783.99, 0.4, 0.3);
-  marimba(t + 0.12, 659.25, 0.4);
-  marimba(t + 0.24, 523.25, 0.4, -0.3);
-  marimba(t + 0.24, 130.81, 0.25);
-  bloop(t + 0.42, 700, 260, 0.12, 0.35);
-  bell(t + 0.42, 392, 0.05, 0.9);
+  [E5, C5, A4, E4].forEach((hz, i) =>
+    synth(t + i * 0.07, hz, 0.12, { wave: "square", loud: 0.06, open: 3500, close: 800, pan: i % 2 ? -0.4 : 0.4 }),
+  );
+  synth(t + 0.3, A5, 0.45, { loud: 0.07, open: 2500, close: 200, q: 8, slide: A2 / 2 });
+  synth(t + 0.3, A2, 0.3, { wave: "sine", loud: 0.18, spread: 0, open: 500, close: 300, q: 0.7, slide: A2 / 2 });
+  synth(t + 0.78, 1200, 0.02, { wave: "square", loud: 0.04, open: 6000, close: 3000 });
+  synth(t + 0.82, 1200, 0.02, { wave: "square", loud: 0.04, open: 6000, close: 3000 });
 }
 
 function play(tune) {
