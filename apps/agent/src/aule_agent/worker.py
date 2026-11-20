@@ -19,6 +19,7 @@ from livekit.plugins import silero
 from . import visuals
 from .camera import Camera
 from .config import LANGUAGES, ConfigError, Settings
+from .pace import Pace
 from .platform import Platform, platform_session
 from .providers import build_llm, build_stt, build_tts
 from .replies import reply
@@ -27,11 +28,6 @@ from .tutor import Persona, Tutor, persona_from
 from .usage import Usage
 
 logger = logging.getLogger("aule.agent")
-
-GOODBYE = {
-    "es": "Se nos acabó el tiempo por hoy. ¡Buen trabajo! Hasta la próxima.",
-    "en": "That is all our time for today. Good work! See you next time.",
-}
 
 # The decorator needs the name at import time; Settings validates the rest.
 AGENT_NAME = os.environ.get("AULE_AGENT_NAME", "").strip() or "aule-tutor"
@@ -190,12 +186,26 @@ async def entrypoint(ctx: JobContext) -> None:
         **({"turn_detection": "manual"} if settings.push_to_talk else {}),
     )
 
-    async def end_when_time_is_up() -> None:
-        await asyncio.sleep(settings.session_max_minutes * 60)
-        await session.say(GOODBYE[language], allow_interruptions=False, add_to_chat_ctx=False)
-        session.shutdown()
+    def break_taken(count: int) -> None:
+        if platform:
+            platform.breaks_taken = count
 
-    tasks = [asyncio.create_task(end_when_time_is_up())]
+    # The warning before the end, the goodbye, and the breaks in between.
+    pace = Pace(
+        session,
+        language,
+        max_minutes=settings.session_max_minutes,
+        break_minutes=settings.break_minutes,
+        taken=break_taken,
+    )
+    tasks = [asyncio.create_task(pace.run())]
+    breaks: set[asyncio.Task[None]] = set()
+
+    @session.on("conversation_item_added")
+    def back_from_a_break(event) -> None:
+        if getattr(event.item, "type", None) == "message" and event.item.role == "user":
+            pace.student_spoke()
+
     if platform:
 
         @session.on("conversation_item_added")
@@ -224,17 +234,29 @@ async def entrypoint(ctx: JobContext) -> None:
             # leaves without a word instead of talking to nobody's account.
             session.shutdown()
 
-        tasks.append(asyncio.create_task(platform.run(tutor.advise, tutor.plan, stop, gone)))
+        async def pause() -> None:
+            # In its own task: the reports do not wait for a quiet moment.
+            offer = asyncio.create_task(pace.take_a_break())
+            breaks.add(offer)
+            offer.add_done_callback(breaks.discard)
+
+        tasks.append(
+            asyncio.create_task(
+                platform.run(tutor.advise, tutor.plan, stop, gone=gone, pause=pause)
+            )
+        )
 
     async def cleanup() -> None:
-        for task in tasks:
+        pace.close()
+        for task in [*tasks, *breaks]:
             task.cancel()
-        await asyncio.gather(*tasks, return_exceptions=True)
+        await asyncio.gather(*tasks, *breaks, return_exceptions=True)
         camera.stop()
         logger.info("session usage", extra=usage.summary())
         await gates.close()
         if platform:
-            await platform.end()
+            measures = {"minutes": round(pace.minutes(), 1), "breaks_taken": pace.breaks_taken}
+            await platform.end({**usage.summary(), **measures})
 
     ctx.add_shutdown_callback(cleanup)
 
