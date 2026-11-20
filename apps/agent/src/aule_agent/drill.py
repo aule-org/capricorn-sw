@@ -25,6 +25,8 @@ MAX_SENTENCE_CHARS = 120
 DRAWN_SEMITONES = 12.0
 
 WAY = {"rising": "up", "falling": "down", "level": "flat"}
+# The model tends to praise how the words sounded; that was not measured.
+ONLY_THE_TUNE = " Only the tune was measured, not the sounds: say nothing about them."
 TITLE = {"es": "Tu voz", "en": "Your voice"}
 
 POSED = (
@@ -110,20 +112,20 @@ class Drill:
             self._close()
             return (
                 f"Their voice went {heard} at the end, as {why} does. "
-                "Say so warmly in a few words.",
+                "Say so warmly in a few words." + ONLY_THE_TUNE,
                 contour,
             )
         if self.tries >= MAX_TRIES:
             self._close()
             return (
                 f"Their voice went {heard} at the end; {why} ends going {expected}. That was the "
-                "last try for now: say it once more yourself, kindly, and move on.",
+                "last try for now: say it once more yourself, kindly, and move on." + ONLY_THE_TUNE,
                 contour,
             )
         return (
             f"Their voice went {heard} at the end; {why} ends going {expected}. Say it once more "
             "yourself, making the end a little bigger, and ask them to try again; then call "
-            "check_phrase.",
+            "check_phrase." + ONLY_THE_TUNE,
             contour,
         )
 

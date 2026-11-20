@@ -132,9 +132,10 @@ def test_the_tutor_only_talks_about_a_screen_when_there_is_one():
     without = Tutor(language="es", gates=Gate())
     with_screen = Tutor(language="es", gates=Gate(), show=Screen(), context="Plan: fracciones")
 
-    assert without.tools == []
+    # The pronunciation drill's two tools are there with or without a screen.
+    assert [tool.info.name for tool in without.tools] == ["pose_phrase", "check_phrase"]
     assert SCREEN["es"] not in without.instructions
-    assert [tool.info.name for tool in with_screen.tools] == ["show"]
+    assert [tool.info.name for tool in with_screen.tools] == ["show", "pose_phrase", "check_phrase"]
     assert SCREEN["es"] in with_screen.instructions
     assert with_screen.instructions.endswith("Plan: fracciones"), "the plan still comes last"
     assert set(SCREEN) == {"es", "en"}
