@@ -311,6 +311,91 @@ function rectangle(v, top) {
   );
 }
 
+// A polygon is described by how to build it, never by pixels: a number of equal
+// sides, the three lengths of a triangle, or its corners. All three become the
+// same list of corners, so one drawing serves every shape there will ever be.
+// Corners are in the shape's own units with y upwards, in order around it.
+function corners(v) {
+  if (v.regular) {
+    // The bottom side lies flat and is side 1; the rest follow round.
+    const n = v.regular;
+    const first = -Math.PI / 2 - Math.PI / n;
+    return Array.from({ length: n }, (_, i) => {
+      const angle = first + (2 * Math.PI * i) / n;
+      return [Math.cos(angle), Math.sin(angle)];
+    });
+  }
+  if (v.sides) {
+    const [base, left, right] = v.sides;
+    const longest = Math.max(base, left, right);
+    if (longest >= base + left + right - longest) throw new Error("those sides do not make a triangle");
+    const x = (base * base + left * left - right * right) / (2 * base);
+    return [[0, 0], [base, 0], [x, Math.sqrt(Math.max(left * left - x * x, 0))]];
+  }
+  return v.points;
+}
+
+// What is written next to side i (from corner i to the next one).
+function sideLabel(v, i) {
+  const unit = v.unit ? ` ${v.unit}` : "";
+  if (v.sides) {
+    // Given as base, left, right; the corners go base, right, left.
+    const given = [0, 2, 1][i];
+    return v.labels?.[given] ?? `${show(v.sides[given])}${unit}`;
+  }
+  if (v.labels?.[i] !== undefined) return v.labels[i];
+  return v.regular && v.side && i === 0 ? `${show(v.side)}${unit}` : "";
+}
+
+function polygon(v, top) {
+  const shape = corners(v);
+  const xs = shape.map(([x]) => x);
+  const ys = shape.map(([, y]) => y);
+  const span = { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+  if (!(span.w > 0 && span.h > 0)) throw new Error("those corners do not make a shape");
+  const room = { w: W - 320, h: H - top - 110 };
+  const scale = Math.min(room.w / span.w, room.h / span.h);
+  const left = (W - span.w * scale) / 2;
+  const bottom = top + (H - top + span.h * scale) / 2 - 12;
+  const at = shape.map(([x, y]) => ({
+    x: left + (x - Math.min(...xs)) * scale,
+    y: bottom - (y - Math.min(...ys)) * scale,
+  }));
+  const n = at.length;
+  // Which way round the corners go, to tell the outside of each side from the
+  // inside and a corner that points in from one that points out.
+  const turn = Math.sign(at.reduce((sum, p, i) => sum + p.x * at[(i + 1) % n].y - at[(i + 1) % n].x * p.y, 0));
+  const towards = (from, to, length) => {
+    const d = Math.hypot(to.x - from.x, to.y - from.y) || 1;
+    return { x: ((to.x - from.x) / d) * length, y: ((to.y - from.y) / d) * length };
+  };
+
+  let out = `<path d="M ${at.map((p) => `${p.x} ${p.y}`).join(" L ")} Z" fill="none" stroke="${INK}" stroke-width="2" stroke-linejoin="round"/>`;
+  for (let i = 0; i < n; i++) {
+    const here = at[i];
+    const next = at[(i + 1) % n];
+    const before = at[(i + n - 1) % n];
+    // A small square in every corner that is a right angle.
+    const u = towards(here, next, 16);
+    const w = towards(here, before, 16);
+    const pointsOut = Math.sign((here.x - before.x) * (next.y - here.y) - (here.y - before.y) * (next.x - here.x)) === turn;
+    if (pointsOut && Math.abs(u.x * w.x + u.y * w.y) < 0.5) {
+      out += `<path d="M ${here.x + u.x} ${here.y + u.y} l ${w.x} ${w.y} l ${-u.x} ${-u.y}" fill="none" stroke="${INK}" stroke-width="1.5"/>`;
+    }
+    const label = sideLabel(v, i);
+    if (!label) continue;
+    // Outside the shape, level with the middle of its side.
+    const mid = { x: (here.x + next.x) / 2, y: (here.y + next.y) / 2 };
+    const out2 = { x: (turn * u.y) / 16, y: (-turn * u.x) / 16 };
+    const anchor = out2.x > 0.35 ? "start" : out2.x < -0.35 ? "end" : "middle";
+    const x = mid.x + out2.x * 14;
+    const y = mid.y + out2.y * 14 + (out2.y > 0.35 ? 16 : out2.y < -0.35 ? -4 : 7);
+    const space = anchor === "start" ? W - x - 12 : anchor === "end" ? x - 12 : W - 40;
+    out += text(x, y, label, { size: 20, anchor, weight: 600, room: space });
+  }
+  return out;
+}
+
 const KINDS = {
   exercise,
   fraction_bars: fractionBars,
@@ -321,6 +406,7 @@ const KINDS = {
   table,
   bar_chart: barChart,
   rectangle,
+  polygon,
 };
 
 /** The visual as an SVG document. Throws on a kind it does not know. */

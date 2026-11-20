@@ -139,3 +139,32 @@ test("long text is made smaller until it fits, never cut", () => {
   // A short one keeps its large size.
   assert.match(renderVisual({ kind: "exercise", lines: ["3/4 + 1/4 = ?"] }), /font-size="44"/);
 });
+
+test("a polygon is built from equal sides, three lengths or corners, and drawn the same way", () => {
+  const edges = (svg) => svg.match(/<path d="M [^"]*Z"/)[0].split(" L ").length;
+
+  const hexagon = renderVisual({ kind: "polygon", regular: 6, side: 4, unit: "cm" });
+  assert.equal(edges(hexagon), 6);
+  assert.equal(hexagon.split(">4 cm<").length - 1, 1, "the length is written once, by the bottom side");
+
+  const right = renderVisual({ kind: "polygon", sides: [4, 3, 5], labels: ["4 cm", "3 cm", "?"] });
+  assert.equal(edges(right), 3);
+  assert.equal(count(right, "path") - count(hexagon, "path"), 1, "its right angle is marked");
+  assert.match(right, />\?</);
+  assert.doesNotMatch(right, />5</, "the hidden side's length is not written");
+
+  const trapezoid = renderVisual({
+    kind: "polygon",
+    points: [[0, 0], [8, 0], [6, 3], [2, 3]],
+    labels: ["8 m", "", "4 m"],
+  });
+  assert.equal(edges(trapezoid), 4);
+  assert.match(trapezoid, />8 m</);
+  assert.equal(count(trapezoid, "text"), 2, "an empty label writes nothing");
+
+  const square = renderVisual({ kind: "polygon", regular: 4 });
+  assert.equal(count(square, "path") - count(hexagon, "path"), 4, "four right angles");
+
+  assert.throws(() => renderVisual({ kind: "polygon", sides: [1, 2, 10] }), /do not make a triangle/);
+  assert.throws(() => renderVisual({ kind: "polygon", points: [[0, 0], [1, 0], [2, 0]] }), /do not make a shape/);
+});
