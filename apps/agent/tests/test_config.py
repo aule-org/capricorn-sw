@@ -21,12 +21,15 @@ def test_reads_a_complete_environment_with_defaults():
     assert (settings.stt, settings.tts) == ("assemblyai", "cartesia")
     assert settings.language == "es"
     assert settings.session_max_minutes == 15
+    assert settings.break_minutes == 5
     assert settings.tts_voice is None
 
 
 def test_reports_every_problem_at_once():
     with pytest.raises(ConfigError) as error:
-        Settings.from_env({"AULE_STT": "deepgram", "AULE_SESSION_MAX_MINUTES": "0"})
+        Settings.from_env(
+            {"AULE_STT": "deepgram", "AULE_SESSION_MAX_MINUTES": "0", "AULE_BREAK_MINUTES": "60"}
+        )
 
     message = str(error.value)
     for expected in (
@@ -35,6 +38,7 @@ def test_reports_every_problem_at_once():
         "ANTHROPIC_API_KEY is not set",
         "DEEPGRAM_API_KEY is not set",
         "AULE_SESSION_MAX_MINUTES",
+        "AULE_BREAK_MINUTES",
     ):
         assert expected in message
 

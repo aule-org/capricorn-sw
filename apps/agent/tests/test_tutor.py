@@ -25,7 +25,7 @@ from aule_agent.tutor import (
     shows_something,
     with_frame,
 )
-from aule_agent.worker import GOODBYE, language_of, persona_of
+from aule_agent.worker import language_of, persona_of
 
 
 @pytest.fixture(autouse=True)
@@ -75,7 +75,7 @@ def test_without_a_frame_or_a_user_message_the_context_is_unchanged():
 
 
 def test_every_language_has_its_texts():
-    assert set(INSTRUCTIONS) == set(GOODBYE) == {"es", "en"}
+    assert set(INSTRUCTIONS) == {"es", "en"}
 
 
 def test_language_comes_from_the_dispatch_when_supported():
