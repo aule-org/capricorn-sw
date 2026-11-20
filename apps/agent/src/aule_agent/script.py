@@ -14,7 +14,9 @@ from . import visuals
 
 # The longest line that is said. A line of the script is a sentence or two.
 MAX_LINE_CHARS = 1200
-MAX_LINES = 8
+# One answer can carry a worked example step by step and the next question
+# after it; the cap is there for an answer gone wrong, not for a long one.
+MAX_LINES = 24
 
 
 @dataclass(frozen=True)
@@ -23,6 +25,9 @@ class Line:
 
     say: str
     show: dict[str, Any] | None = None
+    # The line may repeat the student's own words. Those are not the engine's,
+    # so it is judged before it is said, like anything a model writes.
+    echoes: bool = False
 
 
 @dataclass(frozen=True)
@@ -36,6 +41,8 @@ class Reply:
 
     lines: tuple[Line, ...] = ()
     converse: str | None = None
+    # The engine ended the session: after these lines nothing follows.
+    closed: bool = False
 
 
 class Flow(Protocol):
@@ -60,7 +67,14 @@ def lines_from(value: object) -> tuple[Line, ...]:
             continue
         show = item.get("show")
         drawable = isinstance(show, dict) and not visuals.problems(show)
-        lines.append(Line(say=say.strip(), show=show if drawable else None))
+        lines.append(
+            Line(
+                say=say.strip(),
+                show=show if drawable else None,
+                # Anything but a plain "no" is taken as "it may".
+                echoes=item.get("echoes") is not False,
+            )
+        )
     return tuple(lines)
 
 
@@ -72,6 +86,7 @@ def reply_from(value: object) -> Reply | None:
     lines = lines_from(value.get("lines"))
     converse = value.get("converse")
     rules = converse.strip() if isinstance(converse, str) and converse.strip() else None
-    if not lines and rules is None:
+    closed = value.get("closed") is True
+    if not lines and rules is None and not closed:
         return None
-    return Reply(lines=lines, converse=rules)
+    return Reply(lines=lines, converse=rules, closed=closed)

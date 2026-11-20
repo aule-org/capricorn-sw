@@ -111,6 +111,10 @@ class Platform:
         # Filled by ``start`` when the session engine runs this session: what
         # it wrote for the tutor to open with.
         self._opening: tuple[Line, ...] = ()
+        self._scripted = False
+        # What the engine wrote for something that reached it another way (an
+        # answer typed on the page), until the tutor says it.
+        self._written: list[Reply] = []
         self._clock = clock
         self._flagged_at: dict[tuple[str, str, str], float] = {}
         self._flags: set[asyncio.Task[None]] = set()
@@ -206,6 +210,7 @@ class Platform:
             self.session_number = number
         script = answer.get("script")
         if isinstance(script, dict):
+            self._scripted = True
             self._opening = lines_from(script.get("lines"))
         instructions = answer.get("instructions")
         return instructions if isinstance(instructions, str) else ""
@@ -218,7 +223,7 @@ class Platform:
     @property
     def scripted(self) -> bool:
         """Whether the session engine runs this session."""
-        return bool(self._opening)
+        return self._scripted
 
     def opening(self) -> tuple[Line, ...]:
         return self._opening
@@ -257,6 +262,11 @@ class Platform:
             # Only sent once the exercise is closed, to work it out together.
             return f"{say} The answer is {reveal}."
         return say
+
+    def wake(self) -> None:
+        """Reports now, with or without a turn to send: the platform has
+        something waiting for the tutor."""
+        self._wake.set()
 
     def heard(self, role: str, text: str | None) -> None:
         """Queues one finished turn. Never waits."""
@@ -334,6 +344,9 @@ class Platform:
             if stop in STOPS and self._stop != "end":
                 self._stop = stop
             self._pause = answer.get("pause") == "offer"
+            written = reply_from(answer.get("script"))
+            if written is not None:
+                self._written.append(written)
             plan = answer.get("plan")
             if isinstance(plan, str) and plan.strip() and self._late_plan is None:
                 self._late_plan = plan
@@ -350,6 +363,7 @@ class Platform:
         stop: Callable[[str], Awaitable[None]] | None = None,
         gone: Callable[[], Awaitable[None]] | None = None,
         pause: Callable[[], Awaitable[None]] | None = None,
+        written: Callable[[Reply], Awaitable[None]] | None = None,
     ) -> None:
         """Reports turns as they come and hands the plan, once, and guidance to
         the tutor; a warning or the end, once each, when the platform asks for
@@ -375,6 +389,8 @@ class Platform:
             if pause and self._pause:
                 self._pause = False
                 await pause()
+            while written and self._written:
+                await written(self._written.pop(0))
             if self._pending:
                 await asyncio.sleep(REPORT_RETRY_SECONDS)
                 self._wake.set()

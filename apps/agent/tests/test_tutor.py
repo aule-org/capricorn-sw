@@ -585,6 +585,62 @@ async def test_when_the_student_leaves_the_script_the_model_answers_within_the_r
     assert "No hints" not in second["instructions"][-1]
 
 
+async def test_lines_that_may_repeat_the_student_are_judged_together_before_any_is_said():
+    lines = (
+        Line("Dijiste cinco sextos.", echoes=True),
+        Line("Mira el círculo. ¿Qué fracción está pintada?"),
+        Line("Me contaste que sumaste los de arriba.", echoes=True),
+    )
+    flow = ScriptedFlow([Line("hola")], Reply(lines=lines), Reply(lines=lines))
+    gates = ScriptedGates(ALLOW, ALLOW, ALLOW, Decision(Action.REDIRECT, "redirect"))
+    tutor, session = Tutor(language="es", gates=gates, flow=flow), Session()
+
+    await scripted_turn(tutor, session)
+    await scripted_turn(tutor, session)
+
+    # One judgement per answer, over the lines that echo and nothing else.
+    assert (
+        gates.spoken_texts == ["Dijiste cinco sextos. Me contaste que sumaste los de arriba."] * 2
+    )
+    assert [text for text, _, _ in session.said] == [
+        *[line.say for line in lines],
+        # Refused: the fixed line stands in for them and the engine's own is still said.
+        REPLIES["redirect"]["es"],
+        "Mira el círculo. ¿Qué fracción está pintada?",
+    ]
+
+
+async def test_the_engines_own_lines_are_not_sent_to_be_judged():
+    flow = ScriptedFlow([Line("hola")], Reply(lines=(Line("Pregunta 1 de 5."),)))
+    gates = ScriptedGates(ALLOW)
+    tutor, session = Tutor(language="es", gates=gates, flow=flow), Session()
+
+    await scripted_turn(tutor, session)
+
+    assert gates.spoken_texts == [] and session.said == [("Pregunta 1 de 5.", True, True)]
+
+
+async def test_when_the_engine_closes_the_session_it_ends_after_its_last_lines():
+    flow = ScriptedFlow([Line("hola")], Reply(lines=(Line("Hasta la próxima."),), closed=True))
+    tutor, session = Tutor(language="es", gates=ScriptedGates(ALLOW), flow=flow), Session()
+    session.shutdown = lambda: session.said.append("closed")
+
+    to_the_model, _ = await scripted_turn(tutor, session)
+
+    assert not to_the_model
+    assert session.said == [("Hasta la próxima.", True, True), "closed"]
+
+
+async def test_lines_for_an_answer_typed_on_the_page_stop_the_tutor_and_are_said():
+    tutor, session = Tutor(language="es", gates=ScriptedGates(), flow=ScriptedFlow()), Session()
+
+    with patch.object(Tutor, "session", new_callable=PropertyMock, return_value=session):
+        await tutor.scripted_lines(Reply(lines=(Line("¡Correcto!"), Line("Pregunta 2 de 5."))))
+
+    assert session.interrupts == 1
+    assert [text for text, _, _ in session.said] == ["¡Correcto!", "Pregunta 2 de 5."]
+
+
 async def test_a_turn_the_gates_stop_never_reaches_the_engine():
     flow = ScriptedFlow([Line("hola")], Reply(lines=(Line("x"),)))
     tutor, session = Tutor(language="es", gates=ScriptedGates(HAZARD), flow=flow), Session()
