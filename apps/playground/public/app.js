@@ -343,8 +343,9 @@ function item(text) {
 // The tutor describes what to show; the page draws it.
 // The ink screen shows what the device would: the drawing, or else the
 // exercise in hand, which the card shows in words and the board skips. So the
-// last exercise is kept, and the screen says so when there is nothing yet.
-let inkMode = false;
+// last exercise is kept, and the screen says so when there is nothing yet. It
+// starts on: it is how a family sees what the device would show.
+let inkMode = true;
 let lastExercise = null;
 // What the board shows: a drawing's kind, "waiting", or null when empty.
 let boardShows = null;
@@ -595,6 +596,7 @@ async function join(session) {
   if (session.session_id && session.engine === true) followSteps(session.session_id);
   lobby.hidden = true;
   stage.hidden = false;
+  if (inkMode) showInk();
   // The layout of a session hangs on this class, not on :has(), which older
   // Firefox and Safari do not know.
   document.querySelector("main").classList.toggle("in-session", true);
