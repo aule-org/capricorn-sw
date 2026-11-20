@@ -87,6 +87,7 @@ Devices do not use a bearer token: they sign with the key burned into them.
 | `POST /v1/families` | A family and its first guardian, without sign-in |
 | `PUT /v1/skills` | Loads skills into the catalog (`aule-platform import-skills <file>` does the same from a file) |
 | `GET /v1/sessions/{id}/supervisor` | The plan and guidance of one session and, once it has been reviewed, `review`: the summary and next step written for the family, and `exercises`: each checked exercise with its answer, tries, hints and outcome |
+| `GET /v1/metrics/daily?days=14` | One object per day, newest first: sessions (started, never started, under a minute, median length, seconds to start), how the talk was shared, exercises (posed, not checkable, correct, failed, first-try rate, hints), turns stopped by each safety gate, sessions warned and closed for not working, what the agent measured, and what reached the family. Counts, rates and durations only |
 
 ### Agent
 
@@ -97,7 +98,7 @@ Devices do not use a bearer token: they sign with the key burned into them.
 | `POST /v1/agent/session/flags` | Reports that a safety gate stopped a turn: the gate, what it did, fixed categories |
 | `POST /v1/agent/session/exercises` | The tutor states the exercise it is about to ask, as arithmetic (`expression`: `"3/4 + 1/8"`, optional `skill_id` and `form`: `any`, `simplified` or `mixed`). The platform works out the answer and keeps it; the response says whether this one is to find out what the student can do (`probe`) and what to do (`say`). 400 when it is not arithmetic it can check |
 | `POST /v1/agent/session/answers` | What the student answered (`said`, their words). Returns `verdict` (`correct`, `wrong_form`, `incorrect`, `dont_know`, `unreadable`), the number that was `read`, a named `misconception` when the mistake is a known one, and what to do next (`stage`, `next`, `say`). `reveal` carries the answer only once the exercise is closed and has to be worked out together |
-| `POST /v1/agent/session/end` | Closes the session and queues its review |
+| `POST /v1/agent/session/end` | Closes the session and queues its review. `metrics` (optional) is what the agent measured: an object of short names and numbers, such as `first_word_ms`; anything else in it is dropped |
 
 Errors are `{"error": {"code": "...", "message": "..."}}`.
 

@@ -610,6 +610,59 @@ async fn a_student_who_keeps_fooling_around_is_warned_and_then_the_session_close
 }
 
 #[sqlx::test(migrator = "aule_platform::MIGRATOR")]
+async fn a_day_of_sessions_is_read_as_numbers_and_nothing_else(pool: PgPool) {
+    let app = app(pool);
+    let child = app.child().await;
+    app.consent(&child, "voice", true).await;
+    let (_, token) = app.session(&child).await;
+    let agent = Some(token.as_str());
+    app.call(Method::GET, "/v1/agent/session", agent, None).await;
+    let turns = json!({ "turns": [
+        { "seq": 0, "role": "tutor", "content": "Hola, ¿cuánto es 3 cm más 4 cm?" },
+        { "seq": 1, "role": "child", "content": "Siete." }
+    ]});
+    app.call(Method::POST, "/v1/agent/session/turns", agent, Some(turns)).await;
+    eventually("guidance settled", || async { app.state.watching.lock().unwrap().is_empty() }).await;
+
+    let pose = |expression: &'static str| {
+        app.call(
+            Method::POST,
+            "/v1/agent/session/exercises",
+            agent,
+            Some(json!({ "expression": expression })),
+        )
+    };
+    assert_eq!(pose("el perímetro del hexágono").await.0, StatusCode::BAD_REQUEST);
+    assert_eq!(pose("3 cm + 4 cm = ?").await.0, StatusCode::CREATED);
+    let (status, _) =
+        app.call(Method::POST, "/v1/agent/session/answers", agent, Some(json!({ "said": "siete" }))).await;
+    assert_eq!(status, StatusCode::OK);
+
+    let end = json!({ "metrics": { "first_word_ms": 2600, "note": "what the student said" } });
+    let (status, _) = app.call(Method::POST, "/v1/agent/session/end", agent, Some(end)).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let (status, _) = app.call(Method::GET, "/v1/metrics/daily", agent, None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED, "the numbers are for the team");
+    let (status, metrics) = app.admin(Method::GET, "/v1/metrics/daily?days=3", None).await;
+    assert_eq!(status, StatusCode::OK, "{metrics}");
+    let days = metrics["days"].as_array().unwrap();
+    assert_eq!(days.len(), 3);
+    // The session falls on today or, close to midnight in the configured zone, on a neighbour.
+    let day = days.iter().find(|day| day["sessions"]["started"] == 1).expect("the session's day");
+    assert_eq!(day["sessions"]["students"], 1);
+    assert_eq!(day["talk"]["child_turns"], 1);
+    assert_eq!(day["talk"]["tutor_turns"], 1);
+    assert!(day["talk"]["tutor_share_of_words"].as_f64().unwrap() > 0.5);
+    assert_eq!(day["exercises"]["posed"], 1);
+    assert_eq!(day["exercises"]["not_checkable"], 1);
+    assert_eq!(day["exercises"]["correct"], 1);
+    assert_eq!(day["agent"], json!({ "first_word_ms": 2600.0 }));
+    let text = metrics.to_string();
+    assert!(!text.contains("Mateo") && !text.contains("Siete") && !text.contains("what the student said"));
+}
+
+#[sqlx::test(migrator = "aule_platform::MIGRATOR")]
 async fn a_kept_transcript_expires_and_an_abandoned_session_is_closed(pool: PgPool) {
     let app = app(pool);
     let child = app.child().await;

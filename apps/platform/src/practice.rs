@@ -374,11 +374,17 @@ pub async fn pose(
     if expression.is_empty() || expression.chars().count() > 120 {
         return Err(ApiError::bad_request("expression must have 1 to 120 characters"));
     }
-    let exercise = Exercise::parse(expression).ok_or_else(|| {
+    let Some(exercise) = Exercise::parse(expression) else {
         // Counted, never quoted: how often the tutor asks for something this cannot check.
         tracing::info!(session_id = %session.id, "exercise not checked: not plain arithmetic");
-        ApiError::bad_request("expression is not arithmetic that can be checked; carry on without checking")
-    })?;
+        sqlx::query("update sessions set unchecked_exercises = unchecked_exercises + 1 where id = $1")
+            .bind(session.id)
+            .execute(&state.pool)
+            .await?;
+        return Err(ApiError::bad_request(
+            "expression is not arithmetic that can be checked; carry on without checking",
+        ));
+    };
     // Only a skill of the curriculum counts. An id the tutor made up is
     // treated as none, so it does not start a track of its own.
     let skill_id = match body.skill_id.as_deref().map(str::trim).filter(|id| learning::is_slug(id)) {

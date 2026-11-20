@@ -36,6 +36,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/skills", put(put_skills).get(get_skills))
         .route("/v1/sessions", post(sessions::create_session))
         .route("/v1/sessions/{session_id}/supervisor", get(sessions::supervisor_view))
+        .route("/v1/metrics/daily", get(crate::metrics::daily))
         // Guardians: sign-in, their account, their notices
         .route("/v1/auth/start", post(signin::start))
         .route("/v1/auth/verify", post(signin::verify))
