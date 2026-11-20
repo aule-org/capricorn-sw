@@ -9,7 +9,7 @@ from livekit.agents import StopResponse, llm
 
 from aule_agent.greetings import GREETINGS, greeting
 from aule_agent.moderation import Action, Decision
-from aule_agent.replies import ADULT_HELP_SEQUENCE, REPLIES, reply
+from aule_agent.replies import ADULT_HELP_SEQUENCE, MEANWHILE, REPLIES, reply
 from aule_agent.script import Line, Reply
 from aule_agent.tutor import (
     FRESH_FRAME_SECONDS,
@@ -454,6 +454,57 @@ async def test_only_the_paragraph_for_the_student_is_spoken_and_judged():
 
     assert gates.spoken_texts == ["Cuéntame cómo lo pensaste."]
     assert released == ["Cuéntame cómo lo pensaste.", call]
+
+
+def a_call(name):
+    return llm.ChatChunk(
+        id=name,
+        delta=llm.ChoiceDelta(
+            role="assistant",
+            tool_calls=[llm.FunctionToolCall(name=name, arguments="{}", call_id=name)],
+        ),
+    )
+
+
+@pytest.mark.parametrize("tool", ["check_answer", "pose_exercise", "show"])
+async def test_a_step_that_calls_a_tool_says_a_fixed_line_and_nothing_of_the_models(tool):
+    gates, call = ScriptedGates(), a_call(tool)
+    thinking = stream("El plan pide empezar fácil, ", "así que muestro las barras.", call)
+
+    released = [chunk async for chunk in checked(thinking, gates, "es", lambda: "A ver.")]
+
+    assert released == ["A ver.", call]
+    # A fixed line is not the model's: there is nothing to judge.
+    assert gates.spoken_texts == []
+
+
+async def test_a_tool_called_without_a_word_still_gets_the_line():
+    call = a_call("show")
+
+    released = [
+        chunk async for chunk in checked(stream(call), ScriptedGates(), "es", lambda: "A ver.")
+    ]
+
+    assert released == ["A ver.", call]
+
+
+async def test_the_step_that_calls_nothing_is_the_reply_and_is_judged():
+    gates = ScriptedGates(ALLOW)
+
+    released = [
+        c async for c in checked(stream("Muy bien, ", "sigamos."), gates, "es", lambda: "x")
+    ]
+
+    assert released == ["Muy bien, ", "sigamos."] and gates.spoken_texts == ["Muy bien, sigamos."]
+
+
+def test_the_lines_said_while_a_tool_works_take_turns():
+    tutor = Tutor(language="es", gates=ScriptedGates())
+
+    said = [tutor._meanwhile() for _ in range(4)]
+
+    assert said == [*(REPLIES[key]["es"] for key in MEANWHILE), REPLIES[MEANWHILE[0]]["es"]]
+    assert all(len(REPLIES[key][language]) <= 14 for key in MEANWHILE for language in ("es", "en"))
 
 
 def test_a_reply_of_one_paragraph_is_left_as_written():
