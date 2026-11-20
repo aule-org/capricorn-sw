@@ -59,7 +59,7 @@ const platform = createServer(async (request, response) => {
     });
   }
   if (path === `/v1/children/${LIAM}` && method === "GET") {
-    return answer(200, { child: liam(), consent: { voice: true, memory: true, transcripts: false } });
+    return answer(200, { child: liam(), consent: { voice: true, memory: true, transcripts: false }, relationship: "GRMTH" });
   }
   if (path === `/v1/children/${LIAM}` && method === "PUT") return answer(200, liam());
   if (path === "/v1/families/fam-1/children") return answer(201, { id: NEW, nickname: body.nickname });
@@ -145,9 +145,12 @@ test("a profile is a name and, at most, what the page offers", () => {
     subjects: null,
     remembers: true,
     keepsTranscripts: false,
+    relationship: null,
   });
   assert.deepEqual(profileFrom({ name: "Liam", interests: [" fútbol ", "fútbol"] })?.interests, ["fútbol"]);
   assert.equal(profileFrom({ name: "Liam", grade: "" })?.grade, null, "the grade can be left out");
+  assert.equal(profileFrom({ name: "Liam", relationship: "" })?.relationship, null, "so can the relationship");
+  assert.equal(profileFrom({ name: "Liam", relationship: "MTH" })?.relationship, "MTH");
   for (const wrong of [
     {},
     { name: "x".repeat(41) },
@@ -159,6 +162,7 @@ test("a profile is a name and, at most, what the page offers", () => {
     { name: "Liam", note: "x".repeat(201) },
     { name: "Liam", subjects: ["latin"] },
     { name: "Liam", remembers: "yes" },
+    { name: "Liam", relationship: "MOM" },
   ]) {
     assert.equal(profileFrom(wrong), null, JSON.stringify(wrong).slice(0, 60));
   }
@@ -208,6 +212,7 @@ test("the account lists each student as the family set them up, and the subjects
       subjects: ["matematica"],
       remembers: true,
       keepsTranscripts: false,
+      relationship: "GRMTH",
     },
     // A student that cannot be read is still there to choose.
     { id: SOFIA, name: "Sofía" },
@@ -233,7 +238,14 @@ test("a new student carries the profile and the consents the guardian chose", as
   assert.equal((await post("student", { ...PROFILE, grade: "P7", consent: true })).status, 400);
   seen.length = 0;
 
-  const response = await post("student", { ...PROFILE, name: "Mateo", remembers: false, keeps_transcripts: true, consent: true });
+  const response = await post("student", {
+    ...PROFILE,
+    name: "Mateo",
+    remembers: false,
+    keeps_transcripts: true,
+    relationship: "FTH",
+    consent: true,
+  });
 
   assert.equal(response.status, 201);
   assert.deepEqual(await response.json(), { id: NEW, name: "Mateo" });
@@ -244,6 +256,7 @@ test("a new student carries the profile and the consents the guardian chose", as
     interests: ["fútbol", "ajedrez"],
     tutor_persona: "tranquilo",
     tutor_persona_note: "",
+    relationship: "FTH",
     subjects: ["matematica", "ingles"],
   });
   assert.deepEqual(
@@ -273,8 +286,9 @@ test("saving keeps what the page does not show and records only the consent that
     language: "es",
     interests: ["fútbol", "ajedrez"],
     tutor_persona: "tranquilo",
-    // An empty note removes the one that was there.
+    // An empty note removes the one that was there; so does an empty relationship.
     tutor_persona_note: "",
+    relationship: "",
     subjects: ["matematica", "ingles"],
     birth_year: 2016,
     notes: "from the team",
