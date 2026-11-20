@@ -151,10 +151,12 @@ export function createPlayground(settings: Settings): Server {
       response.writeHead(200, { ...headers, ...extra, ...more, "Content-Type": "application/json; charset=utf-8" });
       response.end(JSON.stringify(body));
     };
-    if (!settings.platform) return reply({ google_client_id: null, signed_in: false });
+    if (!settings.platform) return reply({ google_client_id: null, mail: false, signed_in: false });
     const token = entered?.token ?? guardianToken(request);
     const clientId = await googleClient(settings);
-    if (!token) return reply({ google_client_id: clientId, signed_in: false });
+    // The mailed code is offered whenever a platform is behind this page: it does not
+    // say whether it has mail, and a platform without it answers "mail_unavailable".
+    if (!token) return reply({ google_client_id: clientId, mail: true, signed_in: false });
     try {
       const who = await account(settings, token);
       const students = await readStudents(settings, token, who.students);
@@ -169,7 +171,7 @@ export function createPlayground(settings: Settings): Server {
       if (!(error instanceof PlatformError)) throw error;
       // A session the platform no longer knows: the page starts over signed out.
       return reply(
-        { google_client_id: clientId, signed_in: false },
+        { google_client_id: clientId, mail: true, signed_in: false },
         { "Set-Cookie": signedOutCookie(settings.basePath) },
       );
     }

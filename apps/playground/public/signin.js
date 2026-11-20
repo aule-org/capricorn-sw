@@ -2,6 +2,7 @@
 // what the session is for. The page never holds the session itself: the server
 // keeps it in a cookie it alone reads.
 
+import { methods } from "./mail.js";
 import { $, SUBJECTS, call, chip, describe, openEditor, say } from "./students.js";
 
 const GOOGLE_SCRIPT = "https://accounts.google.com/gsi/client";
@@ -124,12 +125,18 @@ function showStudents(preferred) {
 
 function show(account, preferred) {
   const signedIn = account.signed_in === true;
-  $("signed-out").hidden = signedIn || !account.google_client_id;
+  const ways = methods(account);
+  $("signed-out").hidden = signedIn || !ways.any;
+  // Each way in has its own switch. With only the mailed code, its form is open.
+  $("google").hidden = !ways.google;
+  $("by-mail").hidden = !ways.mail || !ways.google;
+  $("mail-email").hidden = !ways.mail || ways.google;
+  $("mail-code").hidden = true;
   $("who").hidden = !signedIn;
   $("account").hidden = !signedIn;
   $("student-editor").hidden = true;
-  // Without Google the access code is the only way in, so it is shown open.
-  $("team").open = !account.google_client_id;
+  // With no way in at all the access code is the only one, so it is shown open.
+  $("team").open = !ways.any;
   if (!signedIn) return;
   students = account.students ?? [];
   subjects = Array.isArray(account.subjects)
@@ -317,4 +324,4 @@ call("api/account")
     show(account);
     if (account.google_client_id) loadGoogle(account.google_client_id);
   })
-  .catch(() => show({ signed_in: false, google_client_id: null }));
+  .catch(() => show({ signed_in: false, google_client_id: null, mail: false }));

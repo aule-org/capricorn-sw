@@ -14,6 +14,7 @@ const STUDENT = "01a1f5f4-ede7-7028-a524-9d8e2f36b92c";
 // Stands in for the platform: one guardian, whose students grow as they are created.
 const seen: { method: string; path: string; auth: string | undefined; body: unknown }[] = [];
 const students: { id: string; nickname: string }[] = [];
+let googleOn = true;
 const platform = createServer(async (request, response) => {
   const chunks: Buffer[] = [];
   for await (const chunk of request) chunks.push(chunk as Buffer);
@@ -25,7 +26,9 @@ const platform = createServer(async (request, response) => {
     response.writeHead(status, { "Content-Type": "application/json" });
     response.end(JSON.stringify(value));
   };
-  if (path === "/v1/auth/google" && request.method === "GET") return answer(200, { client_id: "client-1" });
+  if (path === "/v1/auth/google" && request.method === "GET") {
+    return googleOn ? answer(200, { client_id: "client-1" }) : answer(404, { error: { message: "google is not set up" } });
+  }
   if (path === "/v1/auth/start") {
     if (!String(body.email).includes("@")) return answer(400, { error: { message: "email is not an email address" } });
     if (body.email === "sin-correo@example.org") return answer(503, { error: { message: "sign-in needs mail to be configured" } });
@@ -93,7 +96,18 @@ const COOKIE = `aule_guardian=${TOKEN}`;
 test("the page learns the Google client and that nobody is signed in", async () => {
   const response = await fetch(`${base}/api/account`);
 
-  assert.deepEqual(await response.json(), { google_client_id: "client-1", signed_in: false });
+  assert.deepEqual(await response.json(), { google_client_id: "client-1", mail: true, signed_in: false });
+});
+
+test("the mailed code is offered whether or not Google is set up", async () => {
+  googleOn = false;
+  try {
+    const response = await fetch(`${base}/api/account`);
+
+    assert.deepEqual(await response.json(), { google_client_id: null, mail: true, signed_in: false });
+  } finally {
+    googleOn = true;
+  }
 });
 
 test("a Google credential the platform accepts signs the person in with a cookie only the server reads", async () => {
