@@ -374,7 +374,7 @@ pub fn asked(trace: &[SkillTrace], catalog: &[Skill], grade: Option<&str>, topic
     }
     let traced: BTreeMap<&str, &SkillTrace> =
         trace.iter().map(|skill| (skill.skill_id.as_str(), skill)).collect();
-    let mut found: Vec<(usize, &Skill)> = catalog
+    let mut found: Vec<(BTreeSet<&String>, &Skill)> = catalog
         .iter()
         .filter(|skill| match (skill.grade.as_deref(), grade) {
             (Some(skill_grade), Some(child_grade)) if is_grade(skill_grade) && is_grade(child_grade) => {
@@ -384,18 +384,35 @@ pub fn asked(trace: &[SkillTrace], catalog: &[Skill], grade: Option<&str>, topic
         })
         .filter_map(|skill| {
             let named = words(&format!("{} {}", skill.id, skill.name));
-            let hits =
-                stems.iter().filter(|stem| named.iter().any(|word| word.starts_with(stem.as_str()))).count();
-            (hits > 0).then_some((hits, skill))
+            let hits: BTreeSet<&String> = stems
+                .iter()
+                .filter(|stem| named.iter().any(|word| word.starts_with(stem.as_str())))
+                .collect();
+            (!hits.is_empty()).then_some((hits, skill))
         })
         .collect();
     // Most words in common first; among equals, the student's own grade.
-    found
-        .sort_by_key(|(hits, skill)| (usize::MAX - hits, grade.is_none() || skill.grade.as_deref() != grade));
-    found
+    found.sort_by_key(|(hits, skill)| {
+        (usize::MAX - hits.len(), grade.is_none() || skill.grade.as_deref() != grade)
+    });
+    // A topic can name two things ("la hora y las tablas"): each gets a skill
+    // before any gets a second one.
+    let mut covered: BTreeSet<&String> = BTreeSet::new();
+    let mut chosen: Vec<&Skill> = Vec::new();
+    for (hits, skill) in &found {
+        if chosen.len() < MAX_CANDIDATES_PER_REASON && !hits.is_subset(&covered) {
+            covered.extend(hits.iter().copied());
+            chosen.push(skill);
+        }
+    }
+    for (_, skill) in &found {
+        if chosen.len() < MAX_CANDIDATES_PER_REASON && !chosen.iter().any(|taken| taken.id == skill.id) {
+            chosen.push(skill);
+        }
+    }
+    chosen
         .into_iter()
-        .take(MAX_CANDIDATES_PER_REASON)
-        .map(|(_, skill)| {
+        .map(|skill| {
             let known = traced.get(skill.id.as_str());
             Candidate {
                 skill_id: skill.id.clone(),
@@ -657,5 +674,16 @@ mod tests {
         );
         assert!(asked(&[], &catalog, Some("P5"), "").is_empty());
         assert!(asked(&[], &catalog, Some("P5"), "los cóndores").is_empty());
+
+        // Two things in one topic: each is offered, however many skills the first one has.
+        let catalog = [
+            skill("multiplicacion.tablas-2-5-10", "P3", &[]),
+            skill("multiplicacion.tablas-3-4-6", "P3", &[]),
+            skill("multiplicacion.tablas-7-8-9", "P3", &[]),
+            skill("tiempo.leer-horas-y-minutos", "P3", &[]),
+        ];
+        let offered = asked(&[], &catalog, Some("P3"), "leer la hora y tablas de multiplicar");
+        assert_eq!(offered.len(), 3);
+        assert!(offered.iter().any(|candidate| candidate.skill_id == "tiempo.leer-horas-y-minutos"));
     }
 }
