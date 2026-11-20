@@ -23,7 +23,7 @@ import aiohttp
 from .safety import FLAG_ACTIONS, FLAG_CATEGORIES, FLAG_GATES
 from .tutor import Persona, persona_from
 
-logger = logging.getLogger("capricorn.agent.platform")
+logger = logging.getLogger("aule.agent.platform")
 
 START_TIMEOUT_SECONDS = 6.0
 # One more try when the first call fails, which covers a platform restarting.
@@ -58,7 +58,7 @@ def platform_session(
 ) -> PlatformSession | None:
     """The platform session this job belongs to, if it was created by one."""
     env = os.environ if env is None else env
-    url = env.get("CAPRICORN_PLATFORM_URL", "").strip().rstrip("/")
+    url = env.get("AULE_PLATFORM_URL", "").strip().rstrip("/")
     try:
         metadata = json.loads(dispatch_metadata or "{}")
     except ValueError:

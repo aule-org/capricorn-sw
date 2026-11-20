@@ -13,7 +13,7 @@ import logging
 import time
 from typing import Any
 
-logger = logging.getLogger("capricorn.agent.opinion")
+logger = logging.getLogger("aule.agent.opinion")
 
 MODEL = "claude-haiku-5-5"
 TIMEOUT_SECONDS = 2.0

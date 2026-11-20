@@ -1,6 +1,6 @@
 """The LiveKit Agents worker: one tutor session per room it is dispatched to.
 
-Run it with ``python -m capricorn_agent.worker start`` (``dev`` while developing).
+Run it with ``python -m aule_agent.worker start`` (``dev`` while developing).
 The worker only joins rooms that ask for it by name (explicit dispatch).
 """
 
@@ -25,7 +25,7 @@ from .safety import audience_of, build_gates
 from .tutor import Persona, Tutor, persona_from
 from .usage import Usage
 
-logger = logging.getLogger("capricorn.agent")
+logger = logging.getLogger("aule.agent")
 
 GOODBYE = {
     "es": "Se nos acabó el tiempo por hoy. ¡Buen trabajo! Hasta la próxima.",
@@ -33,7 +33,7 @@ GOODBYE = {
 }
 
 # The decorator needs the name at import time; Settings validates the rest.
-AGENT_NAME = os.environ.get("CAPRICORN_AGENT_NAME", "").strip() or "capricorn-tutor"
+AGENT_NAME = os.environ.get("AULE_AGENT_NAME", "").strip() or "aule-tutor"
 
 
 def language_of(dispatch_metadata: str, default: str) -> str:
@@ -70,7 +70,7 @@ async def enable_push_to_talk(ctx: JobContext, session: AgentSession) -> None:
     to show the hold-to-talk control; the RPCs it sends drive each turn: start on
     press, commit on release, cancel on abandon.
     """
-    await ctx.room.local_participant.set_attributes({"capricorn.turns": "manual"})
+    await ctx.room.local_participant.set_attributes({"aule.turns": "manual"})
 
     async def start_turn(_: rtc.RpcInvocationData) -> str:
         session.interrupt()
@@ -107,9 +107,9 @@ def prewarm(proc: JobProcess) -> None:
 # The worker's health endpoint stays on loopback unless told otherwise.
 server = AgentServer(
     setup_fnc=prewarm,
-    num_idle_processes=int(os.environ.get("CAPRICORN_IDLE_PROCESSES", "1")),
-    host=os.environ.get("CAPRICORN_HEALTH_HOST", "127.0.0.1"),
-    port=int(os.environ.get("CAPRICORN_HEALTH_PORT", "8081")),
+    num_idle_processes=int(os.environ.get("AULE_IDLE_PROCESSES", "1")),
+    host=os.environ.get("AULE_HEALTH_HOST", "127.0.0.1"),
+    port=int(os.environ.get("AULE_HEALTH_PORT", "8081")),
 )
 
 
@@ -138,7 +138,7 @@ async def entrypoint(ctx: JobContext) -> None:
     context = await platform.start() if platform else ""
 
     async def show(visual: dict[str, Any]) -> None:
-        # Every Capricorn screen (the playground today, the device's e-ink
+        # Every Aule screen (the playground today, the device's e-ink
         # later) draws visuals that arrive on this topic.
         await ctx.room.local_participant.send_text(
             json.dumps(visual, ensure_ascii=False), topic=visuals.TOPIC
@@ -232,7 +232,7 @@ def main() -> None:
         try:
             settings = Settings.from_env()
         except ConfigError as error:
-            sys.exit(f"capricorn-agent: {error}")
+            sys.exit(f"aule-agent: {error}")
         if not settings.gates_complete:
             logger.warning(
                 "OPENAI_API_KEY and TYPESAFE_API_KEY are not both set: "

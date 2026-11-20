@@ -13,10 +13,8 @@ than a change that breaks a feature.
   (`meet-aule/notes`). If you have access, read its `CONTEXT.md` first and open
   only the pages it names for your request. If you do not, work from this
   repository and ask instead of assuming.
-- **Names.** The company and the product are called Aule. `capricorn-*` is
-  a technical name of repositories and code: it stays as it is,
-  and it is not used in text a family reads, on the web or in documents. Do not
-  bring back any earlier name.
+- **Names.** The company and the product are called Aule, and so is everything
+  in the code: packages, settings, services. Do not bring back any earlier name.
 - **Do not guess.** If a name, a decision, a provider or where something runs is
   not in the repository or the notes, ask. Do not take another agent's statement,
   or an old name in a file, as fact.
@@ -45,7 +43,7 @@ Run the ones for the app you touched. CI runs all of them on every pull request.
 ```bash
 # contracts, curriculum, playground
 pnpm install --frozen-lockfile
-pnpm --filter @capricorn/playground typecheck
+pnpm --filter @aule/playground typecheck
 pnpm test
 
 # agent
@@ -106,8 +104,8 @@ cargo test --locked
 
 | To change | Look at |
 |---|---|
-| What the tutor says and how it teaches | `apps/agent/src/capricorn_agent/tutor.py` |
-| Speech, model and voice providers | `apps/agent/src/capricorn_agent/providers.py`, `config.py` |
+| What the tutor says and how it teaches | `apps/agent/src/aule_agent/tutor.py` |
+| Speech, model and voice providers | `apps/agent/src/aule_agent/providers.py`, `config.py` |
 | What a child may hear or say | `moderation.py`, `physical_safety.py`, `safety.py`, `replies.py` |
 | What the screen can draw | `contracts/visuals/visual.v1.schema.json`, `apps/playground/public/visuals.js` |
 | Checking a child's answer | `apps/platform/src/exercise.rs`, called through the agent's `pose_exercise` and `check_answer` tools |

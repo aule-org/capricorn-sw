@@ -1,6 +1,6 @@
 # Agent
 
-Capricorn's voice tutor: a [LiveKit Agents](https://github.com/livekit/agents) worker in Python. It joins a room when asked by name, listens, and answers out loud. When the person's camera is on, the tutor also gets the latest frame with each turn, so it can look at a notebook.
+Aule's voice tutor: a [LiveKit Agents](https://github.com/livekit/agents) worker in Python. It joins a room when asked by name, listens, and answers out loud. When the person's camera is on, the tutor also gets the latest frame with each turn, so it can look at a notebook.
 
 ## What is here
 
@@ -49,18 +49,18 @@ Environment variables; `.env.example` at the repository root lists them all.
 | Variable | Meaning |
 |---|---|
 | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | The LiveKit server |
-| `CAPRICORN_STT` | `assemblyai`, `deepgram` or `openai` |
-| `CAPRICORN_TTS` | `cartesia`, `elevenlabs`, `inworld` or `openai` |
+| `AULE_STT` | `assemblyai`, `deepgram` or `openai` |
+| `AULE_TTS` | `cartesia`, `elevenlabs`, `inworld` or `openai` |
 | `ANTHROPIC_API_KEY` | The language model is Claude |
 | `ASSEMBLYAI_API_KEY`, `DEEPGRAM_API_KEY`, `CARTESIA_API_KEY`, `ELEVEN_API_KEY`, `INWORLD_API_KEY`, `OPENAI_API_KEY` | Only for the providers chosen above |
 | `OPENAI_API_KEY` | Also turns on the content-moderation gate, whichever speech providers are chosen |
 | `TYPESAFE_API_KEY` | Turns on the physical-safety gate |
-| `CAPRICORN_TTS_VOICE` | Optional voice id |
-| `CAPRICORN_LLM_MODEL` | Default `claude-sonnet-5-5` |
-| `CAPRICORN_LANGUAGE` | `es` (default) or `en`; a session can ask for the other |
-| `CAPRICORN_SESSION_MAX_MINUTES` | Default 15 |
-| `CAPRICORN_AGENT_NAME` | Default `capricorn-tutor` |
-| `CAPRICORN_PLATFORM_URL` | Optional. Where the [platform](../platform/README.md) is; without it the tutor has no memory of the student |
+| `AULE_TTS_VOICE` | Optional voice id |
+| `AULE_LLM_MODEL` | Default `claude-sonnet-5-5` |
+| `AULE_LANGUAGE` | `es` (default) or `en`; a session can ask for the other |
+| `AULE_SESSION_MAX_MINUTES` | Default 15 |
+| `AULE_AGENT_NAME` | Default `aule-tutor` |
+| `AULE_PLATFORM_URL` | Optional. Where the [platform](../platform/README.md) is; without it the tutor has no memory of the student |
 
 The worker refuses to start if a setting is missing and says which. Without both gate keys it starts, warns, and accepts operator sessions only. A gate with a key always runs: there is no setting to turn it off. Before using a provider with children, check that its terms allow minors' data with zero retention.
 
@@ -70,7 +70,7 @@ The worker refuses to start if a setting is missing and says which. Without both
 uv sync
 uv run ruff check . && uv run ruff format --check .
 uv run pytest
-uv run python -m capricorn_agent.worker dev
+uv run python -m aule_agent.worker dev
 ```
 
-The contracts are read from `contracts/` at the repository root, or from `CAPRICORN_CONTRACTS_DIR` when the agent runs outside the repository (for example, in a container).
+The contracts are read from `contracts/` at the repository root, or from `AULE_CONTRACTS_DIR` when the agent runs outside the repository (for example, in a container).

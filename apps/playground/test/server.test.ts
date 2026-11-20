@@ -84,7 +84,7 @@ test("the right code gets a token for one room that asks for the tutor as an ope
   assert.ok(!claims.video?.roomAdmin && !claims.video?.roomCreate && !claims.video?.roomList);
 
   const [dispatch] = claims.roomConfig?.agents ?? [];
-  assert.equal(dispatch?.agentName, "capricorn-tutor");
+  assert.equal(dispatch?.agentName, "aule-tutor");
   assert.deepEqual(JSON.parse(dispatch?.metadata ?? "{}"), { audience: "operator", language: "en" });
 });
 
@@ -136,8 +136,8 @@ test("with a platform, the session and the supervisor's view come from it", asyn
   const linked = createPlayground(
     readSettings({
       ...COMPLETE,
-      CAPRICORN_PLATFORM_URL: `http://127.0.0.1:${(platform.address() as AddressInfo).port}/`,
-      CAPRICORN_ADMIN_TOKEN: "admin-token",
+      AULE_PLATFORM_URL: `http://127.0.0.1:${(platform.address() as AddressInfo).port}/`,
+      AULE_ADMIN_TOKEN: "admin-token",
       PLAYGROUND_CHILD_ID: childId,
     }),
   );

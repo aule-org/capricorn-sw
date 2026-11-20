@@ -5,8 +5,8 @@
   "allows_public_repositories": true,
   "restricted_to_workflows": true,
   "selected_workflows": [
-    "meet-aule/capricorn-sw/.github/workflows/ci.yml@refs/heads/main",
-    "meet-aule/capricorn-sw/.github/workflows/quality.yml@refs/heads/main",
-    "meet-aule/capricorn-fw/.github/workflows/quality.yml@refs/heads/capricorn"
+    "meet-aule/aule-sw/.github/workflows/ci.yml@refs/heads/main",
+    "meet-aule/aule-sw/.github/workflows/quality.yml@refs/heads/main",
+    "meet-aule/aule-fw/.github/workflows/quality.yml@refs/heads/aule"
   ]
 }

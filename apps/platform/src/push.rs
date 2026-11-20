@@ -50,10 +50,10 @@ pub trait Pusher: Send + Sync {
 /// What a push says, by kind of notice and language. Fixed text, no names.
 pub fn text(kind: &str, language: &str) -> (&'static str, &'static str) {
     match (kind, language) {
-        ("attention", "en") => ("Capricorn", "There is a note that needs your attention."),
-        ("attention", _) => ("Capricorn", "Hay un aviso que necesita tu atención."),
-        (_, "en") => ("Capricorn", "A session has finished. The summary is ready."),
-        _ => ("Capricorn", "Terminó una sesión. El resumen ya está listo."),
+        ("attention", "en") => ("Aule", "There is a note that needs your attention."),
+        ("attention", _) => ("Aule", "Hay un aviso que necesita tu atención."),
+        (_, "en") => ("Aule", "A session has finished. The summary is ready."),
+        _ => ("Aule", "Terminó una sesión. El resumen ya está listo."),
     }
 }
 
@@ -281,7 +281,7 @@ mod tests {
         for kind in ["attention", "session_summary"] {
             for language in ["es", "en", "fr"] {
                 let (title, body) = text(kind, language);
-                assert_eq!(title, "Capricorn");
+                assert_eq!(title, "Aule");
                 assert!(!body.is_empty());
             }
         }
@@ -291,12 +291,12 @@ mod tests {
 
     #[test]
     fn the_message_carries_ids_as_strings() {
-        let push = Push { title: "Capricorn", body: "Hi", data: json!({ "notice_id": "n-1", "count": 2 }) };
+        let push = Push { title: "Aule", body: "Hi", data: json!({ "notice_id": "n-1", "count": 2 }) };
 
         let message = message("device-token", &push);
 
         assert_eq!(message["message"]["token"], "device-token");
-        assert_eq!(message["message"]["notification"], json!({ "title": "Capricorn", "body": "Hi" }));
+        assert_eq!(message["message"]["notification"], json!({ "title": "Aule", "body": "Hi" }));
         assert_eq!(message["message"]["data"], json!({ "notice_id": "n-1", "count": "2" }));
     }
 
@@ -316,15 +316,15 @@ mod tests {
     #[test]
     fn the_key_is_not_printed() {
         let account = ServiceAccount {
-            project_id: "capricorn".into(),
-            client_email: "push@capricorn.iam.gserviceaccount.com".into(),
+            project_id: "aule".into(),
+            client_email: "push@aule.iam.gserviceaccount.com".into(),
             private_key: "-----BEGIN PRIVATE KEY-----secret".into(),
             token_uri: default_token_uri(),
         };
 
         let printed = format!("{account:?}");
 
-        assert!(printed.contains("capricorn") && !printed.contains("secret"));
+        assert!(printed.contains("aule") && !printed.contains("secret"));
         assert!(Fcm::new(account).is_err(), "a key that is not a key is refused at start");
     }
 }

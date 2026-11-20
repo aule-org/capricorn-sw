@@ -7,12 +7,12 @@ import re
 import pytest
 from livekit.agents import llm
 
-from capricorn_agent.config import Settings
-from capricorn_agent.events import contracts_dir
-from capricorn_agent.moderation import _PATTERN_DEFINITIONS, THRESHOLDS, Action, Decision, Finding
-from capricorn_agent.physical_safety import Verdict
-from capricorn_agent.replies import ADULT_HELP_SEQUENCE, OFFERS, REPLIES
-from capricorn_agent.safety import (
+from aule_agent.config import Settings
+from aule_agent.events import contracts_dir
+from aule_agent.moderation import _PATTERN_DEFINITIONS, THRESHOLDS, Action, Decision, Finding
+from aule_agent.physical_safety import Verdict
+from aule_agent.replies import ADULT_HELP_SEQUENCE, OFFERS, REPLIES
+from aule_agent.safety import (
     _PROVIDER_CATEGORY,
     FLAG_ACTIONS,
     FLAG_CATEGORIES,

@@ -1,7 +1,7 @@
 {
   "specversion": "1.0",
   "id": "0b1f6c1e-6f0a-4d0e-9a51-3f8a2c9d7e10",
-  "source": "capricorn/agent",
+  "source": "aule/agent",
   "type": "session.ended.v1",
   "time": "2026-11-17T15:42:10Z",
   "datacontenttype": "application/json",

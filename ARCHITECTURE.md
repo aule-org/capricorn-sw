@@ -1,11 +1,11 @@
 # Architecture
 
-Capricorn's server is a platform that knows each child's learning, a voice agent that holds the conversation, and versioned events between them and the outside. This document is the plan the code follows. Not all of it is built; the [status](#status) section says what is.
+Aule's server is a platform that knows each child's learning, a voice agent that holds the conversation, and versioned events between them and the outside. This document is the plan the code follows. Not all of it is built; the [status](#status) section says what is.
 
 ## Components
 
 ```text
-                                capricorn-sw
+                                aule-sw
               ┌───────────────────────────────────────────────────┐
   family app  │ platform (Rust)   families · consent · sessions   │
  ───────────▶ │   serve           learning · memory · supervisor  │
@@ -15,7 +15,7 @@ Capricorn's server is a platform that knows each child's learning, a voice agent
         plan, turns,  │                          │ room tokens
         guidance      │                          ▼
               ┌───────┴─────────┐
-              │ agent (Python)  │ ◀──────── LiveKit ◀──────── Capricorn device
+              │ agent (Python)  │ ◀──────── LiveKit ◀──────── Aule device
               │ LiveKit Agents  │
               └─────────────────┘
 ```
@@ -29,7 +29,7 @@ Capricorn's server is a platform that knows each child's learning, a voice agent
 
 The platform is one crate that runs as two processes, `serve` (the API) and `worker` (jobs). It is a modular monolith, not a set of microservices: a module reads and writes only its own tables and talks to the others through their public functions.
 
-A store (checkout, subscriptions, invoices) is not part of this repository. It talks to the platform only through events such as `order.paid`, so you can run Capricorn without one.
+A store (checkout, subscriptions, invoices) is not part of this repository. It talks to the platform only through events such as `order.paid`, so you can run Aule without one.
 
 ## How a session thinks
 
@@ -139,7 +139,7 @@ Not built yet:
 
 Not validated:
 
-- The learner model's parameters come from public datasets (ASSISTments 2009 and 2017), not from Capricorn's children. Its forgetting term showed no measurable effect there. `apps/platform/examples/skill_model_eval.rs` refits them from a log of answers.
+- The learner model's parameters come from public datasets (ASSISTments 2009 and 2017), not from Aule's children. Its forgetting term showed no measurable effect there. `apps/platform/examples/skill_model_eval.rs` refits them from a log of answers.
 - The supervisor has only run against scripted answers in tests. How good its plans, guidance and reviews are with real conversations has not been measured.
 - The device routes have only been exercised by tests that play the device. No board has talked to them.
 - Sign-in and notices have only sent mail to a stand-in; no SMTP server has been used.

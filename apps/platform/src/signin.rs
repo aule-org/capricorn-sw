@@ -46,15 +46,15 @@ fn code_hash(email: &str, code: &str) -> String {
 fn texts(language: &str, code: &str) -> (String, String) {
     match language {
         "en" => (
-            format!("{code} is your Capricorn code"),
+            format!("{code} is your Aule code"),
             format!(
-                "Your code to sign in to Capricorn is {code}.\n\nIt works for {CODE_MINUTES} minutes. If you did not ask for it, you can ignore this message."
+                "Your code to sign in to Aule is {code}.\n\nIt works for {CODE_MINUTES} minutes. If you did not ask for it, you can ignore this message."
             ),
         ),
         _ => (
-            format!("{code} es tu código de Capricorn"),
+            format!("{code} es tu código de Aule"),
             format!(
-                "Tu código para entrar a Capricorn es {code}.\n\nVale por {CODE_MINUTES} minutos. Si no lo pediste, puedes ignorar este mensaje."
+                "Tu código para entrar a Aule es {code}.\n\nVale por {CODE_MINUTES} minutos. Si no lo pediste, puedes ignorar este mensaje."
             ),
         ),
     }

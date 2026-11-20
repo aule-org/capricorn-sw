@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/meet-aule/capricorn-sw/contracts/envelope.schema.json",
+  "$id": "https://github.com/meet-aule/aule-sw/contracts/envelope.schema.json",
   "title": "Event envelope",
-  "description": "CloudEvents 1.0 in structured JSON mode. Every Capricorn event uses this envelope; `data` is validated against the schema named by `type`.",
+  "description": "CloudEvents 1.0 in structured JSON mode. Every Aule event uses this envelope; `data` is validated against the schema named by `type`.",
   "type": "object",
   "required": [
     "specversion",
@@ -25,7 +25,7 @@
     },
     "source": {
       "type": "string",
-      "pattern": "^capricorn/(platform|worker|agent|store)$",
+      "pattern": "^aule/(platform|worker|agent|store)$",
       "description": "The component that produced the event."
     },
     "type": {

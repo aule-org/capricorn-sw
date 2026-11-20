@@ -48,7 +48,7 @@ def build_tts(settings: Settings, language: str) -> tts.TTS:
 
         # Every assemblyai-tts-1 voice can speak each language, but a voice sounds
         # best in its own, so pick a voice recorded in the language (an ``aai-``
-        # slug, e.g. ``aai-constanza`` for Spanish) via CAPRICORN_TTS_VOICE. The
+        # slug, e.g. ``aai-constanza`` for Spanish) via AULE_TTS_VOICE. The
         # plugin takes an ISO code for ``language``. Without a voice the model
         # falls back to the language's default, which may be another language.
         return assemblyai.TTS(language=language, **({"voice": voice} if voice else {}))

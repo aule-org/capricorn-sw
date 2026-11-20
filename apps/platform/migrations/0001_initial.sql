@@ -1,4 +1,4 @@
--- Capricorn platform, first schema. Each block belongs to one module, and a
+-- Aule platform, first schema. Each block belongs to one module, and a
 -- module only reads and writes its own tables.
 
 create extension if not exists vector;

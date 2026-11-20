@@ -3,7 +3,7 @@
 // model and no state, so a drawing appears the moment the tutor asks for it.
 // Black on white only: the same descriptions go to an e-ink screen.
 
-export const TOPIC = "capricorn.visual";
+export const TOPIC = "aule.visual";
 
 // The device's e-ink panel is 800x480 (Good Display GDEY075T7); drawing at
 // that aspect so a layout here translates one-to-one to the device. W and H are

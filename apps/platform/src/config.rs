@@ -88,17 +88,15 @@ impl Config {
             problems.push("DATABASE_URL must be a postgres:// URL".into());
         }
 
-        let addr = get("CAPRICORN_PLATFORM_ADDR").unwrap_or("127.0.0.1:8091");
+        let addr = get("AULE_PLATFORM_ADDR").unwrap_or("127.0.0.1:8091");
         let addr = addr.parse::<SocketAddr>().unwrap_or_else(|_| {
-            problems.push("CAPRICORN_PLATFORM_ADDR must look like 127.0.0.1:8091".into());
+            problems.push("AULE_PLATFORM_ADDR must look like 127.0.0.1:8091".into());
             SocketAddr::from(([127, 0, 0, 1], 8091))
         });
 
-        let admin_token = get("CAPRICORN_ADMIN_TOKEN").unwrap_or_default().to_string();
+        let admin_token = get("AULE_ADMIN_TOKEN").unwrap_or_default().to_string();
         if admin_token.len() < MIN_ADMIN_TOKEN_LENGTH {
-            problems.push(format!(
-                "CAPRICORN_ADMIN_TOKEN must have at least {MIN_ADMIN_TOKEN_LENGTH} characters"
-            ));
+            problems.push(format!("AULE_ADMIN_TOKEN must have at least {MIN_ADMIN_TOKEN_LENGTH} characters"));
         }
 
         let mut whole = |name: &str, default: u32, min: u32, max: u32| {
@@ -111,16 +109,15 @@ impl Config {
                 }
             }
         };
-        let session_minutes = whole("CAPRICORN_SESSION_MINUTES", 20, 1, 120);
-        let transcript_hours = whole("CAPRICORN_TRANSCRIPT_HOURS", 24, 1, 24);
+        let session_minutes = whole("AULE_SESSION_MINUTES", 20, 1, 120);
+        let transcript_hours = whole("AULE_TRANSCRIPT_HOURS", 24, 1, 24);
 
         let livekit = match (get("LIVEKIT_API_KEY"), get("LIVEKIT_API_SECRET")) {
             (Some(api_key), Some(api_secret)) => {
-                let public_url =
-                    get("CAPRICORN_LIVEKIT_PUBLIC_URL").or(get("LIVEKIT_URL")).unwrap_or_default();
+                let public_url = get("AULE_LIVEKIT_PUBLIC_URL").or(get("LIVEKIT_URL")).unwrap_or_default();
                 if !public_url.starts_with("ws://") && !public_url.starts_with("wss://") {
                     problems.push(
-                        "CAPRICORN_LIVEKIT_PUBLIC_URL (or LIVEKIT_URL) must be a ws:// or wss:// URL".into(),
+                        "AULE_LIVEKIT_PUBLIC_URL (or LIVEKIT_URL) must be a ws:// or wss:// URL".into(),
                     );
                 }
                 Some(LiveKit {
@@ -138,77 +135,71 @@ impl Config {
 
         let supervisor = get("ANTHROPIC_API_KEY").map(|api_key| Supervisor {
             api_key: api_key.to_string(),
-            model: get("CAPRICORN_SUPERVISOR_MODEL").unwrap_or("claude-sonnet-5-5").to_string(),
-            live_model: get("CAPRICORN_SUPERVISOR_LIVE_MODEL").unwrap_or("claude-haiku-5-5").to_string(),
+            model: get("AULE_SUPERVISOR_MODEL").unwrap_or("claude-sonnet-5-5").to_string(),
+            live_model: get("AULE_SUPERVISOR_LIVE_MODEL").unwrap_or("claude-haiku-5-5").to_string(),
         });
 
-        let embeddings = get("CAPRICORN_EMBEDDINGS_URL").map(|url| Embeddings {
+        let embeddings = get("AULE_EMBEDDINGS_URL").map(|url| Embeddings {
             url: url.trim_end_matches('/').to_string(),
-            model: get("CAPRICORN_EMBEDDINGS_MODEL").unwrap_or("bge-m3").to_string(),
-            api_key: get("CAPRICORN_EMBEDDINGS_API_KEY").map(str::to_string),
+            model: get("AULE_EMBEDDINGS_MODEL").unwrap_or("bge-m3").to_string(),
+            api_key: get("AULE_EMBEDDINGS_API_KEY").map(str::to_string),
         });
         if let Some(embeddings) = &embeddings
             && !embeddings.url.starts_with("http://")
             && !embeddings.url.starts_with("https://")
         {
-            problems.push("CAPRICORN_EMBEDDINGS_URL must be an http:// or https:// URL".into());
+            problems.push("AULE_EMBEDDINGS_URL must be an http:// or https:// URL".into());
         }
 
-        let mail = match (get("CAPRICORN_SMTP_URL"), get("CAPRICORN_MAIL_FROM")) {
+        let mail = match (get("AULE_SMTP_URL"), get("AULE_MAIL_FROM")) {
             (Some(smtp_url), Some(from)) => {
                 if !smtp_url.starts_with("smtp://") && !smtp_url.starts_with("smtps://") {
-                    problems.push("CAPRICORN_SMTP_URL must be an smtp:// or smtps:// URL".into());
+                    problems.push("AULE_SMTP_URL must be an smtp:// or smtps:// URL".into());
                 }
                 if !from.contains('@') {
-                    problems.push("CAPRICORN_MAIL_FROM must be an email address".into());
+                    problems.push("AULE_MAIL_FROM must be an email address".into());
                 }
                 Some(Mail { smtp_url: smtp_url.to_string(), from: from.to_string() })
             }
             (None, None) => None,
             _ => {
-                problems.push("CAPRICORN_SMTP_URL and CAPRICORN_MAIL_FROM must be set together".into());
+                problems.push("AULE_SMTP_URL and AULE_MAIL_FROM must be set together".into());
                 None
             }
         };
 
-        let events_webhook =
-            match (get("CAPRICORN_EVENTS_WEBHOOK_URL"), get("CAPRICORN_EVENTS_WEBHOOK_SECRET")) {
-                (Some(url), Some(secret)) => {
-                    if !url.starts_with("https://") && !url.starts_with("http://127.0.0.1") {
-                        problems.push(
-                            "CAPRICORN_EVENTS_WEBHOOK_URL must be https:// (or http://127.0.0.1)".into(),
-                        );
-                    }
-                    if secret.len() < 32 {
-                        problems
-                            .push("CAPRICORN_EVENTS_WEBHOOK_SECRET must have at least 32 characters".into());
-                    }
-                    Some(EventsWebhook { url: url.to_string(), secret: secret.to_string() })
+        let events_webhook = match (get("AULE_EVENTS_WEBHOOK_URL"), get("AULE_EVENTS_WEBHOOK_SECRET")) {
+            (Some(url), Some(secret)) => {
+                if !url.starts_with("https://") && !url.starts_with("http://127.0.0.1") {
+                    problems.push("AULE_EVENTS_WEBHOOK_URL must be https:// (or http://127.0.0.1)".into());
                 }
-                (None, None) => None,
-                _ => {
-                    problems.push(
-                    "CAPRICORN_EVENTS_WEBHOOK_URL and CAPRICORN_EVENTS_WEBHOOK_SECRET must be set together"
-                        .into(),
+                if secret.len() < 32 {
+                    problems.push("AULE_EVENTS_WEBHOOK_SECRET must have at least 32 characters".into());
+                }
+                Some(EventsWebhook { url: url.to_string(), secret: secret.to_string() })
+            }
+            (None, None) => None,
+            _ => {
+                problems.push(
+                    "AULE_EVENTS_WEBHOOK_URL and AULE_EVENTS_WEBHOOK_SECRET must be set together".into(),
                 );
-                    None
-                }
-            };
+                None
+            }
+        };
 
-        // Lima, where Capricorn is made, unless told otherwise.
-        let timezone_offset_minutes = match get("CAPRICORN_TIMEZONE_OFFSET_MINUTES").map(str::parse::<i32>) {
+        // Lima, where Aule is made, unless told otherwise.
+        let timezone_offset_minutes = match get("AULE_TIMEZONE_OFFSET_MINUTES").map(str::parse::<i32>) {
             None => -300,
             Some(Ok(minutes)) if (-720..=840).contains(&minutes) => minutes,
             Some(_) => {
-                problems
-                    .push("CAPRICORN_TIMEZONE_OFFSET_MINUTES must be a whole number from -720 to 840".into());
+                problems.push("AULE_TIMEZONE_OFFSET_MINUTES must be a whole number from -720 to 840".into());
                 -300
             }
         };
 
-        let google_client_id = get("CAPRICORN_GOOGLE_CLIENT_ID").map(str::to_string);
+        let google_client_id = get("AULE_GOOGLE_CLIENT_ID").map(str::to_string);
         if google_client_id.as_deref().is_some_and(|id| !crate::google::is_client_id(id)) {
-            problems.push("CAPRICORN_GOOGLE_CLIENT_ID must end in .apps.googleusercontent.com".into());
+            problems.push("AULE_GOOGLE_CLIENT_ID must end in .apps.googleusercontent.com".into());
         }
 
         if !problems.is_empty() {
@@ -219,14 +210,14 @@ impl Config {
             addr,
             admin_token,
             livekit,
-            agent_name: get("CAPRICORN_AGENT_NAME").unwrap_or("capricorn-tutor").to_string(),
+            agent_name: get("AULE_AGENT_NAME").unwrap_or("aule-tutor").to_string(),
             session_minutes,
             transcript_hours,
             supervisor,
             embeddings,
             mail,
             events_webhook,
-            fcm_service_account: get("CAPRICORN_FCM_SERVICE_ACCOUNT").map(str::to_string),
+            fcm_service_account: get("AULE_FCM_SERVICE_ACCOUNT").map(str::to_string),
             google_client_id,
             timezone_offset_minutes,
         })
@@ -239,8 +230,8 @@ mod tests {
 
     pub fn complete() -> HashMap<String, String> {
         [
-            ("DATABASE_URL", "postgres://capricorn@localhost/capricorn"),
-            ("CAPRICORN_ADMIN_TOKEN", "0123456789abcdef0123456789abcdef"),
+            ("DATABASE_URL", "postgres://aule@localhost/aule"),
+            ("AULE_ADMIN_TOKEN", "0123456789abcdef0123456789abcdef"),
         ]
         .into_iter()
         .map(|(name, value)| (name.to_string(), value.to_string()))
@@ -252,7 +243,7 @@ mod tests {
         let config = Config::from_map(&complete()).unwrap();
 
         assert_eq!(config.addr.to_string(), "127.0.0.1:8091");
-        assert_eq!(config.agent_name, "capricorn-tutor");
+        assert_eq!(config.agent_name, "aule-tutor");
         assert_eq!((config.session_minutes, config.transcript_hours), (20, 24));
         assert!(config.livekit.is_none() && config.supervisor.is_none() && config.embeddings.is_none());
         assert!(config.mail.is_none() && config.events_webhook.is_none());
@@ -262,12 +253,12 @@ mod tests {
     #[test]
     fn every_problem_is_reported_at_once() {
         let env = [
-            ("CAPRICORN_ADMIN_TOKEN", "short"),
+            ("AULE_ADMIN_TOKEN", "short"),
             ("LIVEKIT_API_KEY", "key"),
-            ("CAPRICORN_TRANSCRIPT_HOURS", "72"),
-            ("CAPRICORN_SMTP_URL", "smtps://mail.example.org"),
-            ("CAPRICORN_EVENTS_WEBHOOK_URL", "http://example.org/hook"),
-            ("CAPRICORN_EVENTS_WEBHOOK_SECRET", "short"),
+            ("AULE_TRANSCRIPT_HOURS", "72"),
+            ("AULE_SMTP_URL", "smtps://mail.example.org"),
+            ("AULE_EVENTS_WEBHOOK_URL", "http://example.org/hook"),
+            ("AULE_EVENTS_WEBHOOK_SECRET", "short"),
         ]
         .into_iter()
         .map(|(name, value)| (name.to_string(), value.to_string()))
@@ -277,12 +268,12 @@ mod tests {
 
         for expected in [
             "DATABASE_URL",
-            "CAPRICORN_ADMIN_TOKEN must have at least 32",
+            "AULE_ADMIN_TOKEN must have at least 32",
             "must be set together",
-            "CAPRICORN_TRANSCRIPT_HOURS must be a whole number from 1 to 24",
-            "CAPRICORN_SMTP_URL and CAPRICORN_MAIL_FROM must be set together",
-            "CAPRICORN_EVENTS_WEBHOOK_URL must be https://",
-            "CAPRICORN_EVENTS_WEBHOOK_SECRET must have at least 32",
+            "AULE_TRANSCRIPT_HOURS must be a whole number from 1 to 24",
+            "AULE_SMTP_URL and AULE_MAIL_FROM must be set together",
+            "AULE_EVENTS_WEBHOOK_URL must be https://",
+            "AULE_EVENTS_WEBHOOK_SECRET must have at least 32",
         ] {
             assert!(message.contains(expected), "{expected} not in {message}");
         }
@@ -293,11 +284,11 @@ mod tests {
         let mut env = complete();
         for (name, value) in [
             ("LIVEKIT_URL", "ws://127.0.0.1:7880"),
-            ("CAPRICORN_LIVEKIT_PUBLIC_URL", "wss://live.example.org"),
+            ("AULE_LIVEKIT_PUBLIC_URL", "wss://live.example.org"),
             ("LIVEKIT_API_KEY", "key"),
             ("LIVEKIT_API_SECRET", "secret"),
             ("ANTHROPIC_API_KEY", "sk-test"),
-            ("CAPRICORN_EMBEDDINGS_URL", "http://127.0.0.1:11434/v1/"),
+            ("AULE_EMBEDDINGS_URL", "http://127.0.0.1:11434/v1/"),
         ] {
             env.insert(name.to_string(), value.to_string());
         }

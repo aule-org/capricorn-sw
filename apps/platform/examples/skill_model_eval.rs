@@ -16,7 +16,7 @@
 
 use std::collections::HashMap;
 
-use capricorn_platform::learning::skill_model::{Calibration, Params};
+use aule_platform::learning::skill_model::{Calibration, Params};
 use chrono::{DateTime, Utc};
 
 struct Row {

@@ -65,12 +65,12 @@ class Settings:
 
         problems: list[str] = []
 
-        stt = get("CAPRICORN_STT").lower()
+        stt = get("AULE_STT").lower()
         if stt not in STT_KEYS:
-            problems.append(f"CAPRICORN_STT must be one of: {', '.join(STT_KEYS)}")
-        tts = get("CAPRICORN_TTS").lower()
+            problems.append(f"AULE_STT must be one of: {', '.join(STT_KEYS)}")
+        tts = get("AULE_TTS").lower()
         if tts not in TTS_KEYS:
-            problems.append(f"CAPRICORN_TTS must be one of: {', '.join(TTS_KEYS)}")
+            problems.append(f"AULE_TTS must be one of: {', '.join(TTS_KEYS)}")
 
         required = [*LIVEKIT_KEYS, LLM_KEY]
         if stt in STT_KEYS:
@@ -87,26 +87,26 @@ class Settings:
             if any(char.isspace() or not char.isprintable() for char in get(name)):
                 problems.append(f"{name} must not contain spaces or control characters")
 
-        language = get("CAPRICORN_LANGUAGE", "es").lower()
+        language = get("AULE_LANGUAGE", "es").lower()
         if language not in LANGUAGES:
-            problems.append(f"CAPRICORN_LANGUAGE must be one of: {', '.join(LANGUAGES)}")
+            problems.append(f"AULE_LANGUAGE must be one of: {', '.join(LANGUAGES)}")
 
-        raw_minutes = get("CAPRICORN_SESSION_MAX_MINUTES", "15")
+        raw_minutes = get("AULE_SESSION_MAX_MINUTES", "15")
         minutes = int(raw_minutes) if raw_minutes.isdecimal() else 0
         if not 1 <= minutes <= 120:
-            problems.append("CAPRICORN_SESSION_MAX_MINUTES must be a whole number from 1 to 120")
+            problems.append("AULE_SESSION_MAX_MINUTES must be a whole number from 1 to 120")
 
-        push_to_talk = get("CAPRICORN_PUSH_TO_TALK").lower() in ("1", "true", "yes", "on")
+        push_to_talk = get("AULE_PUSH_TO_TALK").lower() in ("1", "true", "yes", "on")
 
         if problems:
             raise ConfigError("; ".join(problems))
 
         return cls(
-            agent_name=get("CAPRICORN_AGENT_NAME", "capricorn-tutor"),
+            agent_name=get("AULE_AGENT_NAME", "aule-tutor"),
             stt=stt,
             tts=tts,
-            tts_voice=get("CAPRICORN_TTS_VOICE") or None,
-            llm_model=get("CAPRICORN_LLM_MODEL", "claude-sonnet-5-5"),
+            tts_voice=get("AULE_TTS_VOICE") or None,
+            llm_model=get("AULE_LLM_MODEL", "claude-sonnet-5-5"),
             language=language,
             session_max_minutes=minutes,
             push_to_talk=push_to_talk,

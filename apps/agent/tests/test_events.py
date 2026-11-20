@@ -3,7 +3,7 @@ import json
 import pytest
 from jsonschema import ValidationError
 
-from capricorn_agent.events import build_event, contracts_dir, validate_event
+from aule_agent.events import build_event, contracts_dir, validate_event
 
 EXAMPLES = sorted((contracts_dir() / "examples").glob("*.json"))
 
@@ -24,7 +24,7 @@ def _session_ended() -> dict:
 def test_build_event_wraps_data_in_a_valid_envelope():
     data = _session_ended()
     event = build_event("session.ended.v1", data, subject=data["session_id"])
-    assert event["source"] == "capricorn/agent"
+    assert event["source"] == "aule/agent"
     assert event["type"] == "session.ended.v1"
     assert event["subject"] == data["session_id"]
     assert event["time"].endswith("Z")

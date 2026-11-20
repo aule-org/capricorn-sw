@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/meet-aule/capricorn-sw/contracts/events/safety.flagged.v1.schema.json",
+  "$id": "https://github.com/meet-aule/aule-sw/contracts/events/safety.flagged.v1.schema.json",
   "title": "safety.flagged.v1",
   "description": "A safety gate stopped a turn. Produced by the agent. Carries categories only: never the child's words, the reply or any score.",
   "type": "object",

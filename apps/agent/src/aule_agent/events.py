@@ -15,12 +15,12 @@ from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
 
-SOURCE = "capricorn/agent"
+SOURCE = "aule/agent"
 
 
 def contracts_dir() -> Path:
-    """``CAPRICORN_CONTRACTS_DIR``, or ``contracts/`` at the repository root."""
-    configured = os.environ.get("CAPRICORN_CONTRACTS_DIR")
+    """``AULE_CONTRACTS_DIR``, or ``contracts/`` at the repository root."""
+    configured = os.environ.get("AULE_CONTRACTS_DIR")
     return Path(configured) if configured else Path(__file__).resolve().parents[4] / "contracts"
 
 

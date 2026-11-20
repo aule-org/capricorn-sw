@@ -17,7 +17,7 @@ use uuid::Uuid;
 use crate::notices;
 use crate::state::AppState;
 
-pub const SOURCE: &str = "capricorn/platform";
+pub const SOURCE: &str = "aule/platform";
 pub const SESSION_ENDED: &str = "session.ended.v1";
 pub const SESSION_REVIEWED: &str = "session.reviewed.v1";
 pub const SAFETY_FLAGGED: &str = "safety.flagged.v1";
@@ -78,7 +78,7 @@ async fn deliver(state: &AppState, event: &Value) -> Result<(), String> {
             .post(&webhook.url)
             .timeout(std::time::Duration::from_secs(10))
             .header("Content-Type", "application/cloudevents+json")
-            .header("X-Capricorn-Signature", signature(&webhook.secret, body.as_bytes()))
+            .header("X-Aule-Signature", signature(&webhook.secret, body.as_bytes()))
             .body(body)
             .send()
             .await

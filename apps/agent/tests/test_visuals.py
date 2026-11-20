@@ -2,10 +2,10 @@ import json
 
 import pytest
 
-from capricorn_agent import visuals
-from capricorn_agent.events import contracts_dir
-from capricorn_agent.moderation import Action, Decision
-from capricorn_agent.tutor import SCREEN, SHOWN, Tutor, present
+from aule_agent import visuals
+from aule_agent.events import contracts_dir
+from aule_agent.moderation import Action, Decision
+from aule_agent.tutor import SCREEN, SHOWN, Tutor, present
 
 EXAMPLES = sorted((contracts_dir() / "visuals" / "examples").glob("*.json"))
 

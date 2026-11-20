@@ -24,10 +24,9 @@ impl SmtpMailer {
     pub fn new(settings: &Mail) -> Result<Self, MailError> {
         let transport = AsyncSmtpTransport::<Tokio1Executor>::from_url(&settings.smtp_url)
             // The URL holds the password, so the error is not passed on.
-            .map_err(|_| MailError("CAPRICORN_SMTP_URL is not a usable SMTP URL".into()))?
+            .map_err(|_| MailError("AULE_SMTP_URL is not a usable SMTP URL".into()))?
             .build();
-        let from =
-            settings.from.parse().map_err(|_| MailError("CAPRICORN_MAIL_FROM is not an address".into()))?;
+        let from = settings.from.parse().map_err(|_| MailError("AULE_MAIL_FROM is not an address".into()))?;
         Ok(Self { transport, from })
     }
 }

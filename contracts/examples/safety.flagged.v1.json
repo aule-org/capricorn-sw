@@ -1,7 +1,7 @@
 {
   "specversion": "1.0",
   "id": "7a9d2e44-0c1b-4e8f-a2d3-b4c5d6e7f809",
-  "source": "capricorn/agent",
+  "source": "aule/agent",
   "type": "safety.flagged.v1",
   "time": "2026-11-17T15:36:48Z",
   "datacontenttype": "application/json",

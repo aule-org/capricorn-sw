@@ -6,18 +6,18 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
+use aule_platform::config::{Config, EventsWebhook, LiveKit};
+use aule_platform::google::{Identity, IdentityError, IdentityProvider};
+use aule_platform::llm::{Llm, LlmError, Request as LlmRequest};
+use aule_platform::mail::{MailError, Mailer};
+use aule_platform::memory::{DIMENSIONS, Embedder, MemoryError, NewMemory};
+use aule_platform::push::{Delivery, Push, PushError, Pusher};
+use aule_platform::state::AppState;
+use aule_platform::{events, http, jobs};
 use axum::Router;
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
 use base64::Engine;
-use capricorn_platform::config::{Config, EventsWebhook, LiveKit};
-use capricorn_platform::google::{Identity, IdentityError, IdentityProvider};
-use capricorn_platform::llm::{Llm, LlmError, Request as LlmRequest};
-use capricorn_platform::mail::{MailError, Mailer};
-use capricorn_platform::memory::{DIMENSIONS, Embedder, MemoryError, NewMemory};
-use capricorn_platform::push::{Delivery, Push, PushError, Pusher};
-use capricorn_platform::state::AppState;
-use capricorn_platform::{events, http, jobs};
 use serde_json::{Value, json};
 use sqlx::PgPool;
 use tower::ServiceExt;
@@ -161,7 +161,7 @@ fn app_with(pool: PgPool, events_webhook: Option<EventsWebhook>) -> App {
             api_key: "key".into(),
             api_secret: "secret".into(),
         }),
-        agent_name: "capricorn-tutor".into(),
+        agent_name: "aule-tutor".into(),
         session_minutes: 20,
         transcript_hours: 24,
         supervisor: None,
@@ -329,7 +329,7 @@ where
     panic!("never happened: {what}");
 }
 
-#[sqlx::test(migrator = "capricorn_platform::MIGRATOR")]
+#[sqlx::test(migrator = "aule_platform::MIGRATOR")]
 async fn every_route_needs_its_credentials(pool: PgPool) {
     let app = app(pool);
 
@@ -352,7 +352,7 @@ async fn every_route_needs_its_credentials(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrator = "capricorn_platform::MIGRATOR")]
+#[sqlx::test(migrator = "aule_platform::MIGRATOR")]
 async fn answers_build_the_learner_model_and_calibrate_difficulty(pool: PgPool) {
     let app = app(pool);
     let child = app.child().await;
@@ -421,7 +421,7 @@ async fn answers_build_the_learner_model_and_calibrate_difficulty(pool: PgPool) 
     assert_eq!((status, body["error"]["code"].as_str()), (StatusCode::BAD_REQUEST, Some("bad_request")));
 }
 
-#[sqlx::test(migrator = "capricorn_platform::MIGRATOR")]
+#[sqlx::test(migrator = "aule_platform::MIGRATOR")]
 async fn no_session_without_consent_for_voice(pool: PgPool) {
     let app = app(pool);
     let child = app.child().await;
@@ -442,7 +442,7 @@ async fn no_session_without_consent_for_voice(pool: PgPool) {
     assert_eq!(status, StatusCode::CREATED, "an operator can try the tutor with no profile");
 }
 
-#[sqlx::test(migrator = "capricorn_platform::MIGRATOR")]
+#[sqlx::test(migrator = "aule_platform::MIGRATOR")]
 async fn a_session_is_planned_watched_and_reviewed(pool: PgPool) {
     let app = app(pool);
     let child = app.child().await;
@@ -555,7 +555,7 @@ async fn a_session_is_planned_watched_and_reviewed(pool: PgPool) {
     assert_eq!(app.count("select count(*) from attempts").await, 4);
 }
 
-#[sqlx::test(migrator = "capricorn_platform::MIGRATOR")]
+#[sqlx::test(migrator = "aule_platform::MIGRATOR")]
 async fn a_kept_transcript_expires_and_an_abandoned_session_is_closed(pool: PgPool) {
     let app = app(pool);
     let child = app.child().await;
@@ -596,7 +596,7 @@ async fn a_kept_transcript_expires_and_an_abandoned_session_is_closed(pool: PgPo
     );
 }
 
-#[sqlx::test(migrator = "capricorn_platform::MIGRATOR")]
+#[sqlx::test(migrator = "aule_platform::MIGRATOR")]
 async fn taking_consent_back_and_erasing_a_child_remove_their_data(pool: PgPool) {
     let app = app(pool);
     let child = app.child().await;
@@ -656,7 +656,7 @@ async fn taking_consent_back_and_erasing_a_child_remove_their_data(pool: PgPool)
 
 type OutboxRow = (uuid::Uuid, String, Option<String>, Value, chrono::DateTime<chrono::Utc>);
 
-#[sqlx::test(migrator = "capricorn_platform::MIGRATOR")]
+#[sqlx::test(migrator = "aule_platform::MIGRATOR")]
 async fn queued_review_does_not_restore_revoked_memories(pool: PgPool) {
     let app = app(pool);
     let child = app.child().await;
@@ -696,7 +696,7 @@ impl Embedder for BlockedEmbedder {
     }
 }
 
-#[sqlx::test(migrator = "capricorn_platform::MIGRATOR")]
+#[sqlx::test(migrator = "aule_platform::MIGRATOR")]
 async fn revoking_memory_while_embedding_prevents_the_late_write(pool: PgPool) {
     let app = app(pool.clone());
     let child = app.child().await;
@@ -710,7 +710,7 @@ async fn revoking_memory_while_embedding_prevents_the_late_write(pool: PgPool) {
     let child_id = child.parse().unwrap();
     let session_id = session.parse().unwrap();
     let writing = tokio::spawn(async move {
-        capricorn_platform::memory::remember(
+        aule_platform::memory::remember(
             &pool,
             Some(&embedder),
             child_id,
@@ -729,7 +729,7 @@ async fn revoking_memory_while_embedding_prevents_the_late_write(pool: PgPool) {
     assert_eq!(app.count("select count(*) from memories").await, 0);
 }
 
-#[sqlx::test(migrator = "capricorn_platform::MIGRATOR")]
+#[sqlx::test(migrator = "aule_platform::MIGRATOR")]
 async fn revoking_transcript_storage_applies_to_the_current_session(pool: PgPool) {
     let app = app(pool);
     let child = app.child().await;
@@ -783,7 +783,7 @@ async fn events_follow_the_contracts(app: &App) -> Vec<String> {
         .collect()
 }
 
-#[sqlx::test(migrator = "capricorn_platform::MIGRATOR")]
+#[sqlx::test(migrator = "aule_platform::MIGRATOR")]
 async fn a_guardian_signs_in_with_a_code_and_reaches_only_their_family(pool: PgPool) {
     let app = app(pool);
     let start = |email: &str| app.call(Method::POST, "/v1/auth/start", None, Some(json!({ "email": email })));
@@ -897,7 +897,7 @@ async fn a_guardian_signs_in_with_a_code_and_reaches_only_their_family(pool: PgP
     assert_eq!(app.count("select count(*) from families").await, 1, "Luis is still there");
 }
 
-#[sqlx::test(migrator = "capricorn_platform::MIGRATOR")]
+#[sqlx::test(migrator = "aule_platform::MIGRATOR")]
 async fn sign_in_codes_are_limited(pool: PgPool) {
     let app = app(pool);
     let start =
@@ -951,7 +951,7 @@ fn sign(key: &[u8; 32], message: &str) -> String {
     hex::encode(mac.finalize().into_bytes())
 }
 
-#[sqlx::test(migrator = "capricorn_platform::MIGRATOR")]
+#[sqlx::test(migrator = "aule_platform::MIGRATOR")]
 async fn a_device_is_linked_by_its_code_and_its_key_and_then_starts_sessions(pool: PgPool) {
     let app = app(pool);
     let key = [7u8; 32];
@@ -969,14 +969,15 @@ async fn a_device_is_linked_by_its_code_and_its_key_and_then_starts_sessions(poo
     assert!(unknown["server_time"]["timestamp"].as_i64().unwrap() > 0);
     assert!(unknown.get("activation").is_none() && unknown.get("firmware").is_none());
 
-    let devices = json!({ "devices": [{ "serial": "CAP-0001", "hmac_key": hex::encode(key), "model": "capricorn-v0.2" }] });
+    let devices =
+        json!({ "devices": [{ "serial": "CAP-0001", "hmac_key": hex::encode(key), "model": "aule-v0.2" }] });
     let (status, body) = app.admin(Method::POST, "/v1/devices", Some(devices.clone())).await;
     assert_eq!((status, &body["registered"]), (StatusCode::CREATED, &json!(1)));
     let (_, body) = app.admin(Method::POST, "/v1/devices", Some(devices)).await;
     assert_eq!((&body["registered"], &body["already_known"]), (&json!(0), &json!(1)));
 
     // Firmware: only a newer version is offered, never an older one.
-    let firmware = |version: &str| json!({ "model": "capricorn-v0.2", "version": version, "url": format!("https://example.org/{version}.bin"), "sha256": "ab".repeat(32) });
+    let firmware = |version: &str| json!({ "model": "aule-v0.2", "version": version, "url": format!("https://example.org/{version}.bin"), "sha256": "ab".repeat(32) });
     assert_eq!(app.admin(Method::POST, "/v1/firmware", Some(firmware("1.1.0"))).await.0, StatusCode::CREATED);
     assert_eq!(
         app.admin(Method::POST, "/v1/firmware", Some(firmware("1.1.0"))).await.0,
@@ -1101,7 +1102,7 @@ async fn a_device_is_linked_by_its_code_and_its_key_and_then_starts_sessions(poo
     assert_eq!(session(now + 3, signed(now + 3)).await.0, StatusCode::CONFLICT);
 }
 
-#[sqlx::test(migrator = "capricorn_platform::MIGRATOR")]
+#[sqlx::test(migrator = "aule_platform::MIGRATOR")]
 async fn events_become_notices_for_the_family_and_reach_the_webhook(pool: PgPool) {
     // A stand-in for whoever receives the platform's events.
     let received: Arc<Mutex<Vec<(String, String)>>> = Arc::default();
@@ -1111,7 +1112,7 @@ async fn events_become_notices_for_the_family_and_reach_the_webhook(pool: PgPool
     let receiver = Router::new().route(
         "/hook",
         axum::routing::post(move |headers: axum::http::HeaderMap, body: String| async move {
-            let signature = headers["X-Capricorn-Signature"].to_str().unwrap().to_string();
+            let signature = headers["X-Aule-Signature"].to_str().unwrap().to_string();
             seen.lock().unwrap().push((signature, body));
             StatusCode::NO_CONTENT
         }),
@@ -1200,7 +1201,7 @@ async fn events_become_notices_for_the_family_and_reach_the_webhook(pool: PgPool
     assert_eq!(received.len(), 8);
     for (signature, body) in &received {
         assert_eq!(signature, &events::signature(secret, body.as_bytes()));
-        assert_eq!(serde_json::from_str::<Value>(body).unwrap()["source"], "capricorn/platform");
+        assert_eq!(serde_json::from_str::<Value>(body).unwrap()["source"], "aule/platform");
     }
 
     // Reading a notice, and a guardian who turns email off.
@@ -1235,7 +1236,7 @@ async fn forget(app: &App, token: &str, guardian: &str) -> StatusCode {
     app.call(Method::DELETE, "/v1/push/tokens", Some(guardian), Some(json!({ "token": token }))).await.0
 }
 
-#[sqlx::test(migrator = "capricorn_platform::MIGRATOR")]
+#[sqlx::test(migrator = "aule_platform::MIGRATOR")]
 async fn a_notice_is_announced_on_the_guardians_phones_without_saying_what_it_is(pool: PgPool) {
     let app = app(pool);
     let ana = app.sign_in("ana@example.org", "Ana").await;
@@ -1296,7 +1297,7 @@ async fn a_notice_is_announced_on_the_guardians_phones_without_saying_what_it_is
     assert_eq!(kinds, ["attention", "session_summary"]);
     for (token, text, data) in &pushed {
         assert_eq!(token, phone);
-        assert!(text.starts_with("Capricorn: "), "{text}");
+        assert!(text.starts_with("Aule: "), "{text}");
         assert!(!text.contains("Mateo") && !text.to_lowercase().contains("self"), "{text}");
         assert!(data["notice_id"].as_str().unwrap().parse::<uuid::Uuid>().is_ok());
     }
@@ -1330,7 +1331,7 @@ async fn a_notice_is_announced_on_the_guardians_phones_without_saying_what_it_is
     assert_eq!(app.count("select count(*) from push_tokens").await, 1);
 }
 
-#[sqlx::test(migrator = "capricorn_platform::MIGRATOR")]
+#[sqlx::test(migrator = "aule_platform::MIGRATOR")]
 async fn a_guardian_signs_in_with_google_and_it_is_the_same_account_as_by_code(pool: PgPool) {
     let app = app(pool);
     let google = |body: Value| app.call(Method::POST, "/v1/auth/google", None, Some(body));
@@ -1383,7 +1384,7 @@ async fn a_guardian_signs_in_with_google_and_it_is_the_same_account_as_by_code(p
     assert_eq!(app.call(Method::GET, "/v1/me", Some(&by_code), None).await.0, StatusCode::OK);
 }
 
-#[sqlx::test(migrator = "capricorn_platform::MIGRATOR")]
+#[sqlx::test(migrator = "aule_platform::MIGRATOR")]
 async fn a_family_names_its_tutor_and_the_agent_is_told(pool: PgPool) {
     let app = app(pool);
     let child = app.child().await;
@@ -1478,7 +1479,7 @@ async fn a_family_names_its_tutor_and_the_agent_is_told(pool: PgPool) {
     assert_eq!(start["tutor"], json!({ "name": "Aule", "persona": "calido", "note": null }));
 }
 
-#[sqlx::test(migrator = "capricorn_platform::MIGRATOR")]
+#[sqlx::test(migrator = "aule_platform::MIGRATOR")]
 async fn the_platform_checks_the_tutors_exercises_and_says_what_to_do_next(pool: PgPool) {
     let app = app(pool);
     let child = app.child().await;

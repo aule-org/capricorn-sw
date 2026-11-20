@@ -14,7 +14,7 @@ from . import visuals
 from .replies import ADULT_HELP_SEQUENCE, OFFERS, reply
 from .safety import Gates
 
-logger = logging.getLogger("capricorn.agent.tutor")
+logger = logging.getLogger("aule.agent.tutor")
 
 # Sends one visual to the student's screen.
 Show = Callable[[dict[str, Any]], Awaitable[None]]

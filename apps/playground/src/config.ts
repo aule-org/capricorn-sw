@@ -30,11 +30,11 @@ export function readSettings(env: Record<string, string | undefined>): Settings 
   const get = (name: string, fallback = "") => env[name]?.trim() || fallback;
   const problems: string[] = [];
 
-  // PLAYGROUND_LIVEKIT_URL is the earlier name of CAPRICORN_LIVEKIT_PUBLIC_URL.
+  // PLAYGROUND_LIVEKIT_URL is the earlier name of AULE_LIVEKIT_PUBLIC_URL.
   const livekitUrl =
-    get("CAPRICORN_LIVEKIT_PUBLIC_URL") || get("PLAYGROUND_LIVEKIT_URL") || get("LIVEKIT_URL");
+    get("AULE_LIVEKIT_PUBLIC_URL") || get("PLAYGROUND_LIVEKIT_URL") || get("LIVEKIT_URL");
   if (!/^wss?:\/\/[^\s/]+/.test(livekitUrl)) {
-    problems.push("CAPRICORN_LIVEKIT_PUBLIC_URL (or LIVEKIT_URL) must be a ws:// or wss:// URL");
+    problems.push("AULE_LIVEKIT_PUBLIC_URL (or LIVEKIT_URL) must be a ws:// or wss:// URL");
   }
   for (const name of ["LIVEKIT_API_KEY", "LIVEKIT_API_SECRET"]) {
     if (!get(name)) problems.push(`${name} is not set`);
@@ -64,14 +64,14 @@ export function readSettings(env: Record<string, string | undefined>): Settings 
     problems.push("PLAYGROUND_DAILY_SESSIONS must be a whole number from 1 to 100");
   }
 
-  const platformUrl = get("CAPRICORN_PLATFORM_URL").replace(/\/+$/, "");
-  const adminToken = get("CAPRICORN_ADMIN_TOKEN");
+  const platformUrl = get("AULE_PLATFORM_URL").replace(/\/+$/, "");
+  const adminToken = get("AULE_ADMIN_TOKEN");
   const childId = get("PLAYGROUND_CHILD_ID");
   if (platformUrl && !/^https?:\/\/[^\s/]+/.test(platformUrl)) {
-    problems.push("CAPRICORN_PLATFORM_URL must be an http:// or https:// URL");
+    problems.push("AULE_PLATFORM_URL must be an http:// or https:// URL");
   }
   if (platformUrl && !adminToken) {
-    problems.push("CAPRICORN_ADMIN_TOKEN is needed with CAPRICORN_PLATFORM_URL");
+    problems.push("AULE_ADMIN_TOKEN is needed with AULE_PLATFORM_URL");
   }
   if (childId && !/^[0-9a-f-]{36}$/i.test(childId)) {
     problems.push("PLAYGROUND_CHILD_ID must be a child's id");
@@ -87,7 +87,7 @@ export function readSettings(env: Record<string, string | undefined>): Settings 
     livekitApiKey: get("LIVEKIT_API_KEY"),
     livekitApiSecret: get("LIVEKIT_API_SECRET"),
     accessCode,
-    agentName: get("CAPRICORN_AGENT_NAME", "capricorn-tutor"),
+    agentName: get("AULE_AGENT_NAME", "aule-tutor"),
     sessionMinutes,
     dailySessions,
     platform: platformUrl ? { url: platformUrl, adminToken, childId: childId || null } : null,

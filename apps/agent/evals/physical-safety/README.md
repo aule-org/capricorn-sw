@@ -1,6 +1,6 @@
 # Physical-safety evaluation
 
-Synthetic conversations replayed against the physical-safety gate (`capricorn_agent.physical_safety`), to check that the model, the question and the thresholds still give the expected verdicts.
+Synthetic conversations replayed against the physical-safety gate (`aule_agent.physical_safety`), to check that the model, the question and the thresholds still give the expected verdicts.
 
 **It calls the real provider (TypeSafe).** A live run costs money and sends the case texts to the provider. It is run by hand, never in CI. The unit tests in `tests/` use fakes and make no calls.
 

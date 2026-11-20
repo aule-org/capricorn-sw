@@ -59,7 +59,7 @@ impl AppState {
             match account {
                 Ok(fcm) => Some(Arc::new(fcm) as Arc<dyn Pusher>),
                 Err(error) => {
-                    tracing::error!(%error, "push is off: CAPRICORN_FCM_SERVICE_ACCOUNT could not be used");
+                    tracing::error!(%error, "push is off: AULE_FCM_SERVICE_ACCOUNT could not be used");
                     None
                 }
             }

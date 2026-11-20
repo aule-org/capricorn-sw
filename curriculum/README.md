@@ -81,8 +81,8 @@ Skills per grade: P1 28, P2 28, P3 32, P4 34, P5 33, P6 33.
 From the repository root, with the platform running (see `apps/platform/README.md`):
 
 ```sh
-curl -X PUT "$CAPRICORN_PLATFORM_URL/v1/skills" \
-  -H "Authorization: Bearer $CAPRICORN_ADMIN_TOKEN" \
+curl -X PUT "$AULE_PLATFORM_URL/v1/skills" \
+  -H "Authorization: Bearer $AULE_ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   --data @curriculum/math-primaria.json
 ```
@@ -92,7 +92,7 @@ The request inserts new skills and updates existing ones by id (at most 2000 per
 ## Check
 
 ```sh
-pnpm --filter @capricorn/curriculum test
+pnpm --filter @aule/curriculum test
 ```
 
 The tests check, for every `*.json` catalog here: the `{"skills": [...]}` shape; unique ids matching the platform's slug rule; required fields and length limits; `subject` is `math` and `grade` is `P1`..`P6`; every prerequisite exists, is not the skill itself and is not from a later grade; the graph has no cycles; every grade has at least 15 skills and P1 at least 5 with no prerequisites.

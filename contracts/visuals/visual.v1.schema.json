@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/meet-aule/capricorn-sw/contracts/visuals/visual.v1.schema.json",
+  "$id": "https://github.com/meet-aule/aule-sw/contracts/visuals/visual.v1.schema.json",
   "title": "visual.v1",
   "description": "Something the tutor shows on the student's screen: an exercise to read or a simple diagram. It is a description, not a picture: each screen (a browser, the e-ink display) draws it itself, in black on white.",
   "type": "object",

@@ -80,7 +80,7 @@ mod tests {
                 identity: "child-1",
                 name: "Ana",
                 ttl_seconds: 600,
-                agent_name: "capricorn-tutor",
+                agent_name: "aule-tutor",
                 dispatch_metadata: &metadata,
             },
             1_000,
@@ -95,7 +95,7 @@ mod tests {
         assert_eq!(claims["video"]["room"], "session-abc");
         assert!(claims["video"].get("roomAdmin").is_none());
         let dispatch = &claims["roomConfig"]["agents"][0];
-        assert_eq!(dispatch["agentName"], "capricorn-tutor");
+        assert_eq!(dispatch["agentName"], "aule-tutor");
         assert_eq!(serde_json::from_str::<Value>(dispatch["metadata"].as_str().unwrap()).unwrap(), metadata);
 
         // RFC 7515 check: recompute the signature over header.payload.

@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
-logger = logging.getLogger("capricorn.agent.moderation")
+logger = logging.getLogger("aule.agent.moderation")
 
 MODEL = "omni-moderation-latest"
 MAX_CHARS = 16_000
