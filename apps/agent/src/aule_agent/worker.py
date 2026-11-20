@@ -202,7 +202,7 @@ async def entrypoint(ctx: JobContext) -> None:
         break_minutes=settings.break_minutes,
         taken=break_taken,
     )
-    tasks = [asyncio.create_task(pace.run())]
+    tasks = [asyncio.create_task(pace.run()), asyncio.create_task(pace.watch())]
     asides: set[asyncio.Task[None]] = set()
 
     @session.on("conversation_item_added")
@@ -270,7 +270,11 @@ async def entrypoint(ctx: JobContext) -> None:
         logger.info("session usage", extra=usage.summary())
         await gates.close()
         if platform:
-            measures = {"minutes": round(pace.minutes(), 1), "breaks_taken": pace.breaks_taken}
+            measures = {
+                "minutes": round(pace.minutes(), 1),
+                "breaks_taken": pace.breaks_taken,
+                "closed_for_inactivity": int(pace.closed_for_inactivity),
+            }
             await platform.end({**usage.summary(), **measures})
 
     ctx.add_shutdown_callback(cleanup)
@@ -296,6 +300,7 @@ async def entrypoint(ctx: JobContext) -> None:
     async def show_work(_: rtc.RpcInvocationData) -> str:
         # The page's button for showing work. It answers "ok" once the tutor
         # has an image to talk about and "no_frame" when the camera sent none.
+        pace.student_spoke()
         return "ok" if await tutor.show_work() else "no_frame"
 
     ctx.room.local_participant.register_rpc_method("show_work", show_work)
@@ -303,6 +308,7 @@ async def entrypoint(ctx: JobContext) -> None:
     async def answered(_: rtc.RpcInvocationData) -> str:
         # The page sent the engine an answer the student typed. What the engine
         # wrote back comes with the next report, so the report is made now.
+        pace.student_spoke()
         if platform:
             platform.wake()
         return "ok"

@@ -121,6 +121,17 @@ REPLIES: dict[str, dict[str, str]] = {
         "neck slowly to one side and the other, and drink some water if you have some nearby. "
         "Tell me when you are back and we'll carry on.",
     },
+    # A student who has said nothing for a while: asked once, then the session closes.
+    "still_there": {
+        "es": "¿Sigues ahí? Si quieres seguir, dime algo.",
+        "en": "Are you still there? Say something if you want to carry on.",
+    },
+    "idle_goodbye": {
+        "es": "Parece que tuviste que irte. Cierro la sesión por ahora; cuando quieras, empezamos "
+        "otra. ¡Hasta pronto!",
+        "en": "It looks like you had to go. I'll close the session for now; we can start another "
+        "one whenever you like. See you soon!",
+    },
     "break_over": {
         "es": "Ya pasó la pausa. ¿Seguimos donde nos quedamos?",
         "en": "The break is over. Shall we carry on where we left off?",
