@@ -50,6 +50,9 @@ services:
     # Each session in progress is its own process: about 110 MB on top of
     # roughly 900 MB for the idle worker, so 2g holds eight to ten sessions.
     mem_limit: ${AULE_AGENT_MEMORY:-2g}
+    # The voice comes first: when the CPU is short, the agent gets twice the
+    # share of a service at the default (1024), and what can wait gets less.
+    cpu_shares: 2048
 
   postgres:
     image: pgvector/pgvector:pg17
@@ -75,6 +78,8 @@ services:
       - aule-models:/root/.ollama
     restart: unless-stopped
     mem_limit: 3g
+    # A memory's embedding can wait a second; a child's voice cannot.
+    cpu_shares: 256
 
   platform:
     <<: [*service, *platform]
@@ -101,6 +106,8 @@ services:
       postgres:
         condition: service_healthy
     mem_limit: 512m
+    # Reviews, mail and housekeeping: background work.
+    cpu_shares: 512
 
   playground:
     <<: *service
