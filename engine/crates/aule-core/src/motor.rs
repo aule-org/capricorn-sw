@@ -779,6 +779,13 @@ impl Motor {
                     self.terminar_pausa(out);
                 } else if p.eleccion.is_none() {
                     // [PROPUESTA] Sin elegir una, se le propone la siguiente de la lista.
+                    // Si dice que ya volvió sin haber hecho ninguna, primero se le responde.
+                    if dice_que_volvio(&t) {
+                        out.push(
+                            msg("¡Qué bueno que estás aquí! Antes de seguir, hagamos una actividad cortita para recargar energía:")
+                                .clase(Clase::Calma),
+                        );
+                    }
                     let k = (self.pausas_tomadas as usize).saturating_sub(1)
                         % self.cfg.actividades_pausa.len().max(1);
                     self.elegir_actividad(k, out);
