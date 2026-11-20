@@ -242,6 +242,15 @@ async def entrypoint(ctx: JobContext) -> None:
         record=False,
     )
     camera.start()
+
+    async def show_work(_: rtc.RpcInvocationData) -> str:
+        # The page's button for showing work. It answers "ok" once the tutor
+        # has an image to talk about and "no_frame" when the camera sent none.
+        return "ok" if await tutor.show_work() else "no_frame"
+
+    ctx.room.local_participant.register_rpc_method("show_work", show_work)
+    # Tells the page that the button has somebody to answer it.
+    await ctx.room.local_participant.set_attributes({"aule.show_work": "rpc"})
     if settings.push_to_talk:
         await enable_push_to_talk(ctx, session)
     logger.info("session started", extra={"audience": audience, "language": language})
