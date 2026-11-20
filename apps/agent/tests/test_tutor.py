@@ -16,6 +16,7 @@ from capricorn_agent.tutor import (
     Persona,
     Tutor,
     checked,
+    for_the_student,
     persona_from,
     persona_notes,
     with_frame,
@@ -430,3 +431,27 @@ async def test_a_late_plan_joins_the_student_context_and_keeps_the_guidance():
     final = seen[-1]
     assert final.index("The student is Liam.") < final.index("Plan: fractions.")
     assert final.index("Plan: fractions.") < final.index("divertido.") < final.index("Slow down.")
+
+
+async def test_only_the_paragraph_for_the_student_is_spoken_and_judged():
+    gates = ScriptedGates(ALLOW)
+    call = llm.ChatChunk(
+        id="tool",
+        delta=llm.ChoiceDelta(
+            role="assistant",
+            tool_calls=[llm.FunctionToolCall(name="show", arguments="{}", call_id="c1")],
+        ),
+    )
+    model = stream(
+        "Esto no es un cálculo, así que no lo registro.\n\n", "Cuéntame cómo lo pensaste.", call
+    )
+
+    released = [chunk async for chunk in checked(model, gates, "es")]
+
+    assert gates.spoken_texts == ["Cuéntame cómo lo pensaste."]
+    assert released == ["Cuéntame cómo lo pensaste.", call]
+
+
+def test_a_reply_of_one_paragraph_is_left_as_written():
+    assert for_the_student("Muy bien.\nSigamos.") == "Muy bien.\nSigamos."
+    assert for_the_student("Pienso.\n\n\n  Hola.  ") == "Hola."
