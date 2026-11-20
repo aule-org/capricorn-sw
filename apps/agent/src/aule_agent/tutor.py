@@ -260,31 +260,44 @@ check_answer with their words and do what it tells you. With none open, do not u
 }
 
 
-# Words with which a student shows something, or a tutor asks to see it. The
-# camera is looked at only then: an image on every turn made the tutor remark
-# on a face or a room nobody asked it about, and each one is paid in full.
-_SHOWING = re.compile(
-    r"\b(mira|mire|miren|f[íi]jate|foto|cuaderno|hoja|tarea|dibuj[oeé]|escrib[íi]|"
-    r"aqu[íi] est[áa]|te (lo )?(muestro|ense[ñn]o)|ya (lo hice|termin[ée]|est[áa])|"
-    r"mu[ée]strame|ens[ée][ñn]ame|d[ée]jame ver|ac[ée]rcal[oa]|a la c[áa]mara|"
-    r"look|photo|picture|notebook|sheet|homework|here it is|i (wrote|drew|did) it|"
+# The camera is looked at only when work is being shown: an image on every
+# turn made the tutor remark on a face or a room nobody asked it about, and
+# each one is paid in full.
+#
+# Words with which a student shows something. Naming the homework or the
+# notebook is not showing it, so the nouns alone do not count.
+_SHOWS = re.compile(
+    r"\b(mira|mire|miren|f[íi]jate|foto|dibuj[ée]|escrib[íi]|aqu[íi] est[áa]|"
+    r"te (lo )?(muestro|ense[ñn]o)|ya (lo hice|termin[ée]|est[áa])|a la c[áa]mara|"
+    r"look|photo|picture|here it is|i (wrote|drew|did) it|to the camera)\b",
+    re.IGNORECASE,
+)
+# Words with which a tutor asks to see it. A tutor says "mira la pantalla" and
+# "tu tarea" all the time; only asking for the work counts.
+_ASKS_TO_SEE = re.compile(
+    r"\b(mu[ée]strame|ens[ée][ñn]ame|d[ée]jame ver|ac[ée]rcal[oa]|a la c[áa]mara|"
     r"show me|let me see|hold it up|bring it closer|to the camera)\b",
     re.IGNORECASE,
 )
+# What the button that shows the work stands for, as the student's own turn.
+SHOWN = {"es": "Mira mi trabajo.", "en": "Look at my work."}
+# How long the button waits for the camera to send what it sees now. It has to
+# end well before the page stops waiting for the answer: of the time a caller
+# allows, the transport keeps seven seconds for itself.
+FRESH_FRAME_SECONDS = 2.0
 
 
 def shows_something(chat_ctx: llm.ChatContext) -> bool:
     """Whether the student is showing their work, or was just asked to: said
-    in the student's last message or in what the tutor said right before it."""
+    in the student's last message, or asked for in what the tutor said right
+    before it."""
     messages = [item for item in chat_ctx.items if item.type == "message"]
     for item in reversed(messages):
-        if item.role not in ("user", "assistant"):
-            continue
-        if _SHOWING.search(item.text_content or ""):
+        if item.role == "user" and _SHOWS.search(item.text_content or ""):
             return True
         if item.role == "assistant":
             # The tutor's line before the student's: nothing further back counts.
-            return False
+            return bool(_ASKS_TO_SEE.search(item.text_content or ""))
     return False
 
 
@@ -451,6 +464,8 @@ class Tutor(Agent):
         self._language = language
         self._gates = gates
         self._camera = camera
+        # The frame taken when the student pressed the button, until it is used.
+        self._shown: rtc.VideoFrame | None = None
         self._hazards_in_a_row = 0
         self._flow = flow
         self._show = show
@@ -592,6 +607,29 @@ class Tutor(Agent):
             return
         self.session.generate_reply(user_input=text)
 
+    async def show_work(self) -> bool:
+        """The student pressed the button that shows their work: the tutor
+        looks at what the camera sees now and answers at once. False when the
+        camera sent nothing to look at, and then nothing is said."""
+        if self._camera is None:
+            return False
+        frame = await self._camera.fresh(FRESH_FRAME_SECONDS)
+        if frame is None:
+            return False
+        self._shown = frame
+        await self.session.interrupt()
+        self.session.generate_reply(user_input=SHOWN[self._language])
+        return True
+
+    def _frame_for(self, chat_ctx: llm.ChatContext) -> rtc.VideoFrame | None:
+        """The image that goes with this turn, if any: what the student just
+        showed with the button, or what the camera sees when their words say
+        they are showing something."""
+        frame, self._shown = self._shown, None
+        if frame is None and self._camera is not None and shows_something(chat_ctx):
+            frame = self._camera.latest()
+        return frame
+
     async def _may_answer(self, turn_ctx: llm.ChatContext, new_message: llm.ChatMessage) -> bool:
         """Judges what the person said or typed. When it must not reach the
         model, says the fixed reply for it and answers False."""
@@ -615,8 +653,7 @@ class Tutor(Agent):
     async def llm_node(
         self, chat_ctx: llm.ChatContext, tools: list[llm.Tool], model_settings: ModelSettings
     ) -> AsyncIterable[llm.ChatChunk | str]:
-        looking = self._camera is not None and shows_something(chat_ctx)
-        frame = self._camera.latest() if looking else None
+        frame = self._frame_for(chat_ctx)
         stream = Agent.default.llm_node(self, with_frame(chat_ctx, frame), tools, model_settings)
         if self._gates.checks_spoken:
             # Buffering costs the time to the first word, so it is only paid

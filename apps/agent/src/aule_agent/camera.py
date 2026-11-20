@@ -11,6 +11,7 @@ import time
 from livekit import rtc
 
 MAX_AGE_SECONDS = 3.0
+FRESH_POLL_SECONDS = 0.05
 
 
 class Camera:
@@ -37,6 +38,17 @@ class Camera:
         if self._frame is None or time.monotonic() - self._frame_at > MAX_AGE_SECONDS:
             return None
         return self._frame
+
+    async def fresh(self, timeout: float) -> rtc.VideoFrame | None:
+        """The first frame that arrives from now on, or None if none does in
+        time. For a camera that is only turned on to show something: the frame
+        from before the person pointed it at their work is not the one wanted."""
+        asked = time.monotonic()
+        while time.monotonic() - asked < timeout:
+            if self._frame is not None and self._frame_at > asked:
+                return self._frame
+            await asyncio.sleep(FRESH_POLL_SECONDS)
+        return None
 
     def _on_track_subscribed(
         self,
