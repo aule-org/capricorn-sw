@@ -14,6 +14,7 @@ Aule's voice tutor: a [LiveKit Agents](https://github.com/livekit/agents) worker
 | `replies` | The fixed replies a person hears when a gate stops a turn, in Spanish and English |
 | `visuals` | What the tutor can show on the student's screen, checked against the shared contract before it is sent |
 | `camera` | The latest camera frame, held in memory and never stored |
+| `prosody` | Whether the voice went up or down at the end of an utterance, measured from the audio by rule, for pronunciation drills |
 | `providers` | Builds the speech and language models from the settings |
 | `platform` | Gets the student's profile and the supervisor's plan, reports turns and safety flags in the background, applies guidance |
 | `config` | Reads and checks the environment |
@@ -41,6 +42,10 @@ Before real children use it:
 - The verdicts were evaluated on synthetic conversations only ([evals/physical-safety](evals/physical-safety/README.md), run by hand against the real provider). The gates do not replace an adult nearby.
 
 Not built yet: publishing `session.ended` and `safety.flagged` as events.
+
+## Intonation
+
+Speech-to-text loses the tune of what was said, so `prosody.measure` takes it from the audio: whether the voice went up, down or stayed level at the end of an utterance, by rule (YIN pitch tracking in numpy, a few milliseconds of CPU per second of audio). A pronunciation drill compares it with `prosody.expected_pattern` of the sentence ("Is it raining?" rises). It is a pure function that does not log, store or send audio, and it is not wired into the tutor yet. It was checked on macOS synthetic voices, native and Spanish-accented, reading short sentences; not yet on real children's voices.
 
 ## Settings
 
