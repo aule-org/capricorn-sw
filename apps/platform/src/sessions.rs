@@ -305,6 +305,68 @@ pub struct TurnsInput {
     /// The id of the last guidance the agent already has.
     #[serde(default)]
     after_guidance: i64,
+    /// How many breaks the session has taken so far, as the agent counts them.
+    #[serde(default)]
+    breaks_taken: Option<i32>,
+}
+
+/// A break that is offered and not taken within this long was declined.
+const OFFER_STANDS_SECONDS: i64 = 120;
+/// No break is offered this close to the end of the session.
+const NO_BREAK_IN_THE_LAST_MINUTES: i64 = 10;
+
+/// Whether to offer a break now. A rule, not a model: a block of work is over,
+/// or the supervisor read tiredness since the last break; never in the middle
+/// of an exercise and never near the end.
+async fn pause(
+    state: &AppState,
+    session: &Session,
+    breaks_taken: Option<i32>,
+) -> Result<Option<&'static str>, sqlx::Error> {
+    // The agent took a break: the next block starts now.
+    if let Some(taken) = breaks_taken.filter(|taken| (0..=20).contains(taken)) {
+        sqlx::query(
+            "update sessions set breaks = $2, last_break_at = now(), pause_offered_at = null, tired_at = null
+             where id = $1 and breaks < $2",
+        )
+        .bind(session.id)
+        .bind(taken)
+        .execute(&state.pool)
+        .await?;
+    }
+    // An offer nobody took was a no: count the block again from here.
+    sqlx::query(
+        "update sessions set last_break_at = now(), pause_offered_at = null, tired_at = null
+         where id = $1 and pause_offered_at < now() - make_interval(secs => $2)",
+    )
+    .bind(session.id)
+    .bind(OFFER_STANDS_SECONDS as f64)
+    .execute(&state.pool)
+    .await?;
+
+    let due: Option<(bool,)> = sqlx::query_as(
+        "select true from sessions s
+         where s.id = $1 and s.status = 'active' and s.stop_step is distinct from 'end'
+           and now() < coalesce(s.started_at, s.created_at) + make_interval(mins => $3 - $4)
+           and (now() >= coalesce(s.last_break_at, s.started_at, s.created_at) + make_interval(mins => $2)
+                or s.tired_at is not null
+                or s.pause_offered_at is not null)
+           and not exists (select 1 from session_exercises e where e.session_id = s.id and e.status = 'open')",
+    )
+    .bind(session.id)
+    .bind(state.config.break_every_minutes as i32)
+    .bind(state.config.session_minutes as i32)
+    .bind(NO_BREAK_IN_THE_LAST_MINUTES as i32)
+    .fetch_optional(&state.pool)
+    .await?;
+    if due.is_none() {
+        return Ok(None);
+    }
+    sqlx::query("update sessions set pause_offered_at = coalesce(pause_offered_at, now()) where id = $1")
+        .bind(session.id)
+        .execute(&state.pool)
+        .await?;
+    Ok(Some("offer"))
 }
 
 /// The agent reports what was just said and collects any guidance written
@@ -382,7 +444,9 @@ pub async fn agent_turns(
         .bind(session.id)
         .fetch_one(&state.pool)
         .await?;
-    Ok(Json(json!({ "guidance": guidance, "plan": plan, "stop": stop })))
+    // "offer" while a break is due; the agent says it once and reports it taken.
+    let pause = pause(&state, &session, body.breaks_taken).await?;
+    Ok(Json(json!({ "guidance": guidance, "plan": plan, "stop": stop, "pause": pause })))
 }
 
 pub async fn load_turns(pool: &PgPool, session_id: Uuid) -> Result<Vec<Turn>, sqlx::Error> {
@@ -412,6 +476,12 @@ async fn watch(state: &AppState, session: &Session) -> ApiResult<()> {
         .await
         .map_err(|error| ApiError::Internal(error.to_string()))?;
     count_not_trying(state, session, guidance.signals.not_trying).await?;
+    if guidance.signals.tired {
+        sqlx::query("update sessions set tired_at = coalesce(tired_at, now()) where id = $1")
+            .bind(session.id)
+            .execute(&state.pool)
+            .await?;
+    }
     if !guidance.is_empty() {
         sqlx::query(
             "insert into session_guidance (session_id, after_seq, guidance, signals) values ($1, $2, $3, $4)",

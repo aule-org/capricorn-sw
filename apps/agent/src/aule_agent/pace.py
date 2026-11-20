@@ -1,0 +1,153 @@
+"""The pace of a session: its breaks, the warning before the end and the goodbye.
+
+No model writes any of it. The lines are the reviewed ones in ``replies``, and
+each is said in a quiet moment: once the tutor has finished its reply and while
+the student is not talking, never over either of them.
+"""
+
+import asyncio
+import logging
+import time
+from collections.abc import Awaitable, Callable
+from typing import Any
+
+from .replies import BREAKS, reply
+
+logger = logging.getLogger("aule.agent.pace")
+
+# The end is announced this long before it. A session too short for that hears
+# it later, and one shorter than the later warning hears only the goodbye.
+WARNING_MINUTES = 5
+SHORT_SESSION_MINUTES = 10
+SHORT_WARNING_MINUTES = 2
+# How long a quiet moment is waited for. After that the line is said anyway;
+# the voice still puts it behind whatever is being said.
+QUIET_TIMEOUT_SECONDS = 30.0
+QUIET_POLL_SECONDS = 0.25
+# The platform repeats its offer of a break until it hears that one was taken.
+# Nothing is offered while a break is on, nor this soon after one.
+BREAK_COOLDOWN_SECONDS = 300.0
+
+
+def warning(max_minutes: int) -> tuple[int, str] | None:
+    """How many minutes before the end the warning is said, and its line."""
+    if max_minutes >= SHORT_SESSION_MINUTES:
+        return WARNING_MINUTES, "five_minutes_left"
+    if max_minutes > SHORT_WARNING_MINUTES:
+        return SHORT_WARNING_MINUTES, "two_minutes_left"
+    return None
+
+
+class Pace:
+    def __init__(
+        self,
+        session: Any,
+        language: str,
+        *,
+        max_minutes: int,
+        break_minutes: int,
+        taken: Callable[[int], None] | None = None,
+        clock: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    ) -> None:
+        self._session = session
+        self._language = language
+        self._max_seconds = max_minutes * 60.0
+        self._warning = warning(max_minutes)
+        self._break_seconds = break_minutes * 60.0
+        self._taken = taken
+        self._clock = clock
+        self._sleep = sleep
+        self._started = clock()
+        self.breaks_taken = 0
+        self._offering = False
+        self._on_break = False
+        self._break_ended: float | None = None
+        self._resume: asyncio.Task[None] | None = None
+
+    def minutes(self) -> float:
+        """How long the session has lasted."""
+        return (self._clock() - self._started) / 60.0
+
+    async def run(self) -> None:
+        """Says that the end is near, then the goodbye, and closes the session."""
+        if self._warning is not None:
+            before, line = self._warning
+            await self._sleep(self._max_seconds - before * 60.0)
+            # It joins the conversation: the tutor knows there is little time left.
+            await self._say(line, remembered=True)
+        await self._sleep(max(0.0, self._max_seconds - (self._clock() - self._started)))
+        await self._say("goodbye", remembered=False)
+        self._session.shutdown()
+
+    async def take_a_break(self) -> None:
+        """Proposes one short activity away from the work and lets the student go.
+
+        The tutor says nothing more until the student talks again or the break
+        is over, whichever comes first. Asked for again while a break is on or
+        just after one, it does nothing.
+        """
+        recent = (
+            self._break_ended is not None
+            and self._clock() - self._break_ended < BREAK_COOLDOWN_SECONDS
+        )
+        if self._offering or self._on_break or recent:
+            return
+        self._offering = True
+        try:
+            line = BREAKS[self.breaks_taken % len(BREAKS)]
+            self.breaks_taken += 1
+            number = self.breaks_taken
+            self._on_break = True
+            if self._taken is not None:
+                self._taken(number)
+            await self._say(line, remembered=True)
+            # Counts only: what is said in a session is never logged.
+            logger.info("break offered", extra={"breaks": number})
+            if self._on_break:
+                self._resume = asyncio.create_task(self._ask_to_go_on(number))
+        finally:
+            self._offering = False
+
+    def student_spoke(self) -> None:
+        """The student is back, or never left: the break is over."""
+        if not self._on_break:
+            return
+        self._on_break = False
+        self._break_ended = self._clock()
+        if self._resume is not None:
+            self._resume.cancel()
+            self._resume = None
+
+    def close(self) -> None:
+        if self._resume is not None:
+            self._resume.cancel()
+
+    async def _ask_to_go_on(self, number: int) -> None:
+        await self._sleep(self._break_seconds)
+        if not self._on_break or self.breaks_taken != number:
+            return
+        self._on_break = False
+        self._break_ended = self._clock()
+        self._resume = None
+        await self._say("break_over", remembered=True, interruptible=True)
+
+    async def _say(self, line: str, *, remembered: bool, interruptible: bool = False) -> None:
+        await self._quiet()
+        await self._session.say(
+            reply(line, self._language),
+            add_to_chat_ctx=remembered,
+            allow_interruptions=interruptible,
+        )
+
+    async def _quiet(self) -> None:
+        """Waits until the tutor owes no reply and the student is not talking."""
+        waited = 0.0
+        while waited < QUIET_TIMEOUT_SECONDS:
+            if (
+                self._session.agent_state in ("listening", "idle")
+                and self._session.user_state != "speaking"
+            ):
+                return
+            await self._sleep(QUIET_POLL_SECONDS)
+            waited += QUIET_POLL_SECONDS
