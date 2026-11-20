@@ -17,7 +17,7 @@ from . import drill, visuals
 from .greetings import greeting as written_greeting
 from .replies import ADULT_HELP_SEQUENCE, ANSWERABLE, MEANWHILE, reply
 from .safety import Gates
-from .script import Flow, Line, Reply
+from .script import Engine, Line, Reply
 
 logger = logging.getLogger("aule.agent.tutor")
 
@@ -475,7 +475,7 @@ class Tutor(Agent):
         checker: Checker | None = None,
         student_name: str | None = None,
         session_number: int | None = None,
-        flow: Flow | None = None,
+        engine: Engine | None = None,
         breaks: bool = False,
         heard: Callable[[float], None] | None = None,
     ) -> None:
@@ -485,7 +485,7 @@ class Tutor(Agent):
         # `checker` judges answers to computations, so the model neither has to
         # work them out nor holds the answer of an exercise that is still open.
         # `student_name` and `session_number` only choose and fill the greeting.
-        # `flow` is the session engine: what it wrote is said as written, and
+        # `engine` is the session engine: what it wrote is said as written, and
         # the model speaks only when the student leaves the script.
         # `persona` is the tutor's name, tone preset and (already-moderated)
         # family note; the default leaves the prompt exactly as written.
@@ -575,7 +575,7 @@ class Tutor(Agent):
         self._hazards_in_a_row = 0
         # Told how sure the speech recognition was of each final transcript.
         self._heard = heard
-        self._flow = flow
+        self._engine = engine
         # Which answer of the engine is being said. Lines of an older one stop
         # as soon as a newer answer arrives.
         self._script_turn = 0
@@ -609,7 +609,7 @@ class Tutor(Agent):
     async def on_enter(self) -> None:
         # The engine's own opening when it runs the session; otherwise a
         # written greeting. Either way no model writes the first words.
-        opening = self._flow.opening() if self._flow is not None else ()
+        opening = self._engine.opening() if self._engine is not None else ()
         if opening:
             await self._say(opening)
             return
@@ -680,9 +680,9 @@ class Tutor(Agent):
     async def _scripted(self, text: str) -> bool:
         """Lets the engine answer what the student said. True when the turn is
         over and the model must not be called."""
-        if self._flow is None:
+        if self._engine is None:
             return False
-        reply = await self._flow.said(text)
+        reply = await self._engine.said(text)
         rules = reply.converse if reply is not None else None
         if (rules or "") != self._rules_for_talk:
             # What the model may do while the student talks changes with the

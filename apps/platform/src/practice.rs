@@ -2,7 +2,7 @@
 //! practise until it holds.
 //!
 //! The rules come from the tutoring demo that preceded this platform, where a
-//! rule engine and not a language model decided the flow. They are adapted to
+//! rule engine and not a language model decided the course of it. They are adapted to
 //! a tutor that speaks and makes up its own exercises:
 //!
 //! - Before teaching a skill, ask a couple of questions with no hints and no
@@ -467,7 +467,7 @@ fn running(session: &Session) -> ApiResult<()> {
         return Err(ApiError::Conflict("the session has ended"));
     }
     // The engine poses and checks its own exercises.
-    crate::flow::free(session)
+    crate::engine::free(session)
 }
 
 #[derive(Deserialize)]

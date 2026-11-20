@@ -13,12 +13,14 @@ test("reads a complete environment with defaults", () => {
   assert.equal(settings.port, 8090);
   assert.equal(settings.agentName, "aule-tutor");
   assert.equal(settings.sessionMinutes, 20);
-  assert.equal(settings.flow, null);
+  assert.equal(settings.engine, false);
 });
 
 test("the session engine is asked for only when the page is set to it", () => {
-  assert.equal(readSettings({ ...COMPLETE, PLAYGROUND_FLOW: "engine" }).flow, "engine");
-  assert.throws(() => readSettings({ ...COMPLETE, PLAYGROUND_FLOW: "motor" }), /PLAYGROUND_FLOW/);
+  assert.equal(readSettings({ ...COMPLETE, PLAYGROUND_ENGINE: "1" }).engine, true);
+  assert.throws(() => readSettings({ ...COMPLETE, PLAYGROUND_ENGINE: "engine" }), /PLAYGROUND_ENGINE/);
+  // The old name stops the page rather than leave the engine off without a word.
+  assert.throws(() => readSettings({ ...COMPLETE, PLAYGROUND_FLOW: "engine" }), /renamed to PLAYGROUND_ENGINE/);
 });
 
 test("the browser URL can differ from the one the agent uses", () => {

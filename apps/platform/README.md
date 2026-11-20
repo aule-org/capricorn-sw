@@ -22,7 +22,7 @@ aule-platform import-skills curriculum/math-primaria.json
 | `devices` | Registration, claim codes, signed check-in and sessions, firmware |
 | `events`, `notices`, `push` | The outbox and its delivery; what families are told; pushes through Firebase Cloud Messaging |
 | `sessions` | Room tokens, the agent's API for one session, the review job |
-| `flow` | A session run by the session engine (`engine/`): what the student said becomes the engine's inputs, what the engine answers becomes lines for the tutor and steps for the page |
+| `engine` | A session run by the session engine (`engine/`): what the student said becomes the engine's inputs, what the engine answers becomes lines for the tutor and steps for the page |
 | `jobs` | The Postgres job queue and the housekeeping |
 | `llm`, `livekit`, `mail`, `auth`, `config`, `error` | Claude with a forced structured answer, room tokens, the two kinds of caller, settings, the error shape |
 
@@ -63,7 +63,7 @@ Devices do not use a bearer token: they sign with the key burned into them.
 | `GET /v1/children/{id}/memories?query=` | What is remembered, closest to the query first |
 | `DELETE /v1/children/{id}/memories/{memory_id}` | Forget one thing |
 | `GET /v1/children/{id}/reviews` | Notes from past sessions |
-| `POST /v1/sessions` | A session and its room token. A guardian can only start a child's session. Optional `objective`: what the family says the session is for, `{kind: homework, exam_prep, exam_review or explore, subject (one of the subjects, or other), topic (up to 200 characters), due (a date)}`; the supervisor plans for it first. Optional `flow: "engine"` asks for the [session engine](#sessions-run-by-the-session-engine) to run the session; the response's `flow` is `"engine"` when it does and `null` otherwise |
+| `POST /v1/sessions` | A session and its room token. A guardian can only start a child's session. Optional `objective`: what the family says the session is for, `{kind: homework, exam_prep, exam_review or explore, subject (one of the subjects, or other), topic (up to 200 characters), due (a date)}`; the supervisor plans for it first. Optional `engine: true` asks for the [session engine](#sessions-run-by-the-session-engine) to run the session; the response's `engine` says whether it does |
 | `GET /v1/sessions/{id}/step` | Where a session the engine runs is, for the student's screen. 409 when the engine does not run the session or it has ended |
 | `POST /v1/sessions/{id}/answers` | An answer typed on that screen: `{"answer", "explanation"?}`. Returns the new step; the tutor collects what to say about it with its next report of turns |
 | `GET /v1/skills` | The skill catalog |
@@ -211,11 +211,11 @@ What it does not check: anything that is not arithmetic on whole numbers, fracti
 
 ## Sessions run by the session engine
 
-The session engine in [`engine/`](../../engine/README.md) decides a whole session without a model: a screening, then for each level a discovery stage and practice, then the homework or a simulated exam, and the report for the family. [`flow`](src/flow/mod.rs) runs it for a session, and the tutor says what it decides.
+The session engine in [`engine/`](../../engine/README.md) decides a whole session without a model: a screening, then for each level a discovery stage and practice, then the homework or a simulated exam, and the report for the family. [`engine`](src/engine/mod.rs) runs it for a session, and the tutor says what it decides.
 
-The engine runs a session only when all of this holds; otherwise the session is created as always and `flow` is `null`:
+The engine runs a session only when all of this holds; otherwise the session is created as always and `engine` is `false`:
 
-- the request sent `flow: "engine"`;
+- the request sent `engine: true`;
 - the session has a child and its language is Spanish (the engine's texts exist in Spanish only);
 - the objective is one the compiled-in bank covers. Today that is fractions in mathematics: `subject` is `matematica` or left out, and `topic` names fractions ("Fracciones", "suma de fracciones").
 
@@ -261,7 +261,7 @@ Spoken words arrive as one text, and no model reads them:
 1. "Estoy cansado" starts the engine's break, and asking to leave the screening leaves it.
 2. When an answer is awaited and the text holds one, it is graded with the engine's own checker (value and form). The answer is the number said before "porque" or the end of the first sentence, when there is one there; the whole text is the explanation, checked with the engine's key words. Where an explanation is required and missing, the answer is held and the student is asked once how they worked it out.
 3. "No sé" is a wrong answer where there are no hints (the screening, the simulated exam) and a request for a hint elsewhere. "No entiendo" in the screening is a question, not an answer.
-4. In the guided moments (a date, "¿empezamos?", the theory) text that moves the flow goes to the engine as text.
+4. In the guided moments (a date, "¿empezamos?", the theory) text that moves the session on goes to the engine as text.
 5. Anything else is conversation: the engine is told its intent, from its own deterministic classifier, and `converse` is returned. Asking for help or for the answer gets the engine's hints, or its fixed line where there are none; asking to hear the exercise again gets its statement.
 
 An answer typed on the page is only ever an answer: rules 1 and 5 do not apply to it.
@@ -289,7 +289,7 @@ An answer typed on the page is only ever an answer: rules 1 and 5 do not apply t
 
 ### What is stored, and for how long
 
-The engine keeps its state in memory and cannot be serialized, so a session is stored as the inputs that went into it (`session_flow_inputs`), in order, each with the engine's clock when it was applied. Applying them again rebuilds the same engine: after a restart, in the worker, or in another process. The engine's clock is set by the platform from the time since the session's first input; before each input the time that passed is applied, so a hint for an exercise that takes long, the end of a break and the warning before the last exercises happen on time.
+The engine keeps its state in memory and cannot be serialized, so a session is stored as the inputs that went into it (`session_engine_inputs`), in order, each with the engine's clock when it was applied. Applying them again rebuilds the same engine: after a restart, in the worker, or in another process. The engine's clock is set by the platform from the time since the session's first input; before each input the time that passed is applied, so a hint for an exercise that takes long, the end of a break and the warning before the last exercises happen on time.
 
 The inputs hold what the student said, so they follow the rule of the transcript: deleted after the review unless the guardian agreed to keep transcripts, then when a kept transcript expires, and when that consent is taken back. They are never logged.
 

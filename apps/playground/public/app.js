@@ -619,7 +619,7 @@ async function join(session) {
   // The supervisor's plan is for the team. It stays off the screen unless the
   // person asked for it, so a child never reads what the tutor is aiming at.
   sessionId = session.session_id ?? null;
-  if (session.session_id && session.flow === "engine") followSteps(session.session_id);
+  if (session.session_id && session.engine === true) followSteps(session.session_id);
   clearTimeout(reportTimer);
   $("report").hidden = true;
   if (session.session_id && $("operator").checked) {

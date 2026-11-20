@@ -23,9 +23,9 @@ pub mod outbox;
 pub mod push_token;
 pub mod session;
 pub mod session_brief;
+pub mod session_engine_input;
 pub mod session_exercise;
 pub mod session_flag;
-pub mod session_flow_input;
 pub mod session_guidance;
 pub mod session_model_usage;
 pub mod session_review;
@@ -63,5 +63,5 @@ pub fn schema() -> sea_orm::SchemaBuilder {
         .register(notice::Entity)
         .register(push_token::Entity)
         .register(session_model_usage::Entity)
-        .register(session_flow_input::Entity)
+        .register(session_engine_input::Entity)
 }

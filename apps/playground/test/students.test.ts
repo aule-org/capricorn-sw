@@ -348,7 +348,7 @@ test("a session carries what the family said it is for, and nothing when they sa
 test("a page set to the engine asks for it in every family session", async () => {
   const url = `http://127.0.0.1:${(platform.address() as AddressInfo).port}`;
   const withEngine = createPlayground(
-    readSettings({ ...COMPLETE, AULE_PLATFORM_URL: url, AULE_ADMIN_TOKEN: "admin", PLAYGROUND_FLOW: "engine" }),
+    readSettings({ ...COMPLETE, AULE_PLATFORM_URL: url, AULE_ADMIN_TOKEN: "admin", PLAYGROUND_ENGINE: "1" }),
   );
   await new Promise<void>((resolve) => withEngine.listen(0, "127.0.0.1", resolve));
   try {
@@ -367,6 +367,6 @@ test("a page set to the engine asks for it in every family session", async () =>
     language: "es",
     child_id: LIAM,
     objective: { kind: "homework", subject: "matematica", topic: "fracciones", due: null },
-    flow: "engine",
+    engine: true,
   });
 });

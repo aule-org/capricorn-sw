@@ -29,7 +29,7 @@ use crate::families::{Child, child_for, current_consent, find_child};
 use crate::livekit::{RoomToken, room_token};
 use crate::state::AppState;
 use crate::supervisor::{self, Brief, PlanInputs, Turn};
-use crate::{events, flow, jobs, learning, llm, memory};
+use crate::{engine, events, jobs, learning, llm, memory};
 
 pub const AUDIENCES: [&str; 2] = ["child", "operator"];
 /// How long the agent waits for the supervisor's plan before starting with
@@ -52,10 +52,10 @@ pub struct NewSession {
     /// What the family says this session is for.
     #[serde(default)]
     objective: Option<ObjectiveInput>,
-    /// "engine" asks for the session engine to run the session. It does when
-    /// it can; see `flow::goal`.
+    /// Asks for the session engine to run the session. It does when it can;
+    /// see `engine::goal`.
     #[serde(default)]
-    flow: Option<String>,
+    engine: bool,
 }
 
 const TOKEN_GRACE_SECONDS: i64 = 5 * 60;
@@ -119,13 +119,9 @@ pub async fn create_session(
         }
         None => None,
     };
-    let engine = match body.flow.as_deref() {
-        None => false,
-        Some(flow::ENGINE) => true,
-        Some(_) => return Err(ApiError::bad_request("flow must be \"engine\" when it is sent")),
-    };
     let objective = body.objective.map(ObjectiveInput::checked).transpose()?;
-    let session = open_session(&state, child, &body.audience, body.language, None, objective, engine).await?;
+    let session =
+        open_session(&state, child, &body.audience, body.language, None, objective, body.engine).await?;
     Ok((StatusCode::CREATED, Json(session)))
 }
 
@@ -167,10 +163,10 @@ pub async fn open_session(
     };
     let language =
         language.or(child.as_ref().map(|child| child.language.clone())).unwrap_or_else(|| "es".to_string());
-    let flow = (engine && child.is_some() && flow::goal(objective.as_ref(), &language).is_some())
-        .then_some(flow::ENGINE);
-    let flow_start = match (&child, flow) {
-        (Some(child), Some(_)) => Some(flow::start_for(&txn, child.id, state.config.session_minutes).await?),
+    // Asked for, and able to: a child, and an objective the engine's bank covers.
+    let runs_engine = engine && child.is_some() && engine::goal(objective.as_ref(), &language).is_some();
+    let engine_start = match (&child, runs_engine) {
+        (Some(child), true) => Some(engine::start_for(&txn, child.id, state.config.session_minutes).await?),
         _ => None,
     };
 
@@ -190,8 +186,8 @@ pub async fn open_session(
         use_memory: Set(use_memory),
         device_id: Set(device_id),
         objective: Set(objective.clone()),
-        flow: Set(flow.map(str::to_string)),
-        flow_start: Set(flow_start),
+        engine: Set(runs_engine),
+        engine_start: Set(engine_start),
         ..Default::default()
     })
     .exec_without_returning(&txn)
@@ -242,7 +238,7 @@ pub async fn open_session(
         "agentName": state.config.agent_name,
         // What a clock on the page counts down: the session, not the token.
         "expiresInSeconds": session_seconds,
-        "flow": flow,
+        "engine": runs_engine,
     }))
 }
 
@@ -408,8 +404,8 @@ pub async fn agent_start(Agent(session): Agent, State(state): State<AppState>) -
         "session_number": session_number,
     });
     // The engine opens its sessions itself: these are the tutor's first lines.
-    if flow::runs(&session) {
-        start["script"] = flow::open(&state, &session).await?;
+    if engine::runs(&session) {
+        start["script"] = engine::open(&state, &session).await?;
     }
     Ok(Json(start))
 }
@@ -582,11 +578,12 @@ pub async fn agent_turns(
     // "offer" while a break is due; the agent says it once and reports it taken.
     // The engine gives its own breaks, as lines of its script: a second offer
     // from here would be a second system of breaks.
-    let pause = if flow::runs(&session) { None } else { pause(&state, &session, body.breaks_taken).await? };
+    let pause =
+        if engine::runs(&session) { None } else { pause(&state, &session, body.breaks_taken).await? };
     let mut answer = json!({ "guidance": guidance, "plan": plan, "stop": stop, "pause": pause });
     // What the engine answered to something typed on the page, for the tutor to say.
-    if flow::runs(&session)
-        && let Some(script) = flow::queued(&state.db, session.id).await?
+    if engine::runs(&session)
+        && let Some(script) = engine::queued(&state.db, session.id).await?
     {
         answer["script"] = script;
     }
@@ -634,7 +631,7 @@ async fn watch(state: &AppState, session: &Session) -> ApiResult<()> {
     }
     // The engine decides what the tutor does next; advice would pull against
     // it. What the supervisor read (not working, tired) still counts above.
-    if !guidance.is_empty() && !flow::runs(session) {
+    if !guidance.is_empty() && !engine::runs(session) {
         let signals =
             serde_json::to_value(&guidance.signals).map_err(|error| ApiError::Internal(error.to_string()))?;
         session_guidance::Entity::insert(session_guidance::ActiveModel {
@@ -734,7 +731,7 @@ pub async fn agent_end(
             .await?;
     }
     end_session(&state.db, session.id, speaking_seconds, reason).await?;
-    flow::forget(&state, session.id);
+    engine::forget(&state, session.id);
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -871,7 +868,7 @@ pub async fn review_session(state: &AppState, session_id: Uuid) -> ApiResult<()>
     // and leaves the child's level and its graded exercises behind. Done
     // first: it needs the session's inputs, which do not outlive a review
     // that keeps failing.
-    let engine_report = flow::conclude(state, &session).await?;
+    let engine_report = engine::conclude(state, &session).await?;
     if let (Some(report), Some(child_id)) = (&engine_report, session.child_id) {
         session_review::Entity::insert(session_review::ActiveModel {
             session_id: Set(session.id),
@@ -965,7 +962,7 @@ pub async fn review_session(state: &AppState, session_id: Uuid) -> ApiResult<()>
         // The engine's report, once written, is what the family reads: the
         // supervisor adds its next step and flags, not its own summary.
         let mut written = vec![session_review::Column::NextStep, session_review::Column::Flags];
-        if !flow::runs(&session) {
+        if !engine::runs(&session) {
             written.push(session_review::Column::GuardianSummary);
         }
         session_review::Entity::insert(session_review::ActiveModel {
@@ -999,7 +996,7 @@ pub async fn review_session(state: &AppState, session_id: Uuid) -> ApiResult<()>
             [session.id.into()],
         ))
         .await?;
-    flow::delete_inputs_after_review(&state.db, session.id).await?;
+    engine::delete_inputs_after_review(&state.db, session.id).await?;
     session_row::Entity::update_many()
         .col_expr(session_row::Column::ReviewedAt, Expr::current_timestamp())
         .filter(session_row::Column::Id.eq(session.id))

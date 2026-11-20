@@ -17,14 +17,14 @@ fn setup(goal: Goal) -> Setup {
     }
 }
 
-fn flow(goal: Goal) -> Flow {
-    Flow::new(setup(goal), bank().unwrap())
+fn engine(goal: Goal) -> Engine {
+    Engine::new(setup(goal), bank().unwrap())
 }
 
 /// A student who answers what the engine awaits, right or wrong, with the
 /// explanation in its own field the way a caller that can tell them apart does.
 struct Student {
-    flow: Flow,
+    engine: Engine,
     /// The engine's clock, moved by the test.
     now: u64,
     records: Vec<Record>,
@@ -37,35 +37,35 @@ impl Student {
     }
 
     fn from(setup: Setup) -> Self {
-        let flow = Flow::new(setup, bank().unwrap());
-        let mut student = Self { flow, now: 0, records: Vec::new(), turns: Vec::new() };
-        let opening = student.flow.open(0);
+        let engine = Engine::new(setup, bank().unwrap());
+        let mut student = Self { engine, now: 0, records: Vec::new(), turns: Vec::new() };
+        let opening = student.engine.open(0);
         student.keep(opening);
         student
     }
 
     fn keep(&mut self, turn: Turn) -> Turn {
-        self.records.extend(self.flow.unsaved().iter().cloned());
-        self.flow.saved();
+        self.records.extend(self.engine.unsaved().iter().cloned());
+        self.engine.saved();
         self.turns.push(turn.clone());
         turn
     }
 
     fn says(&mut self, said: &str) -> Turn {
         self.now += 45_000;
-        let turn = self.flow.said(self.now, said, None, false);
+        let turn = self.engine.said(self.now, said, None, false);
         self.keep(turn)
     }
 
     fn explains(&mut self, said: &str, explanation: &str) -> Turn {
         self.now += 45_000;
-        let turn = self.flow.said(self.now, said, Some(explanation), false);
+        let turn = self.engine.said(self.now, said, Some(explanation), false);
         self.keep(turn)
     }
 
     /// Answers what is awaited. `right` chooses the answer and the explanation.
     fn answers(&mut self, right: bool) -> Turn {
-        match self.flow.motor.esperando() {
+        match self.engine.motor.esperando() {
             Esperando::Respuesta { respuesta, opciones, claves, .. } => {
                 let answer = match (right, opciones.iter().find(|option| **option != respuesta)) {
                     (true, _) => respuesta,
@@ -86,12 +86,12 @@ impl Student {
                 self.now += 5 * 60_000;
                 turn
             }
-            Esperando::Nada => panic!("nothing is awaited at {}", self.flow.motor.actividad()),
+            Esperando::Nada => panic!("nothing is awaited at {}", self.engine.motor.actividad()),
         }
     }
 
     fn at(&self) -> String {
-        self.flow.motor.actividad()
+        self.engine.motor.actividad()
     }
 
     /// Answers right until the engine is somewhere whose name starts with `stage`.
@@ -170,12 +170,12 @@ fn a_session_runs_from_the_greeting_to_the_report() {
 
     // To the end, answering right, with the breaks the engine gives.
     for _ in 0..600 {
-        if student.flow.closed() {
+        if student.engine.closed() {
             break;
         }
         student.answers(true);
     }
-    assert!(student.flow.closed(), "still at {}", student.at());
+    assert!(student.engine.closed(), "still at {}", student.at());
     let goodbye = student.turns.last().unwrap();
     assert!(goodbye.closed && said_by_tutor(goodbye).contains("Mateo"), "{goodbye:?}");
 
@@ -197,7 +197,7 @@ fn a_session_runs_from_the_greeting_to_the_report() {
     assert!(student.turns.iter().all(|turn| turn.converse.is_none()));
 
     // The family's report, in the engine's words.
-    let report = student.flow.report().unwrap();
+    let report = student.engine.report().unwrap();
     assert!(report.starts_with("¡Hola, Ana! Te saluda Aule, tutor de Mateo."), "{report}");
     assert!(report.contains("Matemáticas"), "{report}");
 }
@@ -229,23 +229,23 @@ fn an_engine_rebuilt_from_its_inputs_is_the_same_engine() {
     student.answers(true);
     assert!(student.records.iter().filter(|record| record.input == Input::Tick).count() >= 2);
 
-    let view = |flow: &Flow| serde_json::to_value(flow.motor.vista()).unwrap();
+    let view = |engine: &Engine| serde_json::to_value(engine.motor.vista()).unwrap();
     for upto in [1, 2, student.records.len() / 2, student.records.len()] {
-        let rebuilt = Flow::replay(setup(Goal::ExamPrep), bank().unwrap(), &student.records[..upto]);
+        let rebuilt = Engine::replay(setup(Goal::ExamPrep), bank().unwrap(), &student.records[..upto]);
         if upto == student.records.len() {
-            assert_eq!(view(&rebuilt), view(&student.flow));
-            assert_eq!(rebuilt.step(student.now), student.flow.step(student.now));
+            assert_eq!(view(&rebuilt), view(&student.engine));
+            assert_eq!(rebuilt.step(student.now), student.engine.step(student.now));
         }
         assert_eq!(rebuilt.stored(), upto);
     }
 
     // The rebuilt engine goes on exactly like the live one.
-    let mut rebuilt = Flow::replay(setup(Goal::ExamPrep), bank().unwrap(), &student.records);
+    let mut rebuilt = Engine::replay(setup(Goal::ExamPrep), bank().unwrap(), &student.records);
     for said in ["3/4", "no sé", "¿qué significa simplificar?", "estoy cansado"] {
         student.now += 20_000;
-        let live = student.flow.said(student.now, said, None, false);
+        let live = student.engine.said(student.now, said, None, false);
         assert_eq!(rebuilt.said(student.now, said, None, false), live, "{said}");
-        assert_eq!(view(&rebuilt), view(&student.flow), "{said}");
+        assert_eq!(view(&rebuilt), view(&student.engine), "{said}");
     }
 
     // What is stored reads back as the same inputs.
@@ -287,7 +287,7 @@ fn names(value: &Value, found: &mut std::collections::BTreeSet<String>) {
 /// The step must not carry what the engine keeps from the student: the
 /// expected answer, the key words of the explanation, the criteria.
 fn assert_no_answer(student: &Student) {
-    let step = student.flow.step(student.now);
+    let step = student.engine.step(student.now);
     let text = step.to_string();
     let mut fields = std::collections::BTreeSet::new();
     names(&step, &mut fields);
@@ -332,13 +332,13 @@ fn assert_no_answer(student: &Student) {
     }
     let mut shown = Vec::new();
     strings(&step, &mut shown);
-    let card = student.flow.card();
+    let card = student.engine.card();
     // What the engine itself puts in front of the student.
     let visible = card
         .as_ref()
         .map(|card| format!("{} {} {}", card.enunciado, card.nota.clone().unwrap_or_default(), card.titulo))
         .unwrap_or_default();
-    match student.flow.motor.esperando() {
+    match student.engine.motor.esperando() {
         Esperando::Respuesta { respuesta, opciones, criterio, claves, .. } => {
             if opciones.is_empty() {
                 // The answer is nowhere as a value of its own, and nowhere at
@@ -389,7 +389,7 @@ fn the_students_screen_never_gets_the_answer_or_how_it_is_checked() {
     assert_no_answer(&student);
     let mut stages = std::collections::BTreeSet::new();
     for turn in 0..800 {
-        if student.flow.closed() {
+        if student.engine.closed() {
             break;
         }
         // Wrong now and then, so the screening leaves levels to discover, and
@@ -398,11 +398,11 @@ fn the_students_screen_never_gets_the_answer_or_how_it_is_checked() {
         assert_no_answer(&student);
         stages.insert(student.at().split(':').next().unwrap().to_string());
     }
-    assert!(student.flow.closed());
+    assert!(student.engine.closed());
     for stage in ["tamizaje", "etapa1", "etapa2", "terminada"] {
         assert!(stages.contains(stage), "{stage} was never seen: {stages:?}");
     }
-    let step = student.flow.step(student.now);
+    let step = student.engine.step(student.now);
     assert_eq!((step["closed"].clone(), step["card"].clone()), (json!(true), Value::Null));
     assert!(step["route"].as_array().unwrap().iter().all(|part| part["state"] == "done"), "{step}");
 }
@@ -485,10 +485,10 @@ fn a_spoken_answer_is_split_into_the_number_and_how_it_was_worked_out() {
     assert!(!student.at().starts_with("tamizaje"));
     assert!(
         student
-            .flow
+            .engine
             .held
             .as_ref()
-            .is_none_or(|held| Some(&held.card) != student.flow.card().as_ref().map(card_key).as_ref())
+            .is_none_or(|held| Some(&held.card) != student.engine.card().as_ref().map(card_key).as_ref())
     );
 }
 
@@ -525,7 +525,7 @@ fn what_is_not_an_answer_goes_where_the_engine_expects_it() {
     let turn = student.says("¿me repites la pregunta?");
     assert_eq!(turn.converse, None);
     assert_eq!(turn.lines.len(), 1);
-    assert_eq!(turn.lines[0].say, student.flow.card().unwrap().enunciado);
+    assert_eq!(turn.lines[0].say, student.engine.card().unwrap().enunciado);
 
     // Chatter is conversation, and moves nothing.
     let turn = student.says("mi perro se llama Rocky");
@@ -564,12 +564,12 @@ fn what_is_not_an_answer_goes_where_the_engine_expects_it() {
         student.answers(false);
     }
     assert_eq!(student.at(), "etapa1:2:teoria");
-    let card = student.flow.card().unwrap().enunciado;
+    let card = student.engine.card().unwrap().enunciado;
     let turn = student.says("¿y por qué se llaman equivalentes los dos?");
     assert!(turn.converse.is_some(), "{turn:?}");
-    assert_eq!(student.flow.card().unwrap().enunciado, card);
+    assert_eq!(student.engine.card().unwrap().enunciado, card);
     student.says("entendido, sigue");
-    assert_ne!(student.flow.card().unwrap().enunciado, card);
+    assert_ne!(student.engine.card().unwrap().enunciado, card);
 }
 
 #[test]
@@ -578,23 +578,23 @@ fn a_typed_answer_is_an_answer_and_nothing_else() {
     let at = student.at();
     // Not a number: the engine asks for it again, with no model and no hint.
     student.now += 1000;
-    let turn = student.flow.said(student.now, "hola", None, true);
+    let turn = student.engine.said(student.now, "hola", None, true);
     assert!(said_by_tutor(&turn).contains("No te entendí la respuesta"), "{turn:?}");
     assert_eq!((student.at(), turn.converse), (at.clone(), None));
     // "Estoy cansado" in the answer box is not a request for a break.
-    let turn = student.flow.said(student.now, "estoy cansado", None, true);
+    let turn = student.engine.said(student.now, "estoy cansado", None, true);
     assert_eq!((student.at(), turn.converse), (at, None));
 
     // The screening wants the explanation in its own box.
     let mut student = in_screening();
-    let turn = student.flow.said(1000, "3/8", None, true);
+    let turn = student.engine.said(1000, "3/8", None, true);
     assert_eq!(said_by_tutor(&turn), ASK_HOW);
-    let turn = student.flow.said(2000, "3/8", Some("el 8 es el total y el 3 las pintadas"), true);
+    let turn = student.engine.said(2000, "3/8", Some("el 8 es el total y el 3 las pintadas"), true);
     assert_eq!(student.at(), "tamizaje:2", "{turn:?}");
 
     // An explanation that was written is not asked for again, even a thin one.
     let mut student = in_screening();
-    let turn = student.flow.said(1000, "3/8", Some("lo vi en el dibujo"), true);
+    let turn = student.engine.said(1000, "3/8", Some("lo vi en el dibujo"), true);
     assert_ne!(said_by_tutor(&turn), ASK_HOW);
     assert_eq!(student.at(), "tamizaje:2", "{turn:?}");
 }
@@ -649,7 +649,7 @@ fn a_line_that_answers_the_students_own_words_is_marked() {
         assert!(turn.lines.iter().all(|line| !line.echoes), "{turn:?}");
     }
     // The report does not quote the student either, except a topic they asked for.
-    assert!(!student.flow.report().unwrap_or_default().contains(marker));
+    assert!(!student.engine.report().unwrap_or_default().contains(marker));
 }
 
 #[test]
@@ -693,28 +693,28 @@ fn only_what_the_bank_covers_is_run_by_the_engine() {
         (Goal::ExamPrep, "prepararnos para tu Evaluación de Fracciones"),
         (Goal::Explore, "aprender algo nuevo de Fracciones"),
     ] {
-        let opening = flow(kind).open(0);
+        let opening = engine(kind).open(0);
         assert!(said_by_tutor(&opening).contains(said), "{opening:?}");
     }
 }
 
 #[test]
 fn the_opening_is_the_same_until_something_happens() {
-    let mut flow = flow(Goal::Homework);
-    let opening = flow.open(0);
-    assert_eq!(flow.unsaved(), [Record { at_ms: 0, input: Input::Start }]);
-    flow.saved();
+    let mut engine = engine(Goal::Homework);
+    let opening = engine.open(0);
+    assert_eq!(engine.unsaved(), [Record { at_ms: 0, input: Input::Start }]);
+    engine.saved();
     // A tutor that asks again gets the same lines, and the engine is not started twice.
-    assert_eq!(flow.open(5000), opening);
-    assert!(flow.unsaved().is_empty());
+    assert_eq!(engine.open(5000), opening);
+    assert!(engine.unsaved().is_empty());
 
     // Later, a tutor that reconnects is told where the session is.
-    flow.said(6000, "sí", None, false);
-    flow.saved();
-    let again = flow.open(9000);
+    engine.said(6000, "sí", None, false);
+    engine.saved();
+    let again = engine.open(9000);
     assert_eq!(again.lines.len(), 1);
-    assert_eq!(again.lines[0].say, flow.card().unwrap().enunciado);
-    assert!(flow.unsaved().is_empty());
+    assert_eq!(again.lines[0].say, engine.card().unwrap().enunciado);
+    assert!(engine.unsaved().is_empty());
 }
 
 /// A session that starts from what an earlier one left.
@@ -734,7 +734,7 @@ fn a_student_who_was_screened_is_not_screened_again() {
     }
     assert!(first.at().starts_with("etapa1:3"), "{}", first.at());
     first.says("me gustaría aprender de zanahorias moradas");
-    let kept = first.flow.kept();
+    let kept = first.engine.kept();
     assert_eq!(kept.levels.get("Fracciones"), Some(&2));
     assert_eq!(kept.sessions, 1);
     assert!(kept.unfinished_screenings.is_empty());
@@ -758,18 +758,18 @@ fn a_student_who_was_screened_is_not_screened_again() {
     assert_eq!(second.at(), "etapa1:3:teoria", "{}", said_by_tutor(&started));
     assert!(!said_by_tutor(&started).contains("Pregunta 1 de 5"));
     assert!(!said_by_tutor(&started).contains("Tamizaje"));
-    assert_eq!(second.flow.kept().sessions, 2);
+    assert_eq!(second.engine.kept().sessions, 2);
 
     // A session rebuilt from its inputs starts from the same profile.
     second.until("etapa2:3");
     second.answers(true);
     let mut setup = setup(Goal::Homework);
     setup.start.kept = kept;
-    let rebuilt = Flow::replay(setup, bank().unwrap(), &second.records);
-    assert_eq!(rebuilt.step(second.now), second.flow.step(second.now));
+    let rebuilt = Engine::replay(setup, bank().unwrap(), &second.records);
+    assert_eq!(rebuilt.step(second.now), second.engine.step(second.now));
     // ...and not from nothing: without the profile the same inputs give another session.
-    let blank = Flow::replay(self::setup(Goal::Homework), bank().unwrap(), &second.records);
-    assert_ne!(blank.step(second.now), second.flow.step(second.now));
+    let blank = Engine::replay(self::setup(Goal::Homework), bank().unwrap(), &second.records);
+    assert_ne!(blank.step(second.now), second.engine.step(second.now));
 }
 
 #[test]
@@ -779,7 +779,7 @@ fn a_screening_left_half_way_is_taken_up_where_it_stopped() {
     let mut first = in_screening();
     first.answers(true);
     first.says("quiero salir del tamizaje");
-    let kept = first.flow.kept();
+    let kept = first.engine.kept();
     assert_eq!(kept.unfinished_screenings.len(), 1, "{kept:?}");
 
     let mut second = next_session(Goal::Homework, kept);
@@ -787,13 +787,13 @@ fn a_screening_left_half_way_is_taken_up_where_it_stopped() {
     let said = said_by_tutor(&started);
     assert!(said.contains("La vez pasada empezamos el Tamizaje"), "{said}");
     assert!(said.contains("Pregunta 1 de 5") && !said.contains("son 5 preguntas, de la más fácil"), "{said}");
-    assert_ne!(second.flow.card().unwrap().id, Some("n1-t1".to_string()), "another question of that level");
+    assert_ne!(second.engine.card().unwrap().id, Some("n1-t1".to_string()), "another question of that level");
 
     // Closed by the agent in the middle of the screening: the same.
     let mut cut = in_screening();
     cut.answers(true);
     cut.answers(true);
-    let mut third = next_session(Goal::Homework, cut.flow.kept());
+    let mut third = next_session(Goal::Homework, cut.engine.kept());
     assert!(said_by_tutor(&third.says("sí")).contains("Pregunta 3 de 5"));
 }
 
@@ -808,14 +808,14 @@ fn every_graded_exercise_is_evidence_for_the_learner_model() {
     student.answers(true);
     student.answers(true);
     let credits: Vec<(&str, f64)> =
-        student.flow.outcomes().iter().map(|outcome| (outcome.exercise.as_str(), outcome.credit)).collect();
+        student.engine.outcomes().iter().map(|outcome| (outcome.exercise.as_str(), outcome.credit)).collect();
     assert_eq!(credits, [("n1-t1", 1.0), ("n2-t1", 0.0), ("n3-t1", 0.0), ("n4-t1", 1.0), ("n5-t1", 1.0)]);
-    assert_eq!(student.flow.outcomes()[0].skill, Some("fracciones.concepto-numerador-y-denominador"));
-    assert_eq!(student.flow.outcomes()[4].skill, Some("fracciones.fraccion-de-una-cantidad"));
+    assert_eq!(student.engine.outcomes()[0].skill, Some("fracciones.concepto-numerador-y-denominador"));
+    assert_eq!(student.engine.outcomes()[4].skill, Some("fracciones.fraccion-de-una-cantidad"));
 
     // Practice: full credit at the first try, half after a wrong answer or a hint.
     student.until("etapa2:2");
-    let before = student.flow.outcomes().len();
+    let before = student.engine.outcomes().len();
     student.answers(true);
     student.answers(false);
     student.answers(true);
@@ -823,17 +823,18 @@ fn every_graded_exercise_is_evidence_for_the_learner_model() {
     student.answers(true);
     // An answer nobody could read is not an attempt.
     student.now += 1000;
-    let unread = student.flow.said(student.now, "hola", None, true);
+    let unread = student.engine.said(student.now, "hola", None, true);
     student.keep(unread);
     student.answers(true);
-    let practice: Vec<f64> = student.flow.outcomes()[before..].iter().map(|outcome| outcome.credit).collect();
+    let practice: Vec<f64> =
+        student.engine.outcomes()[before..].iter().map(|outcome| outcome.credit).collect();
     assert_eq!(practice, [1.0, 0.5, 0.5, 1.0]);
-    assert!(student.flow.outcomes()[before..].iter().all(|outcome| outcome.skill.is_some()));
-    assert!(student.flow.outcomes().iter().any(|outcome| outcome.choice));
+    assert!(student.engine.outcomes()[before..].iter().all(|outcome| outcome.skill.is_some()));
+    assert!(student.engine.outcomes().iter().any(|outcome| outcome.choice));
 
     // Wrong through every hint and the worked example: the engine goes back
     // to the theory, and the exercise counts as not solved.
-    let before = student.flow.outcomes().len();
+    let before = student.engine.outcomes().len();
     for _ in 0..12 {
         if student.at().starts_with("etapa1") {
             break;
@@ -841,12 +842,12 @@ fn every_graded_exercise_is_evidence_for_the_learner_model() {
         student.answers(false);
     }
     assert!(student.at().starts_with("etapa1"), "{}", student.at());
-    let failed: Vec<f64> = student.flow.outcomes()[before..].iter().map(|outcome| outcome.credit).collect();
+    let failed: Vec<f64> = student.engine.outcomes()[before..].iter().map(|outcome| outcome.credit).collect();
     assert_eq!(failed, [0.0]);
 
     // A rebuilt engine has the same evidence, so it can be recorded from the stored inputs.
-    let rebuilt = Flow::replay(setup(Goal::Homework), bank().unwrap(), &student.records);
-    assert_eq!(rebuilt.outcomes(), student.flow.outcomes());
+    let rebuilt = Engine::replay(setup(Goal::Homework), bank().unwrap(), &student.records);
+    assert_eq!(rebuilt.outcomes(), student.engine.outcomes());
 }
 
 #[test]
@@ -897,48 +898,48 @@ fn every_exercise_of_the_bank_practises_a_skill_of_the_curriculum() {
 #[test]
 fn time_acts_without_the_student_speaking() {
     // Before the session started, time does nothing and starts nothing.
-    let mut idle = flow(Goal::Homework);
+    let mut idle = engine(Goal::Homework);
     assert_eq!(idle.pass(60_000), Turn { lines: Vec::new(), converse: None, closed: false });
     assert!(!idle.started() && idle.unsaved().is_empty());
 
     let mut student = in_practice();
-    let exercise = student.flow.card().unwrap();
+    let exercise = student.engine.card().unwrap();
     let inputs = student.records.len();
     // A moment later: nothing to say, nothing stored.
     student.now += 5_000;
-    let quiet = student.flow.pass(student.now);
+    let quiet = student.engine.pass(student.now);
     assert_eq!((quiet.lines.len(), quiet.converse.clone()), (0, None));
-    assert!(student.flow.unsaved().is_empty());
+    assert!(student.engine.unsaved().is_empty());
 
     // Past the exercise's time: the engine's hint, with nobody having spoken.
     student.now += 10 * 60_000;
-    let late = student.flow.pass(student.now);
+    let late = student.engine.pass(student.now);
     let late = student.keep(late);
     assert!(said_by_tutor(&late).contains("te está tomando un ratito"), "{late:?}");
     assert_eq!(late.converse, None);
     assert_eq!(student.records[inputs..], [Record { at_ms: student.now, input: Input::Tick }]);
     // It was not an answer: the same exercise, no attempt, and only one hint by time.
-    assert_eq!(student.flow.card().unwrap().enunciado, exercise.enunciado);
-    assert!(student.flow.outcomes().iter().all(|outcome| outcome.exercise != exercise.id.clone().unwrap()));
+    assert_eq!(student.engine.card().unwrap().enunciado, exercise.enunciado);
+    assert!(student.engine.outcomes().iter().all(|outcome| outcome.exercise != exercise.id.clone().unwrap()));
     student.now += 10 * 60_000;
-    assert!(student.flow.pass(student.now).lines.is_empty());
+    assert!(student.engine.pass(student.now).lines.is_empty());
     // The hint counts when the exercise is then solved.
     student.answers(true);
-    assert_eq!(student.flow.outcomes().last().unwrap().credit, 0.5);
+    assert_eq!(student.engine.outcomes().last().unwrap().credit, 0.5);
 
     // A break ends on its own, and the exercise is said again.
     student.says("estoy cansado");
     assert_eq!(student.at(), "pausa");
     student.now += 4 * 60_000;
-    assert!(student.flow.pass(student.now).lines.is_empty(), "still in the break");
+    assert!(student.engine.pass(student.now).lines.is_empty(), "still in the break");
     student.now += 61_000;
-    let back = student.flow.pass(student.now);
+    let back = student.engine.pass(student.now);
     let back = student.keep(back);
     assert!(said_by_tutor(&back).contains("seguimos"), "{back:?}");
-    assert_eq!(back.lines.last().unwrap().say, student.flow.card().unwrap().enunciado);
+    assert_eq!(back.lines.last().unwrap().say, student.engine.card().unwrap().enunciado);
     assert!(student.at().starts_with("etapa2"));
-    let rebuilt = Flow::replay(setup(Goal::Homework), bank().unwrap(), &student.records);
-    assert_eq!(rebuilt.step(student.now), student.flow.step(student.now));
+    let rebuilt = Engine::replay(setup(Goal::Homework), bank().unwrap(), &student.records);
+    assert_eq!(rebuilt.step(student.now), student.engine.step(student.now));
 }
 
 /// A whole session of `minutes`, answered right at a steady pace: when it
@@ -953,12 +954,12 @@ fn length_and_breaks(minutes: u32) -> (u64, usize) {
         student.answers(false);
     }
     for _ in 0..600 {
-        if student.flow.closed() {
+        if student.engine.closed() {
             break;
         }
         student.answers(true);
     }
-    assert!(student.flow.closed(), "{minutes}: still at {}", student.at());
+    assert!(student.engine.closed(), "{minutes}: still at {}", student.at());
     let breaks = student
         .turns
         .iter()

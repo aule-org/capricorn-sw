@@ -202,7 +202,7 @@ async def entrypoint(ctx: JobContext) -> None:
         # With the session engine the answers are its own to check, and the
         # model gets no tools to pose or check an exercise by itself.
         checker=platform if platform and not platform.scripted else None,
-        flow=platform if platform and platform.scripted else None,
+        engine=platform if platform and platform.scripted else None,
         # The platform offers the breaks of a session, unless the engine runs
         # it and has breaks of its own.
         breaks=bool(platform and not platform.scripted),
