@@ -20,6 +20,7 @@ use crate::state::AppState;
 pub const SOURCE: &str = "aule/platform";
 pub const SESSION_ENDED: &str = "session.ended.v1";
 pub const SESSION_REVIEWED: &str = "session.reviewed.v1";
+pub const SESSION_STOPPED: &str = "session.stopped.v1";
 pub const SAFETY_FLAGGED: &str = "safety.flagged.v1";
 pub const DEVICE_CLAIMED: &str = "device.claimed.v1";
 const MAX_ATTEMPTS: i32 = 10;

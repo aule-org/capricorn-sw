@@ -372,7 +372,12 @@ pub async fn agent_turns(
         .collect();
     // Repeated on every answer: the agent keeps the first one it sees.
     let plan = late_brief(&state.pool, session.id).await?.map(|brief| brief.as_instructions());
-    Ok(Json(json!({ "guidance": guidance, "plan": plan })))
+    // "warn" or "end", repeated while it holds: the agent says each once.
+    let stop: Option<String> = sqlx::query_scalar("select stop_step from sessions where id = $1")
+        .bind(session.id)
+        .fetch_one(&state.pool)
+        .await?;
+    Ok(Json(json!({ "guidance": guidance, "plan": plan, "stop": stop })))
 }
 
 pub async fn load_turns(pool: &PgPool, session_id: Uuid) -> Result<Vec<Turn>, sqlx::Error> {
@@ -401,6 +406,7 @@ async fn watch(state: &AppState, session: &Session) -> ApiResult<()> {
     let guidance = supervisor::watch(llm.as_ref(), &brief, &turns, &memories, open_exercise.as_ref())
         .await
         .map_err(|error| ApiError::Internal(error.to_string()))?;
+    count_not_trying(state, session, guidance.signals.not_trying).await?;
     if !guidance.is_empty() {
         sqlx::query(
             "insert into session_guidance (session_id, after_seq, guidance, signals) values ($1, $2, $3, $4)",
@@ -415,8 +421,48 @@ async fn watch(state: &AppState, session: &Session) -> ApiResult<()> {
     Ok(())
 }
 
-pub const END_REASONS: [&str; 6] =
-    ["child_ended", "idle", "budget_reached", "parent_ended", "device_offline", "error"];
+pub const END_REASONS: [&str; 7] =
+    ["child_ended", "idle", "budget_reached", "parent_ended", "device_offline", "not_working", "error"];
+
+/// Turns in a row in which the student is plainly not working before the
+/// tutor says so, and before the session closes and the family is told.
+const WARN_AFTER: i32 = 2;
+const STOP_AFTER: i32 = 4;
+
+/// Counts the turn the supervisor just read and decides whether to warn or
+/// close. The decision is the platform's, by count: the model only says
+/// whether this one turn was fooling around.
+async fn count_not_trying(state: &AppState, session: &Session, not_trying: bool) -> Result<(), sqlx::Error> {
+    let mut tx = state.pool.begin().await?;
+    let step: Option<(i32, Option<String>)> = sqlx::query_as(
+        "update sessions set not_trying_streak = case when $2 then not_trying_streak + 1 else 0 end
+         where id = $1 and status <> 'ended' returning not_trying_streak, stop_step",
+    )
+    .bind(session.id)
+    .bind(not_trying)
+    .fetch_optional(&mut *tx)
+    .await?;
+    let Some((streak, before)) = step else { return Ok(()) };
+    // Once the close is asked for it stands, whatever is said afterwards.
+    let now = match (before.as_deref(), streak) {
+        (Some("end"), _) => Some("end"),
+        (_, streak) if streak >= STOP_AFTER => Some("end"),
+        (_, streak) if streak >= WARN_AFTER => Some("warn"),
+        _ => None,
+    };
+    if now != before.as_deref() {
+        sqlx::query("update sessions set stop_step = $2 where id = $1")
+            .bind(session.id)
+            .bind(now)
+            .execute(&mut *tx)
+            .await?;
+        if let (Some("end"), Some(child_id)) = (now, session.child_id) {
+            let data = json!({ "session_id": session.id, "child_id": child_id, "reason": "not_working" });
+            events::publish(&mut *tx, events::SESSION_STOPPED, session.id, data).await?;
+        }
+    }
+    tx.commit().await
+}
 
 #[derive(Deserialize)]
 pub struct EndInput {
