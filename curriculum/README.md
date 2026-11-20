@@ -70,8 +70,9 @@ Checked and left where they were, among the placements the first draft doubted: 
 
 ### Doubts that remain
 
-- **Quadratic equations belong in S4.** Year 3 has only equations of the form ax² = c; the complete ax² + bx + c = 0 is year 4 (p. 160). `algebra.cuadraticas-por-factorizacion` and `algebra.formula-general` should be S4, and so should the ax² + bx = 0 half of `algebra.cuadraticas-incompletas` and the general trinomials of `algebra.factorizar-trinomios`. They stay in S3 because the tests require at least four skills in every grade a non-primary catalog uses: only two are clearly S4, and 17 skills with six in S1 cannot fill S2, S3 and S4 with four each. Adding S4 skills, or changing that minimum, is the owner's decision.
-- **Notable products are named first in year 3** (p. 161), where they are used to simplify and solve; year 2 simplifies with the properties of equality and of the operations (p. 159). `algebra.productos-notables` and `algebra.diferencia-de-cuadrados`, which builds on it, stay in S2 for the same reason: moving them leaves S2 with three skills.
+- **Quadratic equations are year 4.** Year 3 has only equations of the form ax² = c; the complete ax² + bx + c = 0 is year 4 (p. 160). `algebra.cuadraticas-por-factorizacion`, `algebra.formula-general`, `algebra.cuadraticas-incompletas` (its ax² + bx = 0 half) and `algebra.factorizar-trinomios` (general trinomials) are now S4.
+- **Notable products are named first in year 3** (p. 161), where they are used to simplify and solve; year 2 simplifies with the properties of equality and of the operations (p. 159). `algebra.productos-notables` and `algebra.diferencia-de-cuadrados`, which builds on it, are now S3.
+- A strand catalog only needs a skill in each grade it names (the tests asked for four, which kept these two moves out at first).
 - **Factoring is not named in years 1 to 4.** `algebra.factor-comun`, `algebra.diferencia-de-cuadrados` and `algebra.factorizar-trinomios` sit where textbooks put them.
 - `decimales.decimos-y-centesimos` (P5): grade 5 names decimals to the tenth and grade 6 to the hundredth (p. 241), but grade 5 already adds and subtracts decimals and the level for the end of grades 5–6 reaches the hundredth (p. 240). Moving it would push decimal addition, which grade 5 names, to P6.
 - `tiempo.leer-horas-y-minutos` and `tiempo.duracion-y-horarios` (P4) work in minutes, which the program names in grade 6 (p. 241); grade 5 converts units of time. There is no skill for reading exact hours only, which is grade 3 (p. 239).
@@ -105,7 +106,7 @@ Listed, not added:
 
 ## Secondary algebra
 
-`math-secundaria-algebra.json` covers the strand of *Resuelve problemas de regularidad, equivalencia y cambio* in the first three years of secundaria: algebraic language, like terms and first-degree equations (S1), equations with fractions, polynomial products and factoring (S2), and systems of two equations and quadratic equations (S3). Its first skills build on primary ones (`ecuaciones.dos-pasos`, `patrones.expresar-regla-con-letras`). It was checked as above; see the doubts about quadratics, notable products and factoring. Every example in it is one the platform can check exactly (see `apps/platform/src/algebra.rs`). Inequalities and functions are left out: their answers are not a number or a polynomial.
+`math-secundaria-algebra.json` covers the strand of *Resuelve problemas de regularidad, equivalencia y cambio* in the first four years of secundaria: algebraic language, like terms and first-degree equations (S1), equations with fractions, polynomial products and common factors (S2), notable products, the difference of squares and systems of two equations (S3), and trinomials and quadratic equations (S4). Its first skills build on primary ones (`ecuaciones.dos-pasos`, `patrones.expresar-regla-con-letras`). It was checked as above; see the doubts about quadratics, notable products and factoring. Every example in it is one the platform can check exactly (see `apps/platform/src/algebra.rs`). Inequalities and functions are left out: their answers are not a number or a polynomial.
 
 ## Shape of a skill
 

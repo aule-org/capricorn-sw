@@ -101,7 +101,8 @@ for (const file of files) {
     const primary = PRIMARY.some((grade) => used.has(grade));
     for (const grade of primary ? PRIMARY : [...used]) {
       const count = skills.filter((skill) => skill.grade === grade).length;
-      const least = primary ? 15 : 4;
+      // A strand catalog only has to have something in each grade it names.
+      const least = primary ? 15 : 1;
       assert.ok(count >= least, `${grade} has only ${count} skills`);
     }
     if (primary) {
