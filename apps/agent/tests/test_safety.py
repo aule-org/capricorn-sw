@@ -582,16 +582,32 @@ async def test_a_faint_score_over_our_thresholds_the_reader_does_not_clear_keeps
 
 
 async def test_a_faint_score_the_other_gate_also_stops_keeps_the_line_for_distress():
-    # "I don't want to wake up tomorrow" scores faintly and worries the
-    # physical-safety gate too: the reader sees a concern, and the family is
-    # told of self-harm, not of a hazard.
-    reader = Opinion(False)
+    # "I don't want to wake up tomorrow": over our thresholds, faintly, and it
+    # worries the physical-safety gate too. Not read again: self-harm wins.
+    reader = Opinion(True)
     built, flags = faint_gates(reader, Verdict.ADULT_HELP)
 
     decision = await built.heard(after("¿Seguimos?"), said("no quiero despertar mañana"))
 
     assert (decision.action, decision.reply) == (Action.SUPPORT, "self_harm_support")
+    assert reader.read == []
     assert flags == [("moderation_input", "support", ["self_harm", "physical_hazard"])]
+
+
+async def test_a_hazard_with_a_faint_score_under_our_thresholds_gets_the_hazard_line():
+    # "I'm going to stick a fork in the power socket" scores 0.12 for self-harm,
+    # under our thresholds; the physical-safety gate stops it, and the child
+    # hears to ask an adult, not the line for a child in distress.
+    reader = Opinion(False)
+    built, flags = faint_gates(reader, Verdict.ADULT_HELP, UNDER)
+
+    decision = await built.heard(
+        after("¿Seguimos?"), said("I'm going to stick a fork in the socket")
+    )
+
+    assert (decision.action, decision.reply) == (Action.REDIRECT, "adult_help")
+    assert reader.read == []
+    assert flags == [("physical_safety", "adult_help", ["physical_hazard"])]
 
 
 async def test_veiled_words_the_other_gate_is_unsure_about_get_the_line_for_distress():
@@ -607,8 +623,10 @@ async def test_veiled_words_the_other_gate_is_unsure_about_get_the_line_for_dist
     assert (decision.action, decision.reply) == (Action.SUPPORT, "self_harm_support")
 
 
-@pytest.mark.parametrize("verdict", [Verdict.UNAVAILABLE, Verdict.CONTEXT_LIMIT])
-async def test_a_turn_the_other_gate_could_not_judge_is_not_read_again(verdict):
+@pytest.mark.parametrize(
+    "verdict", [Verdict.UNAVAILABLE, Verdict.CONTEXT_LIMIT, Verdict.ADULT_HELP]
+)
+async def test_a_turn_the_other_gate_stopped_or_could_not_judge_is_not_read_again(verdict):
     reader = Opinion(True)
     built, _ = faint_gates(reader, verdict)
 
