@@ -34,8 +34,8 @@ http() { curl -fsS -o /dev/null --max-time 10 "$1"; }
 healthy() { [ "$(docker inspect -f '{{.State.Health.Status}}' "$1" 2>/dev/null)" = healthy ]; }
 running() { [ "$(docker inspect -f '{{.State.Running}}' "$1" 2>/dev/null)" = true ]; }
 disk_ok() { [ "$(df --output=pcent / | tail -1 | tr -dc 0-9)" -lt 85 ]; }
-# The nightly backup at 03:25 UTC: one younger than 26 hours.
-backup_ok() { [ -n "$(find /var/lib/aule/backups/aule-sw -name '*.sql.gz.gpg' -mmin -1560 -print -quit)" ]; }
+# A backup every six hours (aule-backup.sh): one younger than seven.
+backup_ok() { [ -n "$(find /var/lib/aule/backups/aule-sw -name '*.sql.gz.gpg' -mmin -420 -print -quit)" ]; }
 
 mail() { # subject, body
   local url from msg rcpt=()
@@ -63,7 +63,7 @@ now=$(date +%s)
 when=$(date -u '+%Y-%m-%d %H:%M UTC')
 
 if [ "${1:-}" = "--test" ]; then
-  mail "Aule: prueba de alertas" "Las alertas de $host están activas ($when). Revisan cada 5 minutos: plataforma, página, tutor, LiveKit, base de datos, worker, embeddings, página pública, tienda, disco y respaldo nocturno. Si algo falla llega un correo, y otro cuando vuelve a funcionar."
+  mail "Aule: prueba de alertas" "Las alertas de $host están activas ($when). Revisan cada 5 minutos: plataforma, página, tutor, LiveKit, base de datos, worker, embeddings, página pública, tienda, disco y respaldo cada 6 horas. Si algo falla llega un correo, y otro cuando vuelve a funcionar."
   exit $?
 fi
 
@@ -77,7 +77,7 @@ check "embeddings (memoria)" running aule-sw-embeddings-1
 check "página pública (playground.meetaule.com)" http https://playground.meetaule.com/session/
 check "tienda (shop.meetaule.com)" http https://shop.meetaule.com/
 check "disco (más de 85 % usado)" disk_ok
-check "respaldo nocturno (ninguno en 26 h)" backup_ok
+check "respaldo (ninguno en 7 h)" backup_ok
 
 current=$(printf '%s\n' "${failing[@]+"${failing[@]}"}" | sed '/^$/d' | sort)
 previous=$(cat "$STATE" 2>/dev/null || true)
