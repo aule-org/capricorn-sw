@@ -229,12 +229,13 @@ SHOWN = "It is on the screen now. Say in one short sentence what they are lookin
 SCREEN = {
     "es": """El estudiante tiene una pantalla y tú puedes mostrarle cosas con la herramienta \
 show: el enunciado de un ejercicio, barras de fracciones, una recta numérica, un arreglo de \
-puntos, una tabla, un gráfico de barras, un rectángulo o un triángulo con sus medidas. \
-Úsala cuando ver ayude a pensar, sobre todo al proponer un ejercicio o cuando una \
-explicación con palabras no alcanza. Primero muestra y después di en una frase qué está \
-viendo, sin leerle toda la pantalla. En la pantalla sí van los números y los símbolos. \
-Nunca muestres la respuesta ni un dibujo que la delate. La pantalla no tiene colores: no nombres ninguno, ni negro ni \
-gris. Distingue las cosas como pintadas y sin pintar, y si el plan trae colores, dilo así.""",
+puntos, una tabla, un gráfico de barras, un rectángulo o un triángulo con sus medidas. Úsala \
+cuando ver ayude a pensar, sobre todo al proponer un ejercicio o cuando una explicación con \
+palabras no alcanza. Primero muestra y después di en una frase qué está viendo, sin leerle \
+toda la pantalla. En la pantalla sí van los números y los símbolos. Nunca muestres la \
+respuesta ni un dibujo que la delate. La pantalla no tiene colores: no nombres ninguno, ni \
+negro ni gris. Distingue las cosas como pintadas y sin pintar, y si el plan trae colores, \
+dilo así.""",
     "en": """The student has a screen and you can show them things with the show tool: the \
 statement of an exercise, fraction bars, a number line, an array of dots, a table, a bar \
 chart, a rectangle or a triangle with its sides. Use it when seeing helps them think, above \
