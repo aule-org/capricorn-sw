@@ -173,6 +173,9 @@ async def entrypoint(ctx: JobContext) -> None:
         # model gets no tools to pose or check an exercise by itself.
         checker=platform if platform and not platform.scripted else None,
         flow=platform if platform and platform.scripted else None,
+        # The platform offers the breaks of a session, unless the engine runs
+        # it and has breaks of its own.
+        breaks=bool(platform and not platform.scripted),
     )
     usage = Usage()
     model = build_llm(settings)
@@ -225,6 +228,9 @@ async def entrypoint(ctx: JobContext) -> None:
                 )
                 return
             platform.end_reason = "not_working"
+            # The reply to the turn that ended it is not said first: the
+            # session closes now, not after one more friendly sentence.
+            await session.interrupt()
             await session.say(
                 reply("not_working_end", language), allow_interruptions=False, add_to_chat_ctx=False
             )

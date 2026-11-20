@@ -710,6 +710,50 @@ async def test_lines_for_an_answer_typed_on_the_page_stop_the_tutor_and_are_said
     assert [text for text, _, _ in session.said] == ["¡Correcto!", "Pregunta 2 de 5."]
 
 
+async def test_an_answer_written_on_the_page_cuts_the_lines_still_to_come_of_the_last_one():
+    shown = []
+
+    async def show(visual):
+        shown.append(visual)
+
+    circle = {"kind": "fraction_circle", "fractions": [{"numerator": 3, "denominator": 8}]}
+    question_1 = (
+        Line("Aquí no hay pistas."),
+        Line("Pregunta 1 de 5."),
+        Line("Mira el círculo.", show=circle),
+    )
+    question_2 = Reply(lines=(Line("¡Gracias! Lo anoto."), Line("Pregunta 2 de 5.")))
+    tutor = Tutor(language="es", gates=ScriptedGates(), flow=ScriptedFlow(), show=show)
+    session, speaking = Session(), asyncio.Event()
+
+    def say(text, *, add_to_chat_ctx, allow_interruptions):
+        session.said.append((text, add_to_chat_ctx, allow_interruptions))
+
+        async def played():
+            # The first line is still being said when the page's answer arrives.
+            if text == "Aquí no hay pistas.":
+                speaking.set()
+                await asyncio.sleep(0.05)
+            return SimpleNamespace(interrupted=False)
+
+        return played()
+
+    session.say = say
+    with patch.object(Tutor, "session", new_callable=PropertyMock, return_value=session):
+        first = asyncio.create_task(tutor._say(question_1))
+        await speaking.wait()
+        await tutor.scripted_lines(question_2)
+        await first
+
+    assert [text for text, _, _ in session.said] == [
+        "Aquí no hay pistas.",
+        "¡Gracias! Lo anoto.",
+        "Pregunta 2 de 5.",
+    ]
+    # The circle of question 1 is not drawn next to the card of question 2.
+    assert shown == []
+
+
 async def test_a_turn_the_gates_stop_never_reaches_the_engine():
     flow = ScriptedFlow([Line("hola")], Reply(lines=(Line("x"),)))
     tutor, session = Tutor(language="es", gates=ScriptedGates(HAZARD), flow=flow), Session()
