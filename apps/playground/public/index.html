@@ -35,38 +35,120 @@
 
         <form id="who" hidden autocomplete="off">
           <h2 id="hello" class="hello"></h2>
-          <fieldset id="students" hidden>
+          <fieldset id="students">
             <legend>¿Quién va a estudiar hoy?</legend>
             <div id="student-list"></div>
+            <p id="no-students" class="note" hidden>
+              Todavía no hay alumnos en tu cuenta. Agrega al primero para empezar.
+            </p>
+            <button type="button" id="add-student" class="quiet">+ Agregar un alumno</button>
           </fieldset>
-          <label id="new-student">
-            Nombre del alumno
-            <input id="student-name" type="text" maxlength="40" autocomplete="off" />
-          </label>
-          <label class="check" id="consent-line">
-            <input id="consent" type="checkbox" />
-            Soy su padre, madre o apoderado y acepto que Aule procese su voz para responderle y
-            recuerde lo que aprende entre sesiones. No se guarda el audio ni la conversación.
+
+          <!-- What the family says this session is for. Aule starts from it. -->
+          <fieldset id="today" hidden>
+            <legend>¿Qué toca hoy?</legend>
+            <div id="kind" class="chips" role="radiogroup" aria-label="Para qué es la sesión"></div>
+            <div id="today-details" hidden>
+              <label>
+                Asignatura
+                <select id="subject"></select>
+              </label>
+              <p id="subject-note" class="note" hidden>
+                Por ahora Aule tiene ejercicios propios solo de Matemática. En otras asignaturas
+                acompaña con lo que el alumno traiga.
+              </p>
+              <label>
+                <span>Tema <span class="optional">opcional</span></span>
+                <input id="topic" type="text" maxlength="200" placeholder="Por ejemplo: fracciones, triángulos" />
+              </label>
+              <label id="due-line" hidden>
+                <span>¿Para cuándo es? <span class="optional">opcional</span></span>
+                <input id="due" type="date" />
+              </label>
+            </div>
+          </fieldset>
+
+          <button type="submit" id="enter">Continuar</button>
+          <button type="button" id="sign-out" class="quiet">Salir de la cuenta</button>
+        </form>
+
+        <!-- One student: who they are for Aule, and what the family allows. -->
+        <form id="student-editor" hidden autocomplete="off">
+          <h2 id="editor-title"></h2>
+          <label>
+            ¿Cómo quieres que lo llamemos?
+            <input id="student-name" type="text" maxlength="40" required autocomplete="off" />
           </label>
           <label>
-            Idioma
+            <span>Grado <span class="optional">opcional</span></span>
+            <select id="student-grade"></select>
+          </label>
+          <fieldset id="subjects-field" hidden>
+            <legend>Asignaturas que quieres reforzar</legend>
+            <div id="student-subjects" class="chips"></div>
+          </fieldset>
+          <fieldset>
+            <legend>Lo que le gusta</legend>
+            <div id="student-interests" class="chips"></div>
+            <div class="add-row">
+              <input id="interest-new" type="text" maxlength="40" placeholder="Otra cosa que le guste" aria-label="Otro interés" />
+              <button type="button" id="interest-add">Agregar</button>
+            </div>
+            <p class="note">Aule usa hasta diez para ambientar los ejemplos y los ejercicios.</p>
+          </fieldset>
+          <fieldset>
+            <legend>Cómo le habla Aule</legend>
+            <div id="student-tone" class="tones" role="radiogroup" aria-label="Tono de Aule"></div>
+            <label>
+              <span>Algo que Aule deba tener en cuenta <span class="optional">opcional</span></span>
+              <input id="student-note" type="text" maxlength="200" placeholder="Por ejemplo: se frustra rápido, ve despacio" />
+            </label>
+          </fieldset>
+          <label>
+            Idioma de las sesiones
             <select id="student-language">
               <option value="es">Español</option>
               <option value="en">English</option>
             </select>
           </label>
-          <button type="submit" id="enter">Continuar</button>
-          <button type="button" id="sign-out" class="quiet">Salir de la cuenta</button>
+          <fieldset>
+            <legend>Lo que guardamos</legend>
+            <label class="check">
+              <input id="student-remembers" type="checkbox" checked />
+              Recordar entre sesiones lo que aprende y lo que le gusta
+            </label>
+            <label class="check">
+              <input id="student-transcripts" type="checkbox" />
+              Guardar por escrito la conversación de cada sesión
+            </label>
+            <p class="note">El audio y el video nunca se guardan.</p>
+            <label class="check" id="consent-line">
+              <input id="consent" type="checkbox" />
+              Soy su padre, madre o apoderado y acepto que Aule procese su voz para responderle.
+            </label>
+          </fieldset>
+
+          <!-- What is kept about a student who already has sessions, to read and to prune. -->
+          <section id="known" hidden>
+            <h3 id="known-title"></h3>
+            <p id="progress" class="note"></p>
+            <ul id="memories" aria-label="Lo que Aule recuerda"></ul>
+            <h3 id="past-title" hidden>Últimas sesiones</h3>
+            <ul id="past" aria-label="Últimas sesiones"></ul>
+          </section>
+
+          <button type="submit" id="save-student">Guardar</button>
+          <button type="button" id="cancel-student" class="quiet">Volver</button>
+          <button type="button" id="remove-student" class="quiet danger-text" hidden>Quitar a este alumno</button>
         </form>
 
         <!-- The account: what is kept, and how to remove it. -->
         <details id="account" hidden>
           <summary>Mi cuenta y mis datos</summary>
           <p class="note">
-            Guardamos tu nombre y tu correo, el nombre de cada alumno y lo que va aprendiendo. No
+            Guardamos tu nombre y tu correo, y de cada alumno lo que tú decidas al configurarlo. No
             guardamos audio ni video.
           </p>
-          <div id="kept-students"></div>
           <form id="erase" autocomplete="off">
             <label>
               Para borrar tu cuenta y todo lo guardado, escribe tu correo

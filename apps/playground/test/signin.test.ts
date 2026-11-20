@@ -91,7 +91,7 @@ test("a Google credential the platform accepts signs the person in with a cookie
   assert.match(cookie, new RegExp(`^aule_guardian=${TOKEN}; Max-Age=2592000; Path=/playground/; HttpOnly; Secure; SameSite=Strict$`));
   // The page is told who it is and never sees the session.
   const body = await response.json();
-  assert.deepEqual(body, { google_client_id: "client-1", signed_in: true, name: "Ana", students: [] });
+  assert.deepEqual(body, { google_client_id: "client-1", signed_in: true, name: "Ana", students: [], subjects: null });
   assert.ok(!JSON.stringify(body).includes(TOKEN));
 });
 

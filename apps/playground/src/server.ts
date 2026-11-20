@@ -13,15 +13,24 @@ import {
   PlatformError,
   account,
   createSession,
-  createStudent,
-  createStudentSession,
   eraseAccount,
   googleClient,
-  removeStudent,
   signIn,
   signOut,
   supervisorView,
 } from "./session.ts";
+import {
+  createStudent,
+  forget,
+  known,
+  objectiveFrom,
+  profileFrom,
+  readStudent,
+  readStudents,
+  removeStudent,
+  saveStudent,
+  startSession,
+} from "./students.ts";
 import { DailyLimit, guardianToken, signedInCookie, signedOutCookie } from "./signin.ts";
 
 const publicDir = new URL("../public/", import.meta.url);
@@ -41,6 +50,7 @@ const serif = join(
 const STATIC: Record<string, { file: string | URL; type: string }> = {
   "/": { file: new URL("index.html", publicDir), type: "text/html; charset=utf-8" },
   "/app.js": { file: new URL("app.js", publicDir), type: "text/javascript; charset=utf-8" },
+  "/students.js": { file: new URL("students.js", publicDir), type: "text/javascript; charset=utf-8" },
   "/signin.js": { file: new URL("signin.js", publicDir), type: "text/javascript; charset=utf-8" },
   "/visuals.js": { file: new URL("visuals.js", publicDir), type: "text/javascript; charset=utf-8" },
   "/style.css": { file: new URL("style.css", publicDir), type: "text/css; charset=utf-8" },
@@ -52,7 +62,9 @@ const STATIC: Record<string, { file: string | URL; type: string }> = {
 const MAX_BODY_BYTES = 2_000;
 // A Google credential is a signed token of a couple of thousand characters.
 const MAX_SIGN_IN_BYTES = 8_000;
-const MAX_NAME_CHARS = 40;
+// A student's profile: a name, up to ten interests and a line from the family.
+const MAX_PROFILE_BYTES = 4_000;
+const ID = /^[0-9a-f-]{36}$/i;
 // Where the browser gets Google's sign-in button from, and nothing else of Google's.
 const GOOGLE = "https://accounts.google.com/gsi/";
 
@@ -130,7 +142,14 @@ export function createPlayground(settings: Settings): Server {
     if (!token) return reply({ google_client_id: clientId, signed_in: false });
     try {
       const who = await account(settings, token);
-      return reply({ google_client_id: clientId, signed_in: true, name: who.name, students: who.students });
+      const students = await readStudents(settings, token, who.students);
+      return reply({
+        google_client_id: clientId,
+        signed_in: true,
+        name: who.name,
+        students,
+        subjects: who.subjects,
+      });
     } catch (error) {
       if (!(error instanceof PlatformError)) throw error;
       // A session the platform no longer knows: the page starts over signed out.
@@ -145,7 +164,8 @@ export function createPlayground(settings: Settings): Server {
     if (!settings.platform) return json(response, 404, { error: "not_found" });
     let body: Record<string, unknown>;
     try {
-      body = await readJson(request, path === "/api/signin" ? MAX_SIGN_IN_BYTES : MAX_BODY_BYTES);
+      const limit = path === "/api/signin" ? MAX_SIGN_IN_BYTES : path.startsWith("/api/student") ? MAX_PROFILE_BYTES : MAX_BODY_BYTES;
+      body = await readJson(request, limit);
     } catch {
       return json(response, 400, { error: "bad_request" });
     }
@@ -180,13 +200,11 @@ export function createPlayground(settings: Settings): Server {
     if (!token) return json(response, 401, { error: "not_signed_in" });
     const language = LANGUAGES.find((known) => known === body.language) ?? ("es" as Language);
     if (path === "/api/student") {
-      const name = typeof body.name === "string" ? body.name.trim() : "";
+      const profile = profileFrom(body);
       // Nothing is created without the guardian's explicit yes on the page.
-      if (!name || name.length > MAX_NAME_CHARS || body.consent !== true) {
-        return json(response, 400, { error: "bad_request" });
-      }
+      if (!profile || body.consent !== true) return json(response, 400, { error: "bad_request" });
       const who = await account(settings, token);
-      return json(response, 201, await createStudent(settings, token, who.familyId, name, language));
+      return json(response, 201, await createStudent(settings, token, who.familyId, profile));
     }
     if (path === "/api/account/erase") {
       // The address is typed again on the page; the platform checks it is theirs.
@@ -208,19 +226,32 @@ export function createPlayground(settings: Settings): Server {
       });
       return response.end(JSON.stringify({ signed_in: false, erased: true }));
     }
-    if (typeof body.student_id !== "string" || !/^[0-9a-f-]{36}$/i.test(body.student_id)) {
-      return json(response, 400, { error: "bad_request" });
+    // Everything below is about one student of the guardian's family.
+    const id = body.student_id;
+    if (typeof id !== "string" || !ID.test(id)) return json(response, 400, { error: "bad_request" });
+    if (path === "/api/student/read") return json(response, 200, await readStudent(settings, token, id));
+    if (path === "/api/student/save") {
+      const profile = profileFrom(body);
+      if (!profile) return json(response, 400, { error: "bad_request" });
+      return json(response, 200, await saveStudent(settings, token, id, profile));
+    }
+    if (path === "/api/student/known") return json(response, 200, await known(settings, token, id));
+    if (path === "/api/student/forget") {
+      if (typeof body.memory_id !== "string" || !ID.test(body.memory_id)) {
+        return json(response, 400, { error: "bad_request" });
+      }
+      await forget(settings, token, id, body.memory_id);
+      return json(response, 200, { forgotten: body.memory_id });
     }
     if (path === "/api/student/remove") {
-      await removeStudent(settings, token, body.student_id);
-      return json(response, 200, { removed: body.student_id });
+      await removeStudent(settings, token, id);
+      return json(response, 200, { removed: id });
     }
     // "/api/session" for a signed-in guardian.
-    if (typeof body.student_id !== "string" || !/^[0-9a-f-]{36}$/i.test(body.student_id)) {
-      return json(response, 400, { error: "bad_request" });
-    }
+    const objective = objectiveFrom(body.objective);
+    if (objective === null) return json(response, 400, { error: "bad_request" });
     if (!daily.take(token)) return json(response, 429, { error: "daily_limit" });
-    return json(response, 200, await createStudentSession(settings, token, body.student_id, language));
+    return json(response, 200, await startSession(settings, token, id, language, objective));
   }
 
   async function session(path: string, request: IncomingMessage, response: ServerResponse) {
@@ -266,6 +297,10 @@ export function createPlayground(settings: Settings): Server {
         path === "/api/signin" ||
         path === "/api/signout" ||
         path === "/api/student" ||
+        path === "/api/student/read" ||
+        path === "/api/student/save" ||
+        path === "/api/student/known" ||
+        path === "/api/student/forget" ||
         path === "/api/student/remove" ||
         path === "/api/account/erase"
       ) {

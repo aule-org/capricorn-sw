@@ -564,12 +564,6 @@ label.check input {
   font-weight: 600;
 }
 
-#students {
-  border: 0;
-  padding: 0;
-  margin: 0;
-}
-
 #team {
   margin-top: 2rem;
   position: relative;
@@ -736,34 +730,232 @@ main.in-session header p {
   border: 1.5px solid var(--line);
 }
 
-.kept {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin: 0.5rem 0;
-  padding: 0.25rem 0;
-  border-bottom: 1px solid var(--line);
+/* A family's students: who studies today, what the session is for, and the
+   settings of each one. Every choice is a whole shape to press; the small
+   circle or square of the browser is there for the keyboard, out of sight. */
+#welcome fieldset {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
-/* Choosing who studies: each student is a row to press, not a small circle. */
+#welcome legend {
+  margin-bottom: 8px;
+  padding: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+#welcome input[type="text"],
+#welcome input[type="date"],
+#welcome select {
+  width: 100%;
+  min-width: 0;
+}
+
+.optional {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.optional::before {
+  content: "· ";
+}
+
 #student-list {
   display: grid;
   gap: 8px;
-  margin-top: 8px;
 }
 
-label.choice {
-  padding: 12px 14px;
-  border: 1.5px solid var(--line);
-  border-radius: 12px;
-  font-size: 1rem;
-  font-weight: 600;
+.student {
+  position: relative;
+}
+
+.student label,
+label.chip,
+label.tone {
+  position: relative;
+  display: block;
+  font-weight: 400;
   cursor: pointer;
 }
 
-label.choice:has(input:checked) {
+.student input,
+label.chip input,
+label.tone input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.student span,
+label.tone span {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+}
+
+/* Room for the way into the student's settings, which sits on the row. */
+.student span {
+  padding-right: 104px;
+}
+
+.student b,
+label.tone b {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.student small {
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.student button {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  padding-inline: 12px;
+  font-size: 0.875rem;
+}
+
+/* Who is chosen carries the copper mark; what is chosen has the ink's border. */
+.student input:checked + span b::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 9px;
+  background: var(--copper);
+  transform: translateY(-2px) rotate(45deg);
+}
+
+.student input:checked + span,
+label.chip input:checked + span,
+label.tone input:checked + span {
   border-color: var(--ink);
   background: var(--bg);
+}
+
+.student input:focus-visible + span,
+label.chip input:focus-visible + span,
+label.tone input:focus-visible + span {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+label.chip span {
+  display: block;
+  padding: 7px 13px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.875rem;
+}
+
+label.chip input:checked + span {
+  font-weight: 600;
+}
+
+.tones {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+label.tone span {
+  height: 100%;
+  align-content: start;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+label.tone b {
+  display: block;
+  color: var(--ink);
+}
+
+.add-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+#today-details {
+  display: grid;
+  gap: 14px;
+  margin-top: 6px;
+}
+
+#student-editor h2 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+/* What is kept about a student: a few lines to read, each with a way to drop it. */
+#known {
+  display: grid;
+  gap: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+#known h3 {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+#known ul {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+#known li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 10px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.875rem;
+}
+
+#known li.none {
+  color: var(--muted);
+  border-bottom: 0;
+}
+
+#past li {
+  grid-template-columns: 1fr;
+}
+
+#past b {
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+button.danger-text {
+  color: var(--danger);
+}
+
+@media (max-width: 420px) {
+  .tones {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Erasing is the one thing that cannot be undone, and looks like it. */
