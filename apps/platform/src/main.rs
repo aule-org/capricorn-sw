@@ -1,7 +1,9 @@
 //! `aule-platform serve` runs the API, `worker` runs the jobs, `migrate`
 //! only brings the database up to date, and `import-skills <file>` loads a
 //! skill catalog such as `curriculum/math-primaria.json`. `serve` and `worker`
-//! also migrate first, so one of them is enough to start from an empty database.
+//! also migrate first, so one of them is enough to start from an empty database,
+//! and `serve` loads the catalogs the image carries, so a new or restored
+//! server has the same skills as the repository.
 
 use aule_platform::config::Config;
 use aule_platform::state::AppState;
@@ -11,6 +13,36 @@ use sqlx::postgres::PgPoolOptions;
 #[derive(serde::Deserialize)]
 struct SkillFile {
     skills: Vec<learning::Skill>,
+}
+
+/// Where the image puts `curriculum/*.json`. Absent outside the image (a
+/// local run), and then nothing is loaded.
+const CURRICULUM_DIR: &str = "/usr/share/aule/curriculum";
+
+/// Loads every catalog in `CURRICULUM_DIR`: new skills are added and changed
+/// ones updated; none is removed. A catalog that cannot be read is reported
+/// and skipped, so a bad file never keeps the API from starting.
+async fn load_curriculum(pool: &sqlx::PgPool) {
+    let Ok(entries) = std::fs::read_dir(CURRICULUM_DIR) else { return };
+    let mut paths: Vec<_> = entries
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().is_some_and(|ext| ext == "json"))
+        .collect();
+    paths.sort();
+    for path in paths {
+        let file = path.display().to_string();
+        let catalog = std::fs::read_to_string(&path)
+            .map_err(|error| error.to_string())
+            .and_then(|text| serde_json::from_str::<SkillFile>(&text).map_err(|error| error.to_string()));
+        match catalog {
+            Ok(catalog) => match learning::upsert_skills(pool, &catalog.skills).await {
+                Ok(stored) => tracing::info!(file, stored, "skill catalog loaded"),
+                Err(error) => tracing::error!(file, %error, "skill catalog not stored"),
+            },
+            Err(error) => tracing::error!(file, %error, "skill catalog not read"),
+        }
+    }
 }
 
 #[tokio::main]
@@ -60,6 +92,7 @@ async fn main() {
             }
         }
         _ => {
+            load_curriculum(&state.pool).await;
             let addr = state.config.addr;
             let listener = tokio::net::TcpListener::bind(addr)
                 .await
