@@ -154,6 +154,19 @@ function startClock(seconds) {
 
 // One line per transcription segment; a segment is streamed, so its line grows.
 const lines = new Map();
+// The person's lines since they last pressed the talk button. A hold's words can
+// arrive twice, once as the turn is sent and again when the speech service
+// finishes late, so a line that only repeats another is not shown.
+let heldLines = [];
+
+function showHeldLines() {
+  const texts = heldLines.map((line) => line.textContent.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ""));
+  heldLines.forEach((line, i) => {
+    line.hidden = texts.some(
+      (other, j) => j !== i && other.startsWith(texts[i]) && (other.length > texts[i].length || j < i),
+    );
+  });
+}
 
 async function onTranscription(reader, participant) {
   const attributes = reader.info.attributes ?? {};
@@ -171,6 +184,7 @@ async function onTranscription(reader, participant) {
     line.dataset.who = mine ? "you" : "tutor";
     line.dataset.name = mine ? "Tú" : "Aule";
     lines.set(id, line);
+    if (mine && manualTurns) heldLines.push(line);
     $("transcript").append(line);
     followTranscript();
   }
@@ -179,6 +193,7 @@ async function onTranscription(reader, participant) {
   for await (const chunk of reader) {
     text += chunk;
     line.textContent = text;
+    if (heldLines.includes(line)) showHeldLines();
     followTranscript();
   }
 }
@@ -478,6 +493,7 @@ function turn(method) {
 async function startTalking() {
   if (!room || !manualTurns || talking || !wanted.mic || !tutorIdentity) return;
   talking = true;
+  heldLines = [];
   showTalk();
   try {
     await room.localParticipant.setMicrophoneEnabled(true);
