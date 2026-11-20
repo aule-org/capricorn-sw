@@ -246,7 +246,9 @@ impl Config {
                     problems.push("AULE_APPLE_SERVICES_ID must look like com.example.signin".into());
                 }
                 if !crate::oauth::is_apple_id(team_id) || !crate::oauth::is_apple_id(key_id) {
-                    problems.push("AULE_APPLE_TEAM_ID and AULE_APPLE_KEY_ID must be ten letters and digits".into());
+                    problems.push(
+                        "AULE_APPLE_TEAM_ID and AULE_APPLE_KEY_ID must be ten letters and digits".into(),
+                    );
                 }
                 // The .p8 file in base64, so that it fits on one line.
                 use base64::Engine as _;

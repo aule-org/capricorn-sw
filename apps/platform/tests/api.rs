@@ -1673,7 +1673,10 @@ async fn a_guardian_signs_in_with_github_into_the_family_of_that_address(pool: P
     let (status, _) = app.call(Method::POST, "/v1/auth/meta", None, Some(meta)).await;
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(github("forged", PAGE).await.0, StatusCode::FORBIDDEN);
-    assert_eq!(github("ok:ana@example.org:Ana", "https://elsewhere.example.org/").await.0, StatusCode::FORBIDDEN);
+    assert_eq!(
+        github("ok:ana@example.org:Ana", "https://elsewhere.example.org/").await.0,
+        StatusCode::FORBIDDEN
+    );
     assert_eq!(github("down", PAGE).await.0, StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(github("ok:ana@example.org:Ana", "http://page.example.org/").await.0, StatusCode::BAD_REQUEST);
     assert_eq!(github("", PAGE).await.0, StatusCode::BAD_REQUEST);

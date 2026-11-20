@@ -87,12 +87,19 @@ pub fn github_address(emails: &[GithubEmail]) -> Result<String, IdentityError> {
         .iter()
         .find(|email| email.primary && email.verified && !email.email.is_empty())
         .map(|email| email.email.clone())
-        .ok_or_else(|| IdentityError::Refused("GitHub has no verified primary address for this account".into()))
+        .ok_or_else(|| {
+            IdentityError::Refused("GitHub has no verified primary address for this account".into())
+        })
 }
 
 impl Github {
     pub fn new(client_id: String, client_secret: String) -> Self {
-        Self::with_urls(client_id, client_secret, "https://github.com".into(), "https://api.github.com".into())
+        Self::with_urls(
+            client_id,
+            client_secret,
+            "https://github.com".into(),
+            "https://api.github.com".into(),
+        )
     }
 
     pub fn with_urls(client_id: String, client_secret: String, site: String, api: String) -> Self {
@@ -136,7 +143,8 @@ impl CodeProvider for Github {
             .await
             .map_err(unreachable)?;
         let token = access_token(&answer)?;
-        let emails: Vec<GithubEmail> = self.get("/user/emails", &token).await?.json().await.map_err(unreachable)?;
+        let emails: Vec<GithubEmail> =
+            self.get("/user/emails", &token).await?.json().await.map_err(unreachable)?;
         let email = github_address(&emails)?;
         let user: Value = self.get("/user", &token).await?.json().await.map_err(unreachable)?;
         let name = name_from(user["name"].as_str()).or_else(|| name_from(user["login"].as_str()));
@@ -300,8 +308,9 @@ impl Apple {
             "aud": APPLE,
             "sub": self.services_id,
         });
-        jsonwebtoken::encode(&header, &claims, &self.key)
-            .map_err(|error| IdentityError::Unreachable(format!("the client secret could not be signed: {error}")))
+        jsonwebtoken::encode(&header, &claims, &self.key).map_err(|error| {
+            IdentityError::Unreachable(format!("the client secret could not be signed: {error}"))
+        })
     }
 
     async fn verified(&self, id_token: &str) -> Result<Identity, IdentityError> {
@@ -322,7 +331,8 @@ impl Apple {
         let jwk = keys
             .find(&key_id)
             .ok_or_else(|| IdentityError::Refused("signed with a key Apple does not publish".into()))?;
-        let key = DecodingKey::from_jwk(jwk).map_err(|error| IdentityError::Unreachable(error.to_string()))?;
+        let key =
+            DecodingKey::from_jwk(jwk).map_err(|error| IdentityError::Unreachable(error.to_string()))?;
         let mut validation = Validation::new(Algorithm::RS256);
         validation.set_audience(&[&self.services_id]);
         validation.set_issuer(&[APPLE]);
@@ -356,9 +366,9 @@ impl CodeProvider for Apple {
             .json()
             .await
             .map_err(unreachable)?;
-        let id_token = answer["id_token"]
-            .as_str()
-            .ok_or_else(|| IdentityError::Refused(answer["error"].as_str().unwrap_or("no id token").to_string()))?;
+        let id_token = answer["id_token"].as_str().ok_or_else(|| {
+            IdentityError::Refused(answer["error"].as_str().unwrap_or("no id token").to_string())
+        })?;
         self.verified(id_token).await
     }
 }
@@ -398,7 +408,10 @@ mod tests {
 
     #[test]
     fn apple_says_verified_as_a_boolean_or_as_text() {
-        let claims = |verified: Option<Value>| AppleClaims { email: Some("a@privaterelay.appleid.com".into()), email_verified: verified };
+        let claims = |verified: Option<Value>| AppleClaims {
+            email: Some("a@privaterelay.appleid.com".into()),
+            email_verified: verified,
+        };
         assert!(apple_identity(claims(Some(json!(true)))).is_ok());
         assert!(apple_identity(claims(Some(json!("true")))).is_ok());
         for refused in [None, Some(json!(false)), Some(json!("false")), Some(json!(1))] {
@@ -432,9 +445,13 @@ XzF/ngJD7LGPnnPnI3NFFZkv4NVr9lNOqhG6tEBFUVau91BPXp3NRZCNmg==
 
     #[test]
     fn the_apple_client_secret_is_signed_with_the_key_and_names_the_app() {
-        let apple =
-            Apple::new("com.example.signin".into(), "TEAM123456".into(), "KEY1234567".into(), TEST_KEY.as_bytes())
-                .unwrap();
+        let apple = Apple::new(
+            "com.example.signin".into(),
+            "TEAM123456".into(),
+            "KEY1234567".into(),
+            TEST_KEY.as_bytes(),
+        )
+        .unwrap();
         let secret = apple.client_secret(1_800_000_000).unwrap();
         assert_eq!(decode_header(&secret).unwrap().kid.as_deref(), Some("KEY1234567"));
         let mut validation = Validation::new(Algorithm::ES256);
@@ -472,14 +489,19 @@ XzF/ngJD7LGPnnPnI3NFFZkv4NVr9lNOqhG6tEBFUVau91BPXp3NRZCNmg==
             )
             .route(
                 "/user/emails",
-                get(|| async { Json(json!([{ "email": "ana@example.org", "primary": true, "verified": true }])) }),
+                get(|| async {
+                    Json(json!([{ "email": "ana@example.org", "primary": true, "verified": true }]))
+                }),
             )
             .route("/user", get(|| async { Json(json!({ "login": "ana", "name": null })) }));
         let base = serve(site).await;
         let github = Github::with_urls("id".into(), "s3cret".into(), base.clone(), base);
         let ana = github.identify("good", "https://example.org/callback").await.unwrap();
         assert_eq!(ana, Identity { email: "ana@example.org".into(), name: Some("ana".into()) });
-        assert!(matches!(github.identify("bad", "https://example.org/callback").await, Err(IdentityError::Refused(_))));
+        assert!(matches!(
+            github.identify("bad", "https://example.org/callback").await,
+            Err(IdentityError::Refused(_))
+        ));
     }
 
     #[tokio::test]
@@ -494,6 +516,9 @@ XzF/ngJD7LGPnnPnI3NFFZkv4NVr9lNOqhG6tEBFUVau91BPXp3NRZCNmg==
             }),
         );
         let meta = Meta::with_graph("1".into(), "s".into(), serve(graph).await);
-        assert!(matches!(meta.identify("used", "https://example.org/callback").await, Err(IdentityError::Refused(_))));
+        assert!(matches!(
+            meta.identify("used", "https://example.org/callback").await,
+            Err(IdentityError::Refused(_))
+        ));
     }
 }

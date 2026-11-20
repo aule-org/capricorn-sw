@@ -341,7 +341,8 @@ async fn by_code(
         return Err(ApiError::bad_request("code is not a sign-in code"));
     }
     let redirect = &body.redirect_uri;
-    if redirect.len() > 512 || !(redirect.starts_with("https://") || redirect.starts_with("http://127.0.0.1")) {
+    if redirect.len() > 512 || !(redirect.starts_with("https://") || redirect.starts_with("http://127.0.0.1"))
+    {
         return Err(ApiError::bad_request("redirect_uri must be an https:// URL"));
     }
     let identity = provider.identify(&body.code, redirect).await.map_err(|error| match error {
@@ -357,7 +358,8 @@ async fn by_code(
     // Apple gives the name only the first time, and a person may not share it:
     // a new family is then named after the address, and can rename itself.
     let local = identity.email.split('@').next().unwrap_or_default().to_string();
-    let name = body.name.filter(|name| !name.trim().is_empty()).or_else(|| identity.name.is_none().then_some(local));
+    let name =
+        body.name.filter(|name| !name.trim().is_empty()).or_else(|| identity.name.is_none().then_some(local));
     entered(state, identity, name.as_deref(), body.language.as_deref()).await
 }
 

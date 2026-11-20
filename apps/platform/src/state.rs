@@ -8,10 +8,10 @@ use uuid::Uuid;
 
 use crate::config::Config;
 use crate::google::{Google, IdentityProvider};
-use crate::oauth::{Apple, CodeProvider, Github, Meta};
 use crate::llm::{Anthropic, Llm};
 use crate::mail::{Mailer, SmtpMailer};
 use crate::memory::{Embedder, HttpEmbedder};
+use crate::oauth::{Apple, CodeProvider, Github, Meta};
 use crate::push::{Fcm, Pusher, ServiceAccount};
 
 #[derive(Clone)]
@@ -78,15 +78,20 @@ impl AppState {
         });
         let google =
             config.google_client_id.clone().map(|id| Arc::new(Google::new(id)) as Arc<dyn IdentityProvider>);
-        let github = config.github.clone().map(|app| {
-            Arc::new(Github::new(app.client_id, app.client_secret)) as Arc<dyn CodeProvider>
-        });
-        let meta =
-            config.meta.clone().map(|app| Arc::new(Meta::new(app.client_id, app.client_secret)) as Arc<dyn CodeProvider>);
+        let github = config
+            .github
+            .clone()
+            .map(|app| Arc::new(Github::new(app.client_id, app.client_secret)) as Arc<dyn CodeProvider>);
+        let meta = config
+            .meta
+            .clone()
+            .map(|app| Arc::new(Meta::new(app.client_id, app.client_secret)) as Arc<dyn CodeProvider>);
         // The settings already checked the key, so this only fails if that check is wrong.
         let apple = config.apple.clone().and_then(|apple| {
             Apple::new(apple.services_id, apple.team_id, apple.key_id, &apple.key_pem)
-                .inspect_err(|error| tracing::error!(%error, "sign-in with Apple is off: its key could not be used"))
+                .inspect_err(
+                    |error| tracing::error!(%error, "sign-in with Apple is off: its key could not be used"),
+                )
                 .ok()
                 .map(|apple| Arc::new(apple) as Arc<dyn CodeProvider>)
         });
