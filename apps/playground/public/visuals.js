@@ -311,6 +311,59 @@ function rectangle(v, top) {
   );
 }
 
+// The base lies flat; the other two sides meet above it, where their lengths
+// put them. Lengths that cannot close a triangle are refused rather than drawn
+// as something else.
+function triangle(v, top) {
+  const [base, left, right] = v.sides;
+  const longest = Math.max(base, left, right);
+  if (longest >= base + left + right - longest) throw new Error("those sides do not make a triangle");
+  // The apex, with the base from (0, 0) to (base, 0).
+  const ax = (base * base + left * left - right * right) / (2 * base);
+  const ay = Math.sqrt(Math.max(left * left - ax * ax, 0));
+  const minX = Math.min(0, ax);
+  const maxX = Math.max(base, ax);
+  const room = { w: W - 320, h: H - top - 110 };
+  const scale = Math.min(room.w / (maxX - minX), room.h / ay);
+  const x0 = (W - (maxX - minX) * scale) / 2 - minX * scale;
+  const y0 = top + (H - top + ay * scale) / 2 - 20;
+  const A = { x: x0, y: y0 };
+  const B = { x: x0 + base * scale, y: y0 };
+  const C = { x: x0 + ax * scale, y: y0 - ay * scale };
+  const unit = v.unit ? ` ${v.unit}` : "";
+  const label = (i) => v.labels?.[i] ?? `${show(v.sides[i])}${unit}`;
+  const mid = (p, q) => ({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 });
+  const l = mid(A, C);
+  const r = mid(B, C);
+
+  // A small square in the corner where two sides meet at a right angle.
+  const square = (at, p, q) => {
+    const step = (to) => {
+      const d = Math.hypot(to.x - at.x, to.y - at.y);
+      return { x: ((to.x - at.x) / d) * 16, y: ((to.y - at.y) / d) * 16 };
+    };
+    const u = step(p);
+    const w = step(q);
+    return `<path d="M ${at.x + u.x} ${at.y + u.y} l ${w.x} ${w.y} l ${-u.x} ${-u.y}" fill="none" stroke="${INK}" stroke-width="1.5"/>`;
+  };
+  const isRight = (a, b, c) => Math.abs(a * a + b * b - c * c) < 1e-6 * c * c;
+  const corner = isRight(base, left, right)
+    ? square(A, B, C)
+    : isRight(base, right, left)
+      ? square(B, A, C)
+      : isRight(left, right, base)
+        ? square(C, A, B)
+        : "";
+
+  return (
+    `<path d="M ${A.x} ${A.y} L ${B.x} ${B.y} L ${C.x} ${C.y} Z" fill="none" stroke="${INK}" stroke-width="2" stroke-linejoin="round"/>` +
+    corner +
+    text((A.x + B.x) / 2, A.y + 30, label(0), { size: 20, weight: 600 }) +
+    text(l.x - 12, l.y, label(1), { size: 20, anchor: "end", weight: 600, room: l.x - 24 }) +
+    text(r.x + 12, r.y, label(2), { size: 20, anchor: "start", weight: 600, room: W - r.x - 24 })
+  );
+}
+
 const KINDS = {
   exercise,
   fraction_bars: fractionBars,
@@ -321,6 +374,7 @@ const KINDS = {
   table,
   bar_chart: barChart,
   rectangle,
+  triangle,
 };
 
 /** The visual as an SVG document. Throws on a kind it does not know. */

@@ -19,7 +19,8 @@
         "counters",
         "table",
         "bar_chart",
-        "rectangle"
+        "rectangle",
+        "triangle"
       ]
     },
     "title": {
@@ -226,7 +227,28 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 8,
-      "description": "rectangle: the unit of its sides, such as cm."
+      "description": "rectangle and triangle: the unit of the sides, such as cm."
+    },
+    "sides": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "number",
+        "exclusiveMinimum": 0
+      },
+      "description": "triangle: the lengths of its three sides, in this order: the base, the left side, the right side. It is drawn to scale, so the longest must be shorter than the other two together. A right angle is marked when the lengths make one (3, 4, 5)."
+    },
+    "labels": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 12
+      },
+      "description": "triangle: what to write next to each side instead of its length, in the same order as sides. Use it to hide the side you are asking for (\"?\") or to name sides (\"a\")."
     }
   },
   "allOf": [
@@ -385,6 +407,23 @@
         "required": [
           "width",
           "height"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "triangle"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "required": [
+          "sides"
         ]
       }
     }

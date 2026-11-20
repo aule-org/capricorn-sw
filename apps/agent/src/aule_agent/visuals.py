@@ -27,7 +27,8 @@ DESCRIPTION = (
     "fractions; number_line needs "
     "from, to and step (marks and jumps are optional); dot_array needs rows and columns; "
     "counters needs groups (each a count and a fill, solid or open, for a bag of things); "
-    "table needs headers and cells; bar_chart needs bars; rectangle needs width and height. "
+    "table needs headers and cells; bar_chart needs bars; rectangle needs width and height; "
+    "triangle needs sides (base, left, right; labels can replace a length with ? or a name). "
     "title is optional for every kind."
 )
 
@@ -62,6 +63,10 @@ def problems(visual: object) -> list[str]:
     if not found and isinstance(visual, dict) and visual.get("kind") == "number_line":
         if not visual["to"] > visual["from"]:
             found.append("to must be greater than from")
+    if not found and isinstance(visual, dict) and visual.get("kind") == "triangle":
+        longest = max(visual["sides"])
+        if longest >= sum(visual["sides"]) - longest:
+            found.append("those sides do not make a triangle: the longest is too long")
     return found
 
 

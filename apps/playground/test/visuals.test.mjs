@@ -139,3 +139,17 @@ test("long text is made smaller until it fits, never cut", () => {
   // A short one keeps its large size.
   assert.match(renderVisual({ kind: "exercise", lines: ["3/4 + 1/4 = ?"] }), /font-size="44"/);
 });
+
+test("a triangle is drawn to scale, marks a right angle and can hide a side", () => {
+  const svg = renderVisual({ kind: "triangle", sides: [4, 3, 5], labels: ["4 cm", "3 cm", "?"] });
+  const paths = count(svg, "path");
+  assert.match(svg, />4 cm</);
+  assert.match(svg, />\?</);
+  assert.doesNotMatch(svg, />5</, "the hidden side's length is not written");
+
+  const plain = renderVisual({ kind: "triangle", sides: [6, 5, 5], unit: "cm" });
+  assert.equal(paths - count(plain, "path"), 1, "only the first has a right angle to mark");
+  assert.match(plain, />6 cm</);
+
+  assert.throws(() => renderVisual({ kind: "triangle", sides: [1, 2, 10] }), /do not make a triangle/);
+});

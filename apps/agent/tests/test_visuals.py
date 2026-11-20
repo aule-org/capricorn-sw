@@ -55,6 +55,8 @@ def test_there_is_an_example_of_every_kind():
         {"kind": "counters", "groups": [{"count": 2, "fill": "striped"}]},
         {"kind": "exercise", "lines": ["2 + 2 = ?"], "html": "<b>x</b>"},
         {"kind": "number_line", "from": 10, "to": 0, "step": 1},
+        {"kind": "triangle"},
+        {"kind": "triangle", "sides": [1, 2, 10]},
         "fraction bars please",
         None,
     ],
