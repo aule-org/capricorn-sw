@@ -91,6 +91,51 @@ test("an odd address is answered, and the server stays up", async () => {
   assert.equal((await fetch(`${base}/healthz`)).status, 200);
 });
 
+test("panel aliases keep the query and reach the panel without a trailing slash", async () => {
+  const origin = new URL(base).origin;
+  for (const path of ["/admin", "/admin/", "/playground/admin/"]) {
+    for (const method of ["GET", "HEAD"]) {
+      const response = await fetch(`${origin}${path}?view=usage`, { method, redirect: "manual" });
+      assert.equal(response.status, 308, `${method} ${path}`);
+      assert.equal(response.headers.get("location"), "/playground/admin?view=usage");
+      assert.equal(response.headers.get("cache-control"), "no-store");
+      const panel = await fetch(new URL(response.headers.get("location")!, origin), { method });
+      assert.equal(panel.status, 200);
+      const body = await panel.text();
+      if (method === "HEAD") assert.equal(body, "");
+      else assert.match(body, /Panel del equipo/);
+    }
+  }
+  const api = await fetch(`${base}/api/admin/families`);
+  assert.equal(api.status, 404, "without a platform the admin API remains unavailable");
+  const bare = await fetch(`${base}?signin=cancelled`, { redirect: "manual" });
+  assert.equal(bare.headers.get("location"), "/playground/?signin=cancelled");
+});
+
+test("missing page visits return home, while API, file and write errors stay errors", async () => {
+  const origin = new URL(base).origin;
+  const headers = { Accept: "text/html,application/xhtml+xml" };
+  for (const path of ["/old-page", "/playground/old-page"]) {
+    const response = await fetch(`${origin}${path}?next=https://example.org`, { headers, redirect: "manual" });
+    assert.equal(response.status, 302);
+    assert.equal(response.headers.get("location"), "/playground/");
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.match(response.headers.get("content-security-policy") ?? "", /default-src 'none'/);
+  }
+  for (const path of ["/api/missing", "/playground/api/missing", "/playground/api", "/playground/missing.js"]) {
+    const response = await fetch(origin + path, { headers, redirect: "manual" });
+    assert.equal(response.status, 404, path);
+    assert.equal(response.headers.get("location"), null);
+    assert.deepEqual(await response.json(), { error: "not_found" });
+  }
+  for (const path of ["/admin/", "/playground/admin/", "/old-page", "/playground/old-page"]) {
+    const response = await fetch(origin + path, { method: "POST", headers, redirect: "manual" });
+    assert.equal(response.status, 404, path);
+    assert.equal(response.headers.get("location"), null);
+  }
+  assert.equal((await fetch(`${base}/old-page`, { redirect: "manual" })).status, 404);
+});
+
 test("refuses a wrong or missing code", async () => {
   for (const body of [{ code: "nope" }, {}, { code: 42 }]) {
     const response = await start(body);
@@ -252,6 +297,11 @@ test("served at the root, the page and its health probe still answer", async () 
     // probe itself, not the page.
     assert.deepEqual(await (await fetch(`${origin}//healthz`)).json(), { ok: true });
     assert.equal(await raw(root, "//"), 200);
+    const panel = await fetch(`${origin}/admin/`, { redirect: "manual" });
+    assert.equal(panel.headers.get("location"), "/admin");
+    assert.equal((await fetch(`${origin}/admin`)).status, 200);
+    const missing = await fetch(`${origin}/old-page`, { headers: { Accept: "text/html" }, redirect: "manual" });
+    assert.equal(missing.headers.get("location"), "/");
   } finally {
     root.close();
   }
