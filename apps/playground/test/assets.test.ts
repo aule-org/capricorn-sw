@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { after, before, test } from "node:test";
 
-import { fingerprint, rewrite, stillFresh } from "../src/assets.ts";
+import { fingerprint, keptUntilEdited, loadAssets, rewrite, stillFresh } from "../src/assets.ts";
 import { readSettings } from "../src/config.ts";
 import { createPlayground } from "../src/server.ts";
 import { COMPLETE } from "./fixtures.ts";
@@ -21,9 +24,7 @@ const versionOf = (text: string, name: string) =>
   text.match(new RegExp(`${name.replace(/\./g, "\\.")}\\?v=([0-9a-f]{12})`))?.[1];
 
 test("the page points at fingerprinted files, and those are kept for a year", async () => {
-  const page = await fetch(`${base}/`);
-  assert.equal(page.headers.get("cache-control"), "no-cache");
-  const html = await page.text();
+  const html = await (await fetch(`${base}/`)).text();
 
   const css = versionOf(html, "style.css");
   assert.ok(css, "the stylesheet is fingerprinted");
@@ -81,11 +82,23 @@ test("without the right version a file is checked every time, and a match is a 3
   assert.equal(again.status, 304);
   assert.match(again.headers.get("content-security-policy") ?? "", /default-src 'none'/);
   assert.equal(await again.text(), "");
+});
 
-  const page = await fetch(`${base}/`);
-  const pageTag = page.headers.get("etag");
-  await page.arrayBuffer();
-  assert.equal((await fetch(`${base}/`, { headers: { "If-None-Match": pageTag ?? "" } })).status, 304);
+test("a page is never kept, not even asked for at its own hash", async () => {
+  // Kept, Back after signing out would bring the signed-in page back whole,
+  // and an address with the page's hash would pin it for a year.
+  for (const path of ["/", "/admin"]) {
+    const page = await fetch(`${base}${path}`);
+    assert.equal(page.headers.get("cache-control"), "no-store", path);
+    assert.equal(page.headers.get("etag"), null, path);
+    const hash = fingerprint(Buffer.from(await page.arrayBuffer()));
+    const pinned = await fetch(`${base}${path}?v=${hash}`);
+    assert.equal(pinned.headers.get("cache-control"), "no-store", `${path}?v=<its hash>`);
+    await pinned.arrayBuffer();
+    const checked = await fetch(`${base}${path}`, { headers: { "If-None-Match": `"${hash}"` } });
+    assert.equal(checked.status, 200, `${path} is sent whole`);
+    await checked.arrayBuffer();
+  }
 });
 
 test("answers about people are never kept", async () => {
@@ -105,7 +118,63 @@ test("rewrite versions whole names in quotes and url(), and nothing else", () =>
   assert.equal(rewrite(`<script src="app.js"></script>`, versions), `<script src="app.js?v=aaa"></script>`);
   assert.equal(rewrite(`import { x } from "./app.js";`, versions), `import { x } from "./app.js?v=aaa";`);
   assert.equal(rewrite(`background: url("wall.png");`, versions), `background: url("wall.png?v=bbb");`);
+  assert.equal(
+    rewrite(`url(wall.png) url(./wall.png) url('wall.png')`, versions),
+    `url(wall.png?v=bbb) url(./wall.png?v=bbb) url('wall.png?v=bbb')`,
+  );
   assert.equal(rewrite(`"myapp.js" 'app.json' "app.jsx"`, versions), `"myapp.js" 'app.json' "app.jsx"`);
+  assert.equal(rewrite(`// It stays at the bottom (app.js).`, versions), `// It stays at the bottom (app.js).`);
+});
+
+test("a script that names the stylesheet in a comment keeps its address when only the stylesheet changes", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "aule-assets-"));
+  try {
+    const sources = {
+      "/app.js": { file: join(dir, "app.js"), type: "text/javascript; charset=utf-8" },
+      "/style.css": { file: join(dir, "style.css"), type: "text/css; charset=utf-8" },
+    };
+    const own = new Set(["/app.js"]);
+    const script = "// On a phone the button then stays at the bottom of the screen (style.css).\n";
+    await writeFile(join(dir, "app.js"), script);
+    await writeFile(join(dir, "style.css"), "main { color: black }\n");
+    const first = await loadAssets(sources, own);
+    await writeFile(join(dir, "style.css"), "main { color: brown }\n");
+    const second = await loadAssets(sources, own);
+
+    assert.notEqual(second.get("/style.css")?.hash, first.get("/style.css")?.hash);
+    assert.equal(second.get("/app.js")?.hash, first.get("/app.js")?.hash, "families keep the script they have");
+    assert.equal(second.get("/app.js")?.body.toString(), script);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("the files are read once, and again after an edit in their folder", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "aule-assets-"));
+  const file = join(dir, "style.css");
+  await writeFile(file, "black");
+  let reads = 0;
+  const kept = keptUntilEdited(dir, () => {
+    reads += 1;
+    return readFile(file, "utf8");
+  });
+  try {
+    assert.equal(kept.get(), kept.get(), "asked twice, read once");
+    assert.equal(await kept.get(), "black");
+    assert.equal(reads, 1);
+
+    await writeFile(file, "brown");
+    // The system tells of the edit a moment later.
+    let seen = await kept.get();
+    for (let wait = 0; seen !== "brown" && wait < 150; wait += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      seen = await kept.get();
+    }
+    assert.equal(seen, "brown");
+  } finally {
+    kept.close();
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 test("an ETag still matches when Cloudflare has marked it weak, or among others", () => {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import type { AddressInfo } from "node:net";
-import { createServer, request as httpRequest } from "node:http";
+import { connect, type AddressInfo } from "node:net";
+import { createServer, type Server } from "node:http";
 import { after, before, test } from "node:test";
 
 import { TokenVerifier } from "livekit-server-sdk";
@@ -26,6 +26,21 @@ const start = (body: unknown) =>
     body: typeof body === "string" ? body : JSON.stringify(body),
   });
 
+// A GET with the target exactly as written (fetch would tidy it first), and
+// the status it gets. A server that threw never answers, hence the timeout.
+const raw = (to: Server, target: string) =>
+  new Promise<number>((resolve, reject) => {
+    const socket = connect((to.address() as AddressInfo).port, "127.0.0.1", () =>
+      socket.write(`GET ${target} HTTP/1.1\r\nHost: playground\r\nConnection: close\r\n\r\n`),
+    );
+    let reply = "";
+    socket.setEncoding("utf8");
+    socket.setTimeout(2_000, () => socket.destroy(new Error(`no answer to ${target}`)));
+    socket.on("data", (chunk: string) => (reply += chunk));
+    socket.on("end", () => resolve(Number(reply.split(" ")[1])));
+    socket.on("error", reject);
+  });
+
 test("serves the page and its scripts with a strict policy", async () => {
   for (const path of [
     "/",
@@ -41,36 +56,18 @@ test("serves the page and its scripts with a strict policy", async () => {
     const response = await fetch(base + path);
     assert.equal(response.status, 200, path);
     assert.match(response.headers.get("content-security-policy") ?? "", /default-src 'none'/);
-    // Without a fingerprint a file is checked on every load (see assets.test.ts).
-    assert.equal(response.headers.get("cache-control"), "no-cache");
-    assert.match(response.headers.get("etag") ?? "", /^"[0-9a-f]{12}"$/);
+    // The page is never kept; any other file without its fingerprint is
+    // checked on every load (see assets.test.ts).
+    if (path === "/") {
+      assert.equal(response.headers.get("cache-control"), "no-store");
+    } else {
+      assert.equal(response.headers.get("cache-control"), "no-cache", path);
+      assert.match(response.headers.get("etag") ?? "", /^"[0-9a-f]{12}"$/, path);
+    }
     await response.arrayBuffer();
   }
   const policy = (await fetch(`${base}/`)).headers.get("content-security-policy") ?? "";
   assert.match(policy, /connect-src 'self' wss:\/\/livekit\.example\.org https:\/\/livekit\.example\.org/);
-});
-
-// Sends a request target as it is: fetch would tidy "//" away.
-const raw = (path: string) =>
-  new Promise<number>((resolve, reject) => {
-    const { port } = server.address() as AddressInfo;
-    const sent = httpRequest({ host: "127.0.0.1", port, path }, (answer) => {
-      answer.resume();
-      resolve(answer.statusCode ?? 0);
-    });
-    sent.on("error", reject);
-    sent.end();
-  });
-
-test("an odd request target is answered, and the server stays up", async () => {
-  for (const path of ["//", "///", "//playground/", "//evil.example/playground/", "/playground//", "//?x=1"]) {
-    const status = await raw(path);
-    assert.ok([200, 308, 400, 404].includes(status), `${path} answered ${status}`);
-  }
-  assert.equal(await raw("//playground/"), 200);
-  const health = await fetch(`${base}/healthz`);
-  assert.equal(health.status, 200);
-  await health.arrayBuffer();
 });
 
 test("redirects the bare path and hides everything outside it", async () => {
@@ -81,6 +78,17 @@ test("redirects the bare path and hides everything outside it", async () => {
   assert.equal((await fetch(base.replace("/playground", "/"))).status, 404);
   assert.equal((await fetch(`${base}/../etc/passwd`)).status, 404);
   assert.equal((await fetch(`${base}/api/session`)).status, 405);
+});
+
+test("an odd address is answered, and the server stays up", async () => {
+  // "//" and the like once read as a host with no name and ended the process.
+  for (const target of ["//", "///", "/\\", "//?a=1", "//a:b", "//%09/example.com"]) {
+    assert.equal(await raw(server, target), 404, target);
+  }
+  // A full address that is no address at all.
+  assert.equal(await raw(server, "http://x:99999/"), 400);
+  assert.equal(await raw(server, "//playground/healthz"), 200, "doubled slashes are folded");
+  assert.equal((await fetch(`${base}/healthz`)).status, 200);
 });
 
 test("refuses a wrong or missing code", async () => {
@@ -240,8 +248,10 @@ test("served at the root, the page and its health probe still answer", async () 
   try {
     assert.equal((await fetch(`${origin}/`)).status, 200);
     assert.equal((await fetch(`${origin}/healthz`)).status, 200);
-    // What the compose healthcheck asks for when the base path is "/".
-    assert.equal((await fetch(`${origin}//healthz`)).status, 200);
+    // What the compose healthcheck asks for when the base path is "/": the
+    // probe itself, not the page.
+    assert.deepEqual(await (await fetch(`${origin}//healthz`)).json(), { ok: true });
+    assert.equal(await raw(root, "//"), 200);
   } finally {
     root.close();
   }

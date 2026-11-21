@@ -7,7 +7,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { GuessLimiter, sameCode } from "./access.ts";
-import { type Asset, cacheFor, loadAssets, stillFresh } from "./assets.ts";
+import { cacheFor, keptUntilEdited, loadAssets, stillFresh } from "./assets.ts";
 import { ConfigError, LANGUAGES, readSettings, type Language, type Settings } from "./config.ts";
 import {
   account,
@@ -166,15 +166,17 @@ async function readJson(request: IncomingMessage, limit = MAX_BODY_BYTES): Promi
   return body as Record<string, unknown>;
 }
 
-// The request's address. A target that starts with "//" reads as a
-// scheme-relative URL with an empty host, and new URL() throws on it — which,
-// outside any try, took the whole server down. The leading slashes are folded
-// first, and anything still unreadable is null.
-function targetOf(request: IncomingMessage): URL | null {
+/**
+ * The address a request asks for. Its target is a path, so a leading "//" is
+ * part of the path, not a host ("//" alone would be a host with no name, which
+ * URL refuses). A target that is still no address, like a bad port in a full
+ * one, gives nothing.
+ */
+function addressOf(target: string): URL | undefined {
   try {
-    return new URL((request.url ?? "/").replace(/^\/{2,}/, "/"), "http://playground");
+    return new URL(target.startsWith("/") ? `http://playground${target}` : target, "http://playground");
   } catch {
-    return null;
+    return undefined;
   }
 }
 
@@ -184,9 +186,10 @@ const OWN_SCRIPTS = new Set(["/app.js", "/students.js", "/signin.js", "/visuals.
 
 export function createPlayground(settings: Settings): Server {
   const headers = securityHeaders(settings);
-  // Read once, on the first request, and kept in memory.
-  let assets: Promise<Map<string, Asset>> | undefined;
-  const assetFor = async (path: string) => (await (assets ??= loadAssets(STATIC, OWN_SCRIPTS))).get(path);
+  // Read on the first request and kept in memory until a file in public/
+  // changes, so an edit to the page shows on the next reload.
+  const assets = keptUntilEdited(publicDir, () => loadAssets(STATIC, OWN_SCRIPTS));
+  const assetFor = async (path: string) => (await assets.get()).get(path);
   const limiter = new GuessLimiter();
   const daily = new DailyLimit(settings.dailySessions);
 
@@ -476,7 +479,13 @@ export function createPlayground(settings: Settings): Server {
   // GitHub, Meta and Apple: "start" sends the person there, "callback" is where
   // they come back with a code. Whatever goes wrong, they land on the page,
   // which says so; the code itself is never logged.
-  async function codeSignIn(provider: CodeProvider, step: string, request: IncomingMessage, response: ServerResponse) {
+  async function codeSignIn(
+    provider: CodeProvider,
+    step: string,
+    query: URLSearchParams,
+    request: IncomingMessage,
+    response: ServerResponse,
+  ) {
     if (!settings.platform || !settings.publicUrl) return json(response, 404, { error: "not_found" });
     const redirectUri = `${settings.publicUrl}${settings.basePath}/api/signin/${provider}/callback`;
     if (step === "start") {
@@ -493,7 +502,7 @@ export function createPlayground(settings: Settings): Server {
     }
     let answer: URLSearchParams;
     if (request.method === "GET") {
-      answer = targetOf(request)?.searchParams ?? new URLSearchParams();
+      answer = query;
     } else if (request.method === "POST" && provider === "apple") {
       try {
         answer = new URLSearchParams(await readText(request, MAX_FORM_BYTES));
@@ -525,12 +534,13 @@ export function createPlayground(settings: Settings): Server {
     }
   }
 
-  return createServer((request, response) => {
-    const target = targetOf(request);
-    if (!target) return json(response, 400, { error: "bad_request" });
+  const server = createServer((request, response) => {
+    const url = addressOf(request.url ?? "/");
+    // Refused, never thrown: here, outside handle()'s catch, a throw ends the process.
+    if (!url) return json(response, 400, { error: "bad_request" });
     // Doubled slashes are folded, so "/" as the base path and a probe of
     // "//healthz" mean the same thing.
-    const pathname = target.pathname.replace(/\/{2,}/g, "/");
+    const pathname = url.pathname.replace(/\/{2,}/g, "/");
     if (pathname === settings.basePath && settings.basePath) {
       response.writeHead(308, { ...headers, Location: `${settings.basePath}/` });
       return response.end();
@@ -545,7 +555,7 @@ export function createPlayground(settings: Settings): Server {
       if (path === "/api/account" && request.method === "GET") return whoIsHere(request, response);
       if (path.startsWith("/api/admin/")) return admin(path, request, response);
       const signingIn = SIGN_IN_PATH.exec(path);
-      if (signingIn) return codeSignIn(signingIn[1] as CodeProvider, signingIn[2]!, request, response);
+      if (signingIn) return codeSignIn(signingIn[1] as CodeProvider, signingIn[2]!, url.searchParams, request, response);
       if (
         path === "/api/signin" ||
         path === "/api/signin/email/start" ||
@@ -575,16 +585,17 @@ export function createPlayground(settings: Settings): Server {
       }
       const asset = request.method === "GET" ? await assetFor(path) : undefined;
       if (asset) {
-        // A fingerprinted address is kept for a year; anything else, the page
-        // included, is checked against its ETag on every load.
-        const version = new URL(request.url ?? "/", "http://playground").searchParams.get("v");
-        const etag = `"${asset.hash}"`;
-        const cache = { ...headers, "Cache-Control": cacheFor(asset, version), ETag: etag };
-        if (stillFresh(request.headers["if-none-match"], etag)) {
-          response.writeHead(304, cache);
+        // A fingerprinted address is kept for a year and any other file is
+        // checked against its ETag on every load. A page is never kept, so it
+        // has nothing to be checked against.
+        const cache = cacheFor(asset, url.searchParams.get("v"));
+        const etag = cache === "no-store" ? undefined : `"${asset.hash}"`;
+        const sent = { ...headers, "Cache-Control": cache, ...(etag ? { ETag: etag } : {}) };
+        if (etag && stillFresh(request.headers["if-none-match"], etag)) {
+          response.writeHead(304, sent);
           return response.end();
         }
-        response.writeHead(200, { ...cache, "Content-Type": asset.type });
+        response.writeHead(200, { ...sent, "Content-Type": asset.type });
         return response.end(asset.body);
       }
       return json(response, 404, { error: "not_found" });
@@ -598,6 +609,8 @@ export function createPlayground(settings: Settings): Server {
       else response.end();
     });
   });
+  server.on("close", () => assets.close());
+  return server;
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
