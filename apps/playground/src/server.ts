@@ -82,6 +82,11 @@ const STATIC: Record<string, { file: string | URL; type: string }> = {
   "/manta.png": { file: new URL("manta.png", publicDir), type: "image/png" },
   "/frame.png": { file: new URL("frame.png", publicDir), type: "image/png" },
   "/icon.svg": { file: new URL("icon.svg", publicDir), type: "image/svg+xml" },
+  // The cuy with glasses for a phone's home screen and for launchers.
+  "/apple-touch-icon.png": { file: new URL("apple-touch-icon.png", publicDir), type: "image/png" },
+  "/icon-192.png": { file: new URL("icon-192.png", publicDir), type: "image/png" },
+  "/icon-512.png": { file: new URL("icon-512.png", publicDir), type: "image/png" },
+  "/icon-maskable-512.png": { file: new URL("icon-maskable-512.png", publicDir), type: "image/png" },
   "/manifest.webmanifest": { file: new URL("manifest.webmanifest", publicDir), type: "application/manifest+json" },
   // The team's panel. The page is the same for anyone; its data only for the team.
   "/admin": { file: new URL("admin.html", publicDir), type: "text/html; charset=utf-8" },

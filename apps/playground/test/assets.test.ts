@@ -40,7 +40,7 @@ test("the page points at fingerprinted files, and those are kept for a year", as
     assert.equal(file.headers.get("cache-control"), YEAR, name);
     assert.equal(fingerprint(Buffer.from(await file.arrayBuffer())), version, `${name}'s version is its hash`);
   }
-  for (const name of ["livekit-client.js", "wobnimo.js", "icon.svg", "manifest.webmanifest"]) {
+  for (const name of ["livekit-client.js", "wobnimo.js", "icon.svg", "apple-touch-icon.png", "manifest.webmanifest"]) {
     assert.ok(versionOf(html, name), `${name} is fingerprinted in the page`);
   }
 });
