@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
-import { createServer } from "node:http";
+import { createServer, request as httpRequest } from "node:http";
 import { after, before, test } from "node:test";
 
 import { TokenVerifier } from "livekit-server-sdk";
@@ -46,6 +46,29 @@ test("serves the page and its scripts with a strict policy", async () => {
   }
   const policy = (await fetch(`${base}/`)).headers.get("content-security-policy") ?? "";
   assert.match(policy, /connect-src 'self' wss:\/\/livekit\.example\.org https:\/\/livekit\.example\.org/);
+});
+
+// Sends a request target as it is: fetch would tidy "//" away.
+const raw = (path: string) =>
+  new Promise<number>((resolve, reject) => {
+    const { port } = server.address() as AddressInfo;
+    const sent = httpRequest({ host: "127.0.0.1", port, path }, (answer) => {
+      answer.resume();
+      resolve(answer.statusCode ?? 0);
+    });
+    sent.on("error", reject);
+    sent.end();
+  });
+
+test("an odd request target is answered, and the server stays up", async () => {
+  for (const path of ["//", "///", "//playground/", "//evil.example/playground/", "/playground//", "//?x=1"]) {
+    const status = await raw(path);
+    assert.ok([200, 308, 400, 404].includes(status), `${path} answered ${status}`);
+  }
+  assert.equal(await raw("//playground/"), 200);
+  const health = await fetch(`${base}/healthz`);
+  assert.equal(health.status, 200);
+  await health.arrayBuffer();
 });
 
 test("redirects the bare path and hides everything outside it", async () => {

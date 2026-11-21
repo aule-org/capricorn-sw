@@ -166,6 +166,18 @@ async function readJson(request: IncomingMessage, limit = MAX_BODY_BYTES): Promi
   return body as Record<string, unknown>;
 }
 
+// The request's address. A target that starts with "//" reads as a
+// scheme-relative URL with an empty host, and new URL() throws on it — which,
+// outside any try, took the whole server down. The leading slashes are folded
+// first, and anything still unreadable is null.
+function targetOf(request: IncomingMessage): URL | null {
+  try {
+    return new URL((request.url ?? "/").replace(/^\/{2,}/, "/"), "http://playground");
+  } catch {
+    return null;
+  }
+}
+
 export function createPlayground(settings: Settings): Server {
   const headers = securityHeaders(settings);
   const limiter = new GuessLimiter();
@@ -474,7 +486,7 @@ export function createPlayground(settings: Settings): Server {
     }
     let answer: URLSearchParams;
     if (request.method === "GET") {
-      answer = new URL(request.url ?? "/", "http://playground").searchParams;
+      answer = targetOf(request)?.searchParams ?? new URLSearchParams();
     } else if (request.method === "POST" && provider === "apple") {
       try {
         answer = new URLSearchParams(await readText(request, MAX_FORM_BYTES));
@@ -507,9 +519,11 @@ export function createPlayground(settings: Settings): Server {
   }
 
   return createServer((request, response) => {
+    const target = targetOf(request);
+    if (!target) return json(response, 400, { error: "bad_request" });
     // Doubled slashes are folded, so "/" as the base path and a probe of
     // "//healthz" mean the same thing.
-    const pathname = new URL(request.url ?? "/", "http://playground").pathname.replace(/\/{2,}/g, "/");
+    const pathname = target.pathname.replace(/\/{2,}/g, "/");
     if (pathname === settings.basePath && settings.basePath) {
       response.writeHead(308, { ...headers, Location: `${settings.basePath}/` });
       return response.end();
