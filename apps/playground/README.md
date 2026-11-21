@@ -23,6 +23,12 @@ When the tutor shows something (an exercise, fraction bars, a number line...), t
 
 Put it behind a reverse proxy with HTTPS: browsers only give the microphone and the camera to secure pages.
 
+The team's panel is at `<base path>/admin`. `/admin`, `/admin/` and a trailing
+slash on the panel redirect to that address; its data still requires a team
+sign-in. An unknown page opened by a browser returns to the start page. Unknown
+API routes, files and write requests keep their error responses. These redirects
+are not cached and do not accept a destination from the request.
+
 ## What it does not do
 
 - It is not a way for children to use the tutor. The session it opens is marked as an operator's, which is the only kind the agent accepts while the safety gates are missing.

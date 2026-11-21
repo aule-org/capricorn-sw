@@ -546,12 +546,29 @@ export function createPlayground(settings: Settings): Server {
     // Doubled slashes are folded, so "/" as the base path and a probe of
     // "//healthz" mean the same thing.
     const pathname = url.pathname.replace(/\/{2,}/g, "/");
+    const reading = request.method === "GET" || request.method === "HEAD";
+    const panel = `${settings.basePath}/admin`;
+    const redirect = (status: number, location: string) => {
+      response.writeHead(status, { ...headers, Location: location });
+      response.end();
+    };
+    if (reading && (pathname === `${panel}/` || (settings.basePath && ["/admin", "/admin/"].includes(pathname)))) {
+      return redirect(308, panel + url.search);
+    }
+    const missing = () => {
+      const wantsPage = (request.headers.accept ?? "").split(",").some((type) => type.trim().split(";")[0] === "text/html");
+      const api = ["/api", `${settings.basePath}/api`].some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+      // Only a page visit comes home: missing API routes and files keep their error.
+      if (reading && wantsPage && !api && !/\/[^/]*\.[^/]*$/.test(pathname)) {
+        return redirect(302, `${settings.basePath}/`);
+      }
+      return json(response, 404, { error: "not_found" });
+    };
     if (pathname === settings.basePath && settings.basePath) {
-      response.writeHead(308, { ...headers, Location: `${settings.basePath}/` });
-      return response.end();
+      return redirect(308, `${settings.basePath}/${url.search}`);
     }
     if (!pathname.startsWith(`${settings.basePath}/`)) {
-      return json(response, 404, { error: "not_found" });
+      return missing();
     }
     const path = pathname.slice(settings.basePath.length);
 
@@ -588,7 +605,7 @@ export function createPlayground(settings: Settings): Server {
         if (path === "/api/session" && guardianToken(request)) return signedIn(path, request, response);
         return session(path, request, response);
       }
-      const asset = request.method === "GET" ? await assetFor(path) : undefined;
+      const asset = reading ? await assetFor(path) : undefined;
       if (asset) {
         // A fingerprinted address is kept for a year and any other file is
         // checked against its ETag on every load. A page is never kept, so it
@@ -603,7 +620,7 @@ export function createPlayground(settings: Settings): Server {
         response.writeHead(200, { ...sent, "Content-Type": asset.type });
         return response.end(asset.body);
       }
-      return json(response, 404, { error: "not_found" });
+      return missing();
     };
     handle().catch((error: unknown) => {
       if (error instanceof PlatformError && !response.headersSent) {
